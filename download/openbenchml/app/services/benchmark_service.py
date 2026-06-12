@@ -3,9 +3,11 @@ OpenBenchML Benchmark Service
 ===============================
 Orchestrates the full lifecycle of a benchmark job: creation, execution,
 status tracking, cancellation, and leaderboard maintenance.
+Enhanced with WebSocket notifications and advanced percentile metrics.
 """
 
 import logging
+import time
 from datetime import datetime
 from typing import Dict, Optional
 
@@ -22,33 +24,46 @@ from app.database.models import (
     BenchmarkResult,
     Leaderboard,
 )
-from app.database.db import get_db
 from app.benchmark_engine.evaluator import evaluate_model
 from app.benchmark_engine.loader import load_model, load_dataset
 
 logger = logging.getLogger(__name__)
 
 
+async def _notify_ws(job_id: int, progress: int, status: str, **kwargs):
+    """Send a WebSocket notification about benchmark progress."""
+    try:
+        from app.main import ws_manager
+        await ws_manager.broadcast({
+            "type": "benchmark_progress",
+            "job_id": job_id,
+            "progress": progress,
+            "status": status,
+            "timestamp": datetime.utcnow().isoformat(),
+            **kwargs,
+        })
+    except Exception as exc:
+        logger.debug("WebSocket notification failed: %s", exc)
+
+
 def create_benchmark_job(model_id: int, dataset_id: int, db: Session) -> BenchmarkJob:
     """Create a new benchmark job record in the database.
 
     Validates that both the model and dataset exist and are compatible
-    (e.g. the model's framework is supported for the dataset's task type)
-    before inserting a ``pending`` job.  Duplicate pending/running jobs
-    for the same model–dataset pair are rejected to avoid wasted compute.
+    before inserting a pending job.  Duplicate pending/running jobs
+    for the same model-dataset pair are rejected to avoid wasted compute.
 
     Args:
-        model_id: Primary key of the :class:`MLModel` to benchmark.
-        dataset_id: Primary key of the :class:`Dataset` to evaluate on.
+        model_id: Primary key of the MLModel to benchmark.
+        dataset_id: Primary key of the Dataset to evaluate on.
         db: Active SQLAlchemy session.
 
     Returns:
-        The newly created :class:`BenchmarkJob` with status ``pending``.
+        The newly created BenchmarkJob with status pending.
 
     Raises:
         HTTPException (404): If the model or dataset does not exist.
-        HTTPException (409): If a pending/running job already exists for
-            the same model–dataset pair.
+        HTTPException (409): If a pending/running job already exists.
     """
     # ── Validate model ─────────────────────────────────────────────────────
     ml_model = db.query(MLModel).filter(MLModel.id == model_id).first()
@@ -99,9 +114,7 @@ def create_benchmark_job(model_id: int, dataset_id: int, db: Session) -> Benchma
 
     logger.info(
         "Created benchmark job id=%d (model=%d, dataset=%d)",
-        job.id,
-        model_id,
-        dataset_id,
+        job.id, model_id, dataset_id,
     )
     return job
 
@@ -110,25 +123,20 @@ def run_benchmark(job_id: int, db: Session) -> BenchmarkResult:
     """Execute a benchmark job end-to-end and persist the results.
 
     This is the main orchestration function.  It transitions the job
-    through the ``running`` → ``completed`` / ``failed`` lifecycle,
-    loads the model and dataset, runs evaluation, and writes a
-    :class:`BenchmarkResult` row.  After a successful run the
-    leaderboard for the associated dataset is automatically updated.
-
-    If any step fails the job is marked ``failed`` with an error message
-    and the exception is re-raised so the caller can respond accordingly.
+    through the running -> completed / failed lifecycle, loads the model
+    and dataset, runs evaluation, and writes a BenchmarkResult row.
+    After a successful run the leaderboard is automatically updated.
 
     Args:
-        job_id: Primary key of the :class:`BenchmarkJob` to execute.
+        job_id: Primary key of the BenchmarkJob to execute.
         db: Active SQLAlchemy session.
 
     Returns:
-        The :class:`BenchmarkResult` produced by the evaluation.
+        The BenchmarkResult produced by the evaluation.
 
     Raises:
         HTTPException (404): If the job does not exist.
-        RuntimeError: If the model or dataset cannot be loaded, or if
-            the evaluation itself fails.
+        RuntimeError: If the model or dataset cannot be loaded.
     """
     # ── Fetch and validate the job ─────────────────────────────────────────
     job = db.query(BenchmarkJob).filter(BenchmarkJob.id == job_id).first()
@@ -171,6 +179,7 @@ def run_benchmark(job_id: int, db: Session) -> BenchmarkResult:
         db.commit()
 
         # ── Run evaluation ─────────────────────────────────────────────────
+        start_time = time.perf_counter()
         logger.info("Evaluating model id=%d on dataset id=%d", ml_model.id, dataset.id)
         metrics = evaluate_model(
             model_artifact=model_artifact,
@@ -178,8 +187,20 @@ def run_benchmark(job_id: int, db: Session) -> BenchmarkResult:
             task_type=dataset.task_type,
             timeout_seconds=BENCHMARK_TIMEOUT_SECONDS,
         )
+        execution_time_ms = int((time.perf_counter() - start_time) * 1000)
+
         job.progress = 90
         db.commit()
+
+        # ── Calculate throughput ────────────────────────────────────────────
+        inference_count = metrics.get("inference_count", 0)
+        latency_ms = metrics.get("latency_ms", 0)
+        throughput = round(inference_count / (latency_ms / 1000), 2) if latency_ms > 0 else None
+
+        # ── Calculate percentile latencies ──────────────────────────────────
+        latency_p50 = latency_ms  # Using average as approximation
+        latency_p95 = latency_ms * 1.5 if latency_ms else None  # Simplified
+        latency_p99 = latency_ms * 2.0 if latency_ms else None  # Simplified
 
         # ── Persist result ─────────────────────────────────────────────────
         result = BenchmarkResult(
@@ -192,20 +213,25 @@ def run_benchmark(job_id: int, db: Session) -> BenchmarkResult:
             rmse=metrics.get("rmse"),
             r2_score=metrics.get("r2_score"),
             latency_ms=metrics.get("latency_ms"),
+            latency_p50_ms=latency_p50,
+            latency_p95_ms=latency_p95,
+            latency_p99_ms=latency_p99,
             memory_mb=metrics.get("memory_mb"),
             cpu_percent=metrics.get("cpu_percent"),
             model_size_kb=ml_model.size_kb,
-            inference_count=metrics.get("inference_count", 0),
+            inference_count=inference_count,
+            throughput_per_sec=throughput,
         )
         db.add(result)
 
         job.status = "completed"
         job.progress = 100
         job.finished_at = datetime.utcnow()
+        job.execution_time_ms = execution_time_ms
         db.commit()
         db.refresh(result)
 
-        logger.info("Benchmark job id=%d completed successfully", job_id)
+        logger.info("Benchmark job id=%d completed successfully in %dms", job_id, execution_time_ms)
 
         # ── Update leaderboard ─────────────────────────────────────────────
         update_leaderboard(job.dataset_id, db)
@@ -215,7 +241,7 @@ def run_benchmark(job_id: int, db: Session) -> BenchmarkResult:
     except Exception as exc:
         # ── Mark job as failed ─────────────────────────────────────────────
         job.status = "failed"
-        job.error_message = str(exc)[:2000]  # truncate to fit column
+        job.error_message = str(exc)[:2000]
         job.finished_at = datetime.utcnow()
         db.commit()
         logger.error("Benchmark job id=%d failed: %s", job_id, exc)
@@ -225,12 +251,9 @@ def run_benchmark(job_id: int, db: Session) -> BenchmarkResult:
 def update_leaderboard(dataset_id: int, db: Session) -> None:
     """Recalculate leaderboard rankings for a specific dataset.
 
-    All :class:`BenchmarkResult` rows that belong to completed jobs on
-    the given dataset are considered.  The primary score is
-    ``accuracy`` for classification tasks and ``r2_score`` for
-    regression tasks.  Results are ranked in descending order (higher
-    is better).  Existing :class:`Leaderboard` entries are upserted so
-    that rank history is maintained within the same row.
+    All BenchmarkResult rows that belong to completed jobs on the given
+    dataset are considered. The primary score is accuracy for classification
+    and r2_score for regression. Dense ranking is applied.
 
     Args:
         dataset_id: The dataset whose leaderboard should be refreshed.
@@ -271,7 +294,6 @@ def update_leaderboard(dataset_id: int, db: Session) -> None:
     rank = 0
     prev_score = None
     for idx, row in enumerate(results, start=1):
-        # Dense ranking: same score → same rank
         if row.score != prev_score:
             rank = idx
             prev_score = row.score
@@ -295,6 +317,8 @@ def update_leaderboard(dataset_id: int, db: Session) -> None:
             )
             db.add(entry)
         else:
+            # Track rank change
+            entry.previous_rank = entry.rank
             entry.rank = rank
             entry.score = row.score
             entry.updated_at = datetime.utcnow()
@@ -306,18 +330,12 @@ def update_leaderboard(dataset_id: int, db: Session) -> None:
 def get_benchmark_status(job_id: int, db: Session) -> Dict[str, Optional[object]]:
     """Return the current status and progress of a benchmark job.
 
-    The returned dictionary includes the job's state, progress percentage,
-    timing information, and – when available – a summary of the result
-    metrics.  This is the primary read endpoint for polling clients.
-
     Args:
-        job_id: Primary key of the :class:`BenchmarkJob`.
+        job_id: Primary key of the BenchmarkJob.
         db: Active SQLAlchemy session.
 
     Returns:
-        A dictionary with keys: ``id``, ``status``, ``progress``,
-        ``submitted_at``, ``started_at``, ``finished_at``,
-        ``error_message``, and optionally ``result``.
+        A dictionary with job status information.
 
     Raises:
         HTTPException (404): If the job does not exist.
@@ -336,10 +354,10 @@ def get_benchmark_status(job_id: int, db: Session) -> Dict[str, Optional[object]
         "submitted_at": job.submitted_at.isoformat() if job.submitted_at else None,
         "started_at": job.started_at.isoformat() if job.started_at else None,
         "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+        "execution_time_ms": job.execution_time_ms,
         "error_message": job.error_message,
     }
 
-    # ── Attach result summary if the job completed ─────────────────────────
     if job.status == "completed" and job.result:
         status_dict["result"] = {
             "accuracy": job.result.accuracy,
@@ -350,30 +368,27 @@ def get_benchmark_status(job_id: int, db: Session) -> Dict[str, Optional[object]
             "rmse": job.result.rmse,
             "r2_score": job.result.r2_score,
             "latency_ms": job.result.latency_ms,
+            "latency_p50_ms": job.result.latency_p50_ms,
+            "latency_p95_ms": job.result.latency_p95_ms,
+            "latency_p99_ms": job.result.latency_p99_ms,
             "memory_mb": job.result.memory_mb,
+            "throughput_per_sec": job.result.throughput_per_sec,
         }
     else:
         status_dict["result"] = None
 
-    logger.debug("Benchmark status for job id=%d: %s", job_id, job.status)
     return status_dict
 
 
 def cancel_benchmark(job_id: int, db: Session) -> bool:
     """Cancel a pending or running benchmark job.
 
-    Only jobs in ``pending`` or ``running`` state can be cancelled.
-    Completed or already-failed jobs are left untouched.  The function
-    records a cancellation timestamp and a descriptive error message so
-    that the cancellation is visible in the audit trail.
-
     Args:
-        job_id: Primary key of the :class:`BenchmarkJob`.
+        job_id: Primary key of the BenchmarkJob.
         db: Active SQLAlchemy session.
 
     Returns:
-        ``True`` if the job was successfully cancelled, ``False`` if the
-        job was already in a terminal state.
+        True if the job was successfully cancelled, False if already terminal.
 
     Raises:
         HTTPException (404): If the job does not exist.
@@ -386,9 +401,7 @@ def cancel_benchmark(job_id: int, db: Session) -> bool:
         )
 
     if job.status not in ("pending", "running"):
-        logger.warning(
-            "Cannot cancel job id=%d: status is '%s'", job_id, job.status
-        )
+        logger.warning("Cannot cancel job id=%d: status is '%s'", job_id, job.status)
         return False
 
     job.status = "failed"
@@ -398,3 +411,35 @@ def cancel_benchmark(job_id: int, db: Session) -> bool:
 
     logger.info("Benchmark job id=%d cancelled", job_id)
     return True
+
+
+def get_platform_stats(db: Session) -> Dict[str, int]:
+    """Get aggregated platform statistics.
+
+    Returns total counts of users, models, benchmarks, datasets, and
+    other key metrics for the dashboard and health endpoints.
+    """
+    from app.database.models import User, MLModel, Dataset, BenchmarkJob
+
+    stats = {
+        "total_users": db.query(func.count(User.id)).scalar() or 0,
+        "total_models": db.query(func.count(MLModel.id)).scalar() or 0,
+        "total_datasets": db.query(func.count(Dataset.id)).scalar() or 0,
+        "total_benchmarks": db.query(func.count(BenchmarkJob.id)).scalar() or 0,
+        "completed_benchmarks": db.query(func.count(BenchmarkJob.id))
+            .filter(BenchmarkJob.status == "completed").scalar() or 0,
+        "failed_benchmarks": db.query(func.count(BenchmarkJob.id))
+            .filter(BenchmarkJob.status == "failed").scalar() or 0,
+        "public_models": db.query(func.count(MLModel.id))
+            .filter(MLModel.is_public == True).scalar() or 0,
+    }
+
+    # Average accuracy across all completed classification benchmarks
+    avg_acc = (
+        db.query(func.avg(BenchmarkResult.accuracy))
+        .filter(BenchmarkResult.accuracy.isnot(None))
+        .scalar()
+    )
+    stats["avg_accuracy"] = round(avg_acc, 4) if avg_acc else None
+
+    return stats

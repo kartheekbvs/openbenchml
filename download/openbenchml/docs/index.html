@@ -3,364 +3,2031 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="OpenBenchML - Open Source ML Model Benchmarking Platform. Compare, evaluate, and benchmark machine learning models with Docker sandboxing, real-time leaderboards, and a powerful REST API.">
+    <meta name="keywords" content="ML benchmarking, machine learning, model evaluation, open source, FastAPI, Docker">
+    <meta name="author" content="Kartheek BVS">
+    <meta property="og:title" content="OpenBenchML - Open Source ML Model Benchmarking Platform">
+    <meta property="og:description" content="Compare, evaluate, and benchmark machine learning models with Docker sandboxing, real-time leaderboards, and a powerful REST API.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://kartheekbvs.github.io/openbenchml/">
     <title>OpenBenchML — Open Source ML Model Benchmarking Platform</title>
-    <meta name="description" content="Benchmark, Compare, and Rank Machine Learning Models. An open-source platform for ML model evaluation with Docker sandbox execution.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root{--bg:#0a0f1c;--bg2:#111827;--card:#1a2235;--text:#f1f5f9;--text2:#94a3b8;--muted:#64748b;--accent:#3b82f6;--green:#22c55e;--cyan:#06b6d4;--yellow:#eab308;--red:#ef4444;--purple:#a855f7;--border:#1e293b;--border2:#334155;--radius:12px;--sans:'Inter',sans-serif;--mono:'JetBrains Mono',monospace}
-        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-        html{scroll-behavior:smooth}
-        body{font-family:var(--sans);background:var(--bg);color:var(--text);line-height:1.7;-webkit-font-smoothing:antialiased}
-        a{color:var(--accent);text-decoration:none;transition:.2s}
-        a:hover{color:#2563eb}
-        .container{max-width:1200px;margin:0 auto;padding:0 24px}
-
-        /* Navbar */
-        .navbar{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(10,15,28,.85);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 24px}
-        .navbar-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;height:64px}
-        .navbar-brand{font-size:1.3rem;font-weight:800;background:linear-gradient(135deg,var(--accent),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-        .navbar-links{display:flex;gap:28px;align-items:center}
-        .navbar-links a{color:var(--text2);font-size:.9rem;font-weight:500}
-        .navbar-links a:hover{color:var(--text)}
-        .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;border-radius:8px;font-weight:600;font-size:.9rem;border:none;cursor:pointer;transition:.25s;text-decoration:none}
-        .btn-primary{background:linear-gradient(135deg,var(--accent),#6366f1);color:#fff;box-shadow:0 4px 20px rgba(59,130,246,.3)}
-        .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(59,130,246,.3);color:#fff}
-        .btn-outline{background:transparent;color:var(--text);border:1px solid var(--border2)}
-        .btn-outline:hover{background:var(--card);border-color:var(--accent);color:var(--text)}
-
-        /* Hero */
-        .hero{min-height:100vh;display:flex;align-items:center;justify-content:center;position:relative;padding:120px 24px 80px;overflow:hidden}
-        .hero::before{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(ellipse at 30% 50%,rgba(59,130,246,.08) 0%,transparent 60%),radial-gradient(ellipse at 70% 50%,rgba(6,182,212,.06) 0%,transparent 60%);animation:pulse 8s ease-in-out infinite alternate}
-        @keyframes pulse{0%{opacity:.5}100%{opacity:1}}
-        .hero-content{text-align:center;position:relative;z-index:1;max-width:800px}
-        .hero-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:999px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.3);color:var(--accent);font-size:.85rem;font-weight:500;margin-bottom:24px}
-        .hero h1{font-size:clamp(2.5rem,6vw,4.5rem);font-weight:900;line-height:1.1;margin-bottom:20px;background:linear-gradient(135deg,#f1f5f9,var(--accent),var(--cyan),var(--green));background-size:300% 300%;-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;animation:shift 6s ease infinite}
-        @keyframes shift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
-        .hero p{font-size:1.2rem;color:var(--text2);max-width:600px;margin:0 auto 36px;line-height:1.8}
-        .hero-cta{display:flex;gap:16px;justify-content:center;flex-wrap:wrap}
-
-        /* Sections */
-        .section{padding:100px 24px}
-        .section-header{text-align:center;margin-bottom:60px}
-        .section-header h2{font-size:2.2rem;font-weight:800;margin-bottom:12px}
-        .section-header p{color:var(--text2);font-size:1.1rem;max-width:600px;margin:0 auto}
-        .section-label{display:inline-block;font-size:.8rem;font-weight:600;color:var(--accent);text-transform:uppercase;letter-spacing:2px;margin-bottom:8px}
-
-        /* Features */
-        .features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:24px}
-        .feature-card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:32px;transition:.3s;position:relative;overflow:hidden}
-        .feature-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent),var(--cyan));opacity:0;transition:.3s}
-        .feature-card:hover{transform:translateY(-4px);border-color:var(--accent);box-shadow:0 8px 40px rgba(59,130,246,.1)}
-        .feature-card:hover::before{opacity:1}
-        .feature-icon{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin-bottom:16px}
-        .icon-blue{background:rgba(59,130,246,.15);color:var(--accent)}
-        .icon-green{background:rgba(34,197,94,.15);color:var(--green)}
-        .icon-cyan{background:rgba(6,182,212,.15);color:var(--cyan)}
-        .icon-yellow{background:rgba(234,179,8,.15);color:var(--yellow)}
-        .icon-red{background:rgba(239,68,68,.15);color:var(--red)}
-        .icon-purple{background:rgba(168,85,247,.15);color:var(--purple)}
-        .feature-card h3{font-size:1.15rem;font-weight:700;margin-bottom:8px}
-        .feature-card p{color:var(--text2);font-size:.95rem;line-height:1.7}
-
-        /* Architecture */
-        .arch-container{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:40px;overflow-x:auto}
-        .arch-code{font-family:var(--mono);font-size:.85rem;line-height:1.8;color:var(--text2);white-space:pre}
-        .arch-code .hl{color:var(--accent);font-weight:600}
-        .arch-code .cmt{color:var(--muted)}
-
-        /* Leaderboard */
-        .lb-preview{background:var(--card);border:1px solid var(--border);border-radius:20px;overflow:hidden}
-        .lb-header{padding:20px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
-        .lb-header h3{font-size:1.1rem;font-weight:700}
-        table{width:100%;border-collapse:collapse}
-        th{padding:12px 16px;text-align:left;font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;font-weight:600;background:rgba(0,0,0,.2)}
-        td{padding:14px 16px;border-top:1px solid var(--border);font-size:.9rem}
-        tr:hover td{background:rgba(59,130,246,.03)}
-        .rank-badge{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;font-weight:700;font-size:.8rem}
-        .rank-1{background:rgba(255,215,0,.15);color:#FFD700}
-        .rank-2{background:rgba(192,192,192,.15);color:#C0C0C0}
-        .rank-3{background:rgba(205,127,50,.15);color:#CD7F32}
-        .rank-n{background:rgba(100,116,139,.15);color:var(--muted)}
-        .score{font-weight:600;color:var(--green)}
-        .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.75rem;font-weight:600}
-        .badge-blue{background:rgba(59,130,246,.15);color:var(--accent)}
-        .badge-cyan{background:rgba(6,182,212,.15);color:var(--cyan)}
-        .badge-green{background:rgba(34,197,94,.15);color:var(--green)}
-
-        /* Tech Stack */
-        .tech-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}
-        .tech-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;text-align:center;transition:.3s}
-        .tech-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 4px 20px rgba(59,130,246,.1)}
-        .tech-card .emoji{font-size:2rem;margin-bottom:8px;display:block}
-        .tech-card .name{font-weight:700;font-size:.95rem;margin-bottom:4px}
-        .tech-card .desc{font-size:.8rem;color:var(--muted)}
-
-        /* Stats */
-        .stats-bar{background:var(--bg2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:48px 24px}
-        .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;max-width:1000px;margin:0 auto}
-        .stat-item{text-align:center}
-        .stat-value{font-size:2.5rem;font-weight:900;background:linear-gradient(135deg,var(--accent),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-        .stat-label{font-size:.9rem;color:var(--muted);margin-top:4px}
-
-        /* Quickstart */
-        .qs-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:24px}
-        .qs-card{background:var(--card);border:1px solid var(--border);border-radius:20px;overflow:hidden}
-        .qs-card .card-hd{padding:16px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
-        .qs-card .card-hd h3{font-size:1rem;font-weight:600}
-        .qs-card .card-bd{padding:24px}
-        .code-block{background:rgba(0,0,0,.4);border-radius:8px;padding:16px;font-family:var(--mono);font-size:.85rem;line-height:1.8;overflow-x:auto;color:var(--text2)}
-        .code-block .cmd{color:var(--green)}
-        .code-block .cmt{color:var(--muted)}
-        .code-block .str{color:var(--yellow)}
-
-        /* Roadmap */
-        .roadmap{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px}
-        .rm-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;position:relative}
-        .rm-card .week{font-family:var(--mono);font-size:.8rem;color:var(--accent);font-weight:600;margin-bottom:8px}
-        .rm-card h4{font-size:.95rem;font-weight:700;margin-bottom:8px}
-        .rm-card p{font-size:.85rem;color:var(--text2);line-height:1.6}
-        .rm-card.done{border-color:var(--green)}
-        .rm-card.done::after{content:'';position:absolute;top:12px;right:12px;width:8px;height:8px;border-radius:50%;background:var(--green)}
-
-        /* Footer */
-        .footer{background:var(--bg2);border-top:1px solid var(--border);padding:48px 24px}
-        .footer-inner{max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px}
-        .footer-text{color:var(--muted);font-size:.9rem}
-        .footer-links{display:flex;gap:24px}
-        .footer-links a{color:var(--text2);font-size:.9rem}
-        .footer-links a:hover{color:var(--accent)}
-
-        /* Responsive */
-        @media(max-width:768px){
-            .navbar-links .desktop-only{display:none}
-            .hero h1{font-size:2.2rem}.hero p{font-size:1rem}
-            .features-grid,.qs-grid{grid-template-columns:1fr}
-            .stats-grid{grid-template-columns:repeat(2,1fr)}
-            .roadmap{grid-template-columns:1fr 1fr}
-            .tech-grid{grid-template-columns:repeat(2,1fr)}
-            table{font-size:.8rem}th,td{padding:10px 12px}
+        /* ========== CSS RESET & BASE ========== */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        .fade-in{opacity:0;transform:translateY(20px);animation:fi .6s ease forwards}
-        @keyframes fi{to{opacity:1;transform:translateY(0)}}
-        .d1{animation-delay:.1s}.d2{animation-delay:.2s}.d3{animation-delay:.3s}.d4{animation-delay:.4s}.d5{animation-delay:.5s}.d6{animation-delay:.6s}
+
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #0f172a;
+            --bg-card: #1e293b;
+            --bg-card-hover: #263548;
+            --bg-code: #0d1117;
+            --accent: #3b82f6;
+            --accent-light: #60a5fa;
+            --accent-dark: #2563eb;
+            --accent-glow: rgba(59, 130, 246, 0.3);
+            --accent-glow-strong: rgba(59, 130, 246, 0.5);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --border: #334155;
+            --border-light: #475569;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --purple: #8b5cf6;
+            --cyan: #06b6d4;
+            --pink: #ec4899;
+            --font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+            --radius-sm: 6px;
+            --radius-md: 10px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 20px rgba(0,0,0,0.4);
+            --shadow-lg: 0 8px 40px rgba(0,0,0,0.5);
+            --shadow-glow: 0 0 30px rgba(59, 130, 246, 0.15);
+            --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        html {
+            scroll-behavior: smooth;
+            font-size: 16px;
+        }
+
+        body {
+            font-family: var(--font-body);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        a {
+            color: var(--accent-light);
+            text-decoration: none;
+            transition: color var(--transition);
+        }
+
+        a:hover {
+            color: var(--accent);
+        }
+
+        ::selection {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* ========== SCROLLBAR ========== */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--border-light);
+        }
+
+        /* ========== NAVIGATION ========== */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            padding: 0 2rem;
+            height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid transparent;
+            transition: all var(--transition);
+        }
+
+        .navbar.scrolled {
+            border-bottom-color: var(--border);
+            background: rgba(15, 23, 42, 0.95);
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--text-primary);
+        }
+
+        .nav-brand svg {
+            width: 28px;
+            height: 28px;
+        }
+
+        .nav-brand span {
+            background: linear-gradient(135deg, var(--accent-light), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-links {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: color var(--transition);
+            position: relative;
+        }
+
+        .nav-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--accent);
+            transition: width var(--transition);
+        }
+
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+
+        .nav-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 18px;
+            background: var(--accent);
+            color: white !important;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all var(--transition);
+        }
+
+        .nav-cta:hover {
+            background: var(--accent-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px var(--accent-glow);
+        }
+
+        .nav-cta::after {
+            display: none !important;
+        }
+
+        .mobile-toggle {
+            display: none;
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            cursor: pointer;
+            padding: 4px;
+        }
+
+        /* ========== HERO SECTION ========== */
+        .hero {
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 6rem 2rem 4rem;
+            overflow: hidden;
+        }
+
+        .hero-bg {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .hero-gradient {
+            position: absolute;
+            width: 800px;
+            height: 800px;
+            border-radius: 50%;
+            filter: blur(120px);
+            opacity: 0.4;
+            animation: floatGradient 12s ease-in-out infinite;
+        }
+
+        .hero-gradient-1 {
+            top: -200px;
+            left: -200px;
+            background: radial-gradient(circle, var(--accent), transparent 70%);
+            animation-delay: 0s;
+        }
+
+        .hero-gradient-2 {
+            bottom: -300px;
+            right: -200px;
+            background: radial-gradient(circle, var(--purple), transparent 70%);
+            animation-delay: -4s;
+        }
+
+        .hero-gradient-3 {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, var(--cyan), transparent 70%);
+            opacity: 0.2;
+            animation-delay: -8s;
+        }
+
+        @keyframes floatGradient {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            25% { transform: translate(30px, -40px) scale(1.05); }
+            50% { transform: translate(-20px, 20px) scale(0.95); }
+            75% { transform: translate(40px, 30px) scale(1.02); }
+        }
+
+        .hero-grid {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+            -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+        }
+
+        .hero-content {
+            position: relative;
+            z-index: 1;
+            max-width: 900px;
+        }
+
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            border-radius: 100px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--accent-light);
+            margin-bottom: 2rem;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        .hero-badge-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: pulse-dot 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .hero-title {
+            font-size: clamp(2.5rem, 7vw, 5rem);
+            font-weight: 900;
+            line-height: 1.05;
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.03em;
+            animation: fadeInUp 0.8s ease-out 0.1s both;
+        }
+
+        .hero-title-gradient {
+            background: linear-gradient(135deg, #ffffff 0%, var(--accent-light) 50%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-subtitle {
+            font-size: clamp(1.05rem, 2.5vw, 1.35rem);
+            color: var(--text-secondary);
+            font-weight: 400;
+            line-height: 1.6;
+            max-width: 650px;
+            margin: 0 auto 2.5rem;
+            animation: fadeInUp 0.8s ease-out 0.2s both;
+        }
+
+        .hero-actions {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            animation: fadeInUp 0.8s ease-out 0.3s both;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 28px;
+            border-radius: var(--radius-md);
+            font-family: var(--font-body);
+            font-size: 0.95rem;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: all var(--transition);
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+            color: white;
+            box-shadow: 0 4px 20px var(--accent-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px var(--accent-glow-strong);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--border-light);
+            transform: translateY(-2px);
+            color: var(--text-primary);
+        }
+
+        .hero-stats {
+            display: flex;
+            justify-content: center;
+            gap: 3rem;
+            margin-top: 4rem;
+            padding-top: 3rem;
+            border-top: 1px solid var(--border);
+            animation: fadeInUp 0.8s ease-out 0.4s both;
+        }
+
+        .hero-stat {
+            text-align: center;
+        }
+
+        .hero-stat-value {
+            font-size: 1.75rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .hero-stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-top: 4px;
+        }
+
+        /* ========== SECTIONS ========== */
+        .section {
+            padding: 6rem 2rem;
+            position: relative;
+        }
+
+        .section-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .section-label {
+            display: inline-block;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--accent-light);
+            margin-bottom: 0.75rem;
+        }
+
+        .section-title {
+            font-size: clamp(1.75rem, 4vw, 2.75rem);
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            margin-bottom: 1rem;
+        }
+
+        .section-desc {
+            font-size: 1.05rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.7;
+        }
+
+        /* ========== FEATURES ========== */
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            transition: all var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .feature-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--accent), transparent);
+            opacity: 0;
+            transition: opacity var(--transition);
+        }
+
+        .feature-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(59, 130, 246, 0.3);
+            box-shadow: var(--shadow-glow);
+            background: var(--bg-card-hover);
+        }
+
+        .feature-card:hover::before {
+            opacity: 1;
+        }
+
+        .feature-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.25rem;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.15);
+            color: var(--accent-light);
+        }
+
+        .feature-icon svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .feature-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-desc {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* ========== QUICK START ========== */
+        .quickstart-section {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .quickstart-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        .code-block {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+        }
+
+        .code-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .code-dots {
+            display: flex;
+            gap: 6px;
+        }
+
+        .code-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+
+        .code-dot-red { background: #ef4444; }
+        .code-dot-yellow { background: #f59e0b; }
+        .code-dot-green { background: #10b981; }
+
+        .code-title {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .code-copy {
+            background: none;
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 4px 10px;
+            border-radius: var(--radius-sm);
+            font-size: 0.7rem;
+            font-family: var(--font-mono);
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+
+        .code-copy:hover {
+            border-color: var(--accent);
+            color: var(--accent-light);
+        }
+
+        .code-body {
+            padding: 1.25rem 1.5rem;
+            overflow-x: auto;
+        }
+
+        .code-body pre {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            line-height: 1.8;
+            color: var(--text-secondary);
+            white-space: pre;
+            tab-size: 4;
+        }
+
+        .code-body .comment { color: #6a9955; }
+        .code-body .keyword { color: #c586c0; }
+        .code-body .string { color: #ce9178; }
+        .code-body .command { color: #dcdcaa; }
+        .code-body .flag { color: #9cdcfe; }
+        .code-body .url { color: var(--accent-light); }
+        .code-body .method { color: #569cd6; }
+        .code-body .path { color: #4ec9b0; }
+
+        .quickstart-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .step {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+
+        .step-number {
+            flex-shrink: 0;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--accent-light);
+        }
+
+        .step-content h4 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .step-content p {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* ========== API DOCS ========== */
+        .api-endpoints {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .api-endpoint {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            transition: all var(--transition);
+        }
+
+        .api-endpoint:hover {
+            border-color: rgba(59, 130, 246, 0.3);
+        }
+
+        .api-endpoint-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            transition: background var(--transition);
+        }
+
+        .api-endpoint-header:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .api-method {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            flex-shrink: 0;
+        }
+
+        .api-method-get { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+        .api-method-post { background: rgba(59, 130, 246, 0.15); color: #3b82f6; }
+        .api-method-delete { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+        .api-path {
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            color: var(--text-primary);
+        }
+
+        .api-desc {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-left: auto;
+        }
+
+        .api-endpoint-body {
+            padding: 0 1.5rem 1.25rem;
+            display: none;
+        }
+
+        .api-endpoint.open .api-endpoint-body {
+            display: block;
+        }
+
+        .api-response {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 1rem 1.25rem;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            line-height: 1.7;
+            color: var(--text-secondary);
+            overflow-x: auto;
+        }
+
+        .api-chevron {
+            color: var(--text-muted);
+            transition: transform var(--transition);
+            flex-shrink: 0;
+        }
+
+        .api-endpoint.open .api-chevron {
+            transform: rotate(180deg);
+        }
+
+        /* ========== ARCHITECTURE ========== */
+        .architecture-section {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .architecture-diagram {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 2.5rem;
+            overflow-x: auto;
+            text-align: center;
+        }
+
+        .arch-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            flex-wrap: wrap;
+            padding: 1rem 0;
+        }
+
+        .arch-box {
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.25);
+            border-radius: var(--radius-md);
+            padding: 1rem 1.5rem;
+            text-align: center;
+            min-width: 130px;
+            transition: all var(--transition);
+        }
+
+        .arch-box:hover {
+            border-color: var(--accent);
+            background: rgba(59, 130, 246, 0.12);
+            transform: translateY(-2px);
+        }
+
+        .arch-box-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent-light);
+            margin-bottom: 4px;
+        }
+
+        .arch-box-name {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .arch-box-detail {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        .arch-arrow {
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            padding: 0 0.5rem;
+            flex-shrink: 0;
+        }
+
+        .arch-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            margin: 1rem 0;
+            flex-wrap: wrap;
+        }
+
+        .arch-row-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            margin-bottom: 0.75rem;
+            text-align: center;
+        }
+
+        /* ========== TECH STACK ========== */
+        .tech-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.25rem;
+        }
+
+        .tech-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: all var(--transition);
+        }
+
+        .tech-card:hover {
+            border-color: rgba(59, 130, 246, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .tech-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .tech-icon svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .tech-name {
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+
+        .tech-desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        /* ========== DEPLOY SECTION ========== */
+        .deploy-section {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .deploy-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+        }
+
+        .deploy-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            text-align: center;
+            transition: all var(--transition);
+        }
+
+        .deploy-card:hover {
+            transform: translateY(-4px);
+            border-color: rgba(59, 130, 246, 0.3);
+            box-shadow: var(--shadow-glow);
+        }
+
+        .deploy-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.25rem;
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.15);
+        }
+
+        .deploy-icon svg {
+            width: 28px;
+            height: 28px;
+            color: var(--accent-light);
+        }
+
+        .deploy-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .deploy-desc {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 1.25rem;
+        }
+
+        .deploy-code {
+            background: var(--bg-code);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 0.75rem 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-align: left;
+            line-height: 1.6;
+            overflow-x: auto;
+        }
+
+        /* ========== CTA SECTION ========== */
+        .cta-section {
+            text-align: center;
+        }
+
+        .cta-box {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(139, 92, 246, 0.08));
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: var(--radius-xl);
+            padding: 4rem 3rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-box::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 30% 40%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
+                        radial-gradient(circle at 70% 60%, rgba(139, 92, 246, 0.06) 0%, transparent 50%);
+            animation: ctaPulse 8s ease-in-out infinite;
+        }
+
+        @keyframes ctaPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .cta-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .cta-title {
+            font-size: clamp(1.5rem, 3.5vw, 2.5rem);
+            font-weight: 800;
+            margin-bottom: 1rem;
+        }
+
+        .cta-desc {
+            font-size: 1.05rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* ========== FOOTER ========== */
+        .footer {
+            border-top: 1px solid var(--border);
+            padding: 3rem 2rem;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .footer-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .footer-brand svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .footer-brand-name {
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        .footer-copy {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .footer-links {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+        }
+
+        .footer-links a {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            transition: color var(--transition);
+        }
+
+        .footer-links a:hover {
+            color: var(--text-primary);
+        }
+
+        .footer-social {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .footer-social a {
+            color: var(--text-muted);
+            transition: color var(--transition);
+        }
+
+        .footer-social a:hover {
+            color: var(--accent-light);
+        }
+
+        .footer-social svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        /* ========== ANIMATIONS ========== */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Scroll reveal */
+        .reveal {
+            opacity: 0;
+            transform: translateY(40px);
+            transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+        }
+
+        .reveal.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .reveal-delay-1 { transition-delay: 0.1s; }
+        .reveal-delay-2 { transition-delay: 0.2s; }
+        .reveal-delay-3 { transition-delay: 0.3s; }
+        .reveal-delay-4 { transition-delay: 0.4s; }
+        .reveal-delay-5 { transition-delay: 0.5s; }
+
+        /* ========== RESPONSIVE ========== */
+        @media (max-width: 1024px) {
+            .features-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .tech-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            .deploy-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+                position: fixed;
+                top: 64px;
+                left: 0;
+                right: 0;
+                background: rgba(15, 23, 42, 0.98);
+                backdrop-filter: blur(20px);
+                flex-direction: column;
+                padding: 2rem;
+                gap: 1.5rem;
+                border-bottom: 1px solid var(--border);
+            }
+
+            .nav-links.open {
+                display: flex;
+            }
+
+            .mobile-toggle {
+                display: block;
+            }
+
+            .hero-stats {
+                gap: 1.5rem;
+            }
+
+            .features-grid,
+            .tech-grid,
+            .deploy-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .quickstart-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .api-endpoint-header {
+                flex-wrap: wrap;
+            }
+
+            .api-desc {
+                margin-left: 0;
+                width: 100%;
+                margin-top: 0.25rem;
+            }
+
+            .arch-flow {
+                flex-direction: column;
+            }
+
+            .arch-arrow {
+                transform: rotate(90deg);
+                padding: 0.25rem 0;
+            }
+
+            .hero-stats {
+                flex-direction: column;
+                gap: 1.25rem;
+            }
+
+            .footer-content {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .section {
+                padding: 4rem 1.25rem;
+            }
+
+            .cta-box {
+                padding: 3rem 1.5rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .hero-title {
+                font-size: 2.25rem;
+            }
+            .hero-actions {
+                flex-direction: column;
+                width: 100%;
+            }
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
     </style>
 </head>
 <body>
 
-<nav class="navbar">
-    <div class="navbar-inner">
-        <a href="#" class="navbar-brand">OpenBenchML</a>
-        <div class="navbar-links">
-            <a href="#features" class="desktop-only">Features</a>
-            <a href="#architecture" class="desktop-only">Architecture</a>
-            <a href="#quickstart" class="desktop-only">Quick Start</a>
-            <a href="https://github.com/kartheekbvs/openbenchml" target="_blank" class="btn btn-primary" style="padding:8px 16px;font-size:.85rem">GitHub</a>
-        </div>
-    </div>
-</nav>
+    <!-- ========== NAVBAR ========== -->
+    <nav class="navbar" id="navbar">
+        <a href="#" class="nav-brand">
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="32" height="32" rx="8" fill="url(#brand-grad)"/>
+                <path d="M8 12L16 8L24 12V20L16 24L8 20V12Z" stroke="white" stroke-width="1.5" fill="none"/>
+                <path d="M16 8V24" stroke="white" stroke-width="1.5" opacity="0.5"/>
+                <path d="M8 12L24 20" stroke="white" stroke-width="1.5" opacity="0.3"/>
+                <path d="M24 12L8 20" stroke="white" stroke-width="1.5" opacity="0.3"/>
+                <circle cx="16" cy="16" r="3" fill="white" opacity="0.9"/>
+                <defs>
+                    <linearGradient id="brand-grad" x1="0" y1="0" x2="32" y2="32">
+                        <stop stop-color="#3b82f6"/>
+                        <stop offset="1" stop-color="#8b5cf6"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+            <span>OpenBenchML</span>
+        </a>
+        <ul class="nav-links" id="navLinks">
+            <li><a href="#features">Features</a></li>
+            <li><a href="#quickstart">Quick Start</a></li>
+            <li><a href="#api">API</a></li>
+            <li><a href="#architecture">Architecture</a></li>
+            <li><a href="#deploy">Deploy</a></li>
+            <li>
+                <a href="https://github.com/kartheekbvs/openbenchml" target="_blank" rel="noopener noreferrer" class="nav-cta">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                    GitHub
+                </a>
+            </li>
+        </ul>
+        <button class="mobile-toggle" id="mobileToggle" aria-label="Toggle menu">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                <line x1="3" y1="6" x2="21" y2="6"/>
+                <line x1="3" y1="12" x2="21" y2="12"/>
+                <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+        </button>
+    </nav>
 
-<section class="hero">
-    <div class="hero-content">
-        <div class="hero-badge fade-in">Open Source GSoC Project</div>
-        <h1 class="fade-in d1">Benchmark, Compare &amp; Rank ML Models</h1>
-        <p class="fade-in d2">OpenBenchML is an open-source platform where developers upload ML models, run them against standard datasets, and compare accuracy, speed, and size on a public leaderboard.</p>
-        <div class="hero-cta fade-in d3">
-            <a href="https://github.com/kartheekbvs/openbenchml" target="_blank" class="btn btn-primary">View on GitHub</a>
-            <a href="#quickstart" class="btn btn-outline">Quick Start</a>
+    <!-- ========== HERO ========== -->
+    <section class="hero" id="hero">
+        <div class="hero-bg">
+            <div class="hero-gradient hero-gradient-1"></div>
+            <div class="hero-gradient hero-gradient-2"></div>
+            <div class="hero-gradient hero-gradient-3"></div>
+            <div class="hero-grid"></div>
         </div>
-    </div>
-</section>
-
-<div class="stats-bar">
-    <div class="stats-grid">
-        <div class="stat-item fade-in"><div class="stat-value">6</div><div class="stat-label">Database Tables</div></div>
-        <div class="stat-item fade-in d1"><div class="stat-value">38</div><div class="stat-label">API Routes</div></div>
-        <div class="stat-item fade-in d2"><div class="stat-value">15</div><div class="stat-label">Dashboard Pages</div></div>
-        <div class="stat-item fade-in d3"><div class="stat-value">6</div><div class="stat-label">ML Frameworks</div></div>
-    </div>
-</div>
-
-<section class="section" id="features">
-    <div class="container">
-        <div class="section-header">
-            <span class="section-label fade-in">Features</span>
-            <h2 class="fade-in d1">Everything You Need to Benchmark ML Models</h2>
-            <p class="fade-in d2">A complete platform from model upload to public leaderboard ranking.</p>
-        </div>
-        <div class="features-grid">
-            <div class="feature-card fade-in"><div class="feature-icon icon-blue">📦</div><h3>Multi-Framework Model Upload</h3><p>Upload models in .pkl, .joblib, .onnx, .pt formats. Supports Scikit-Learn, PyTorch, ONNX, XGBoost, LightGBM, and TensorFlow frameworks out of the box.</p></div>
-            <div class="feature-card fade-in d1"><div class="feature-icon icon-green">📊</div><h3>Benchmark Datasets</h3><p>Run evaluations against Iris, Wine, BreastCancer, Digits, CaliforniaHousing, and Diabetes datasets. Built-in train/test splits with proper stratification.</p></div>
-            <div class="feature-card fade-in d2"><div class="feature-icon icon-cyan">🚀</div><h3>Comprehensive Metrics</h3><p>Measure accuracy, precision, recall, F1, MAE, RMSE, R2 score, inference latency, peak memory, CPU usage, and model size — all in one run.</p></div>
-            <div class="feature-card fade-in d3"><div class="feature-icon icon-red">🛡️</div><h3>Docker Sandbox</h3><p>User models execute in isolated Docker containers with network isolation, memory limits, CPU quotas, and PID limits. Never run untrusted code directly.</p></div>
-            <div class="feature-card fade-in d4"><div class="feature-icon icon-yellow">🏆</div><h3>Public Leaderboards</h3><p>Three ranking views: by accuracy, by speed (fastest inference), and by size (smallest model). See who builds the best models in the community.</p></div>
-            <div class="feature-card fade-in d5"><div class="feature-icon icon-purple">🔑</div><h3>Full REST API</h3><p>Programmatic access to all features via JSON API endpoints. JWT authentication with HttpOnly cookies for browser security. OAuth2 compatible.</p></div>
-        </div>
-    </div>
-</section>
-
-<section class="section" id="architecture" style="background:var(--bg2)">
-    <div class="container">
-        <div class="section-header">
-            <span class="section-label fade-in">Architecture</span>
-            <h2 class="fade-in d1">How It Works</h2>
-            <p class="fade-in d2">From model upload to leaderboard — the complete flow.</p>
-        </div>
-        <div class="arch-container fade-in">
-            <div class="arch-code"><span class="cmt">                    USER</span>
-                      |
-                      v
-<span class="hl">            Frontend Dashboard</span>
-                 HTML/CSS/JS
-                      |
-                      v
-<span class="hl">                FastAPI</span>
-          -------------------
-          |                 |
-          v                 v
-<span class="hl">    PostgreSQL      Task Queue</span>
-    (SQLAlchemy)     (Celery+Redis)
-                          |
-                          v
-<span class="hl">              Docker Runner</span>
-            (isolated container)
-                          |
-                          v
-<span class="hl">        Model Evaluation Engine</span>
-          (sklearn, torch, onnx)
-                          |
-                          v
-<span class="hl">          Benchmark Datasets</span>
-          (Iris, Wine, MNIST...)
-                          |
-                          v
-<span class="hl">            Results Database</span>
-                          |
-                          v
-<span class="hl">             Leaderboards</span>
-            (Accuracy/Speed/Size)</div>
-        </div>
-    </div>
-</section>
-
-<section class="section">
-    <div class="container">
-        <div class="section-header">
-            <span class="section-label fade-in">Leaderboard</span>
-            <h2 class="fade-in d1">Live Model Rankings</h2>
-            <p class="fade-in d2">See which models perform best across different metrics.</p>
-        </div>
-        <div class="lb-preview fade-in">
-            <div class="lb-header"><h3>🏆 Top Models — By Accuracy</h3><div style="display:flex;gap:8px"><span class="badge badge-blue">Accuracy</span><span class="badge badge-cyan">Speed</span><span class="badge badge-green">Size</span></div></div>
-            <table>
-                <thead><tr><th>Rank</th><th>Model</th><th>Framework</th><th>Dataset</th><th>Accuracy</th><th>Latency</th><th>Size</th></tr></thead>
-                <tbody>
-                    <tr><td><span class="rank-badge rank-1">1</span></td><td><strong>XGBoost Classifier</strong></td><td><span class="badge badge-blue">XGBoost</span></td><td>Iris</td><td class="score">98.4%</td><td>2.1 ms</td><td>245 KB</td></tr>
-                    <tr><td><span class="rank-badge rank-2">2</span></td><td><strong>Random Forest</strong></td><td><span class="badge badge-green">sklearn</span></td><td>Iris</td><td class="score">97.2%</td><td>1.8 ms</td><td>312 KB</td></tr>
-                    <tr><td><span class="rank-badge rank-3">3</span></td><td><strong>SVM Classifier</strong></td><td><span class="badge badge-green">sklearn</span></td><td>Wine</td><td class="score">96.5%</td><td>0.9 ms</td><td>48 KB</td></tr>
-                    <tr><td><span class="rank-badge rank-n">4</span></td><td><strong>Neural Network</strong></td><td><span class="badge badge-cyan">PyTorch</span></td><td>Digits</td><td class="score">95.8%</td><td>5.3 ms</td><td>1.2 MB</td></tr>
-                    <tr><td><span class="rank-badge rank-n">5</span></td><td><strong>Logistic Regression</strong></td><td><span class="badge badge-green">sklearn</span></td><td>Iris</td><td class="score">94.1%</td><td>0.4 ms</td><td>12 KB</td></tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</section>
-
-<section class="section" style="background:var(--bg2)">
-    <div class="container">
-        <div class="section-header">
-            <span class="section-label fade-in">Tech Stack</span>
-            <h2 class="fade-in d1">Built With Industry-Standard Tools</h2>
-        </div>
-        <div class="tech-grid">
-            <div class="tech-card fade-in"><span class="emoji">⚡</span><div class="name">FastAPI</div><div class="desc">Python Web Framework</div></div>
-            <div class="tech-card fade-in d1"><span class="emoji">🐘</span><div class="name">PostgreSQL</div><div class="desc">Relational Database</div></div>
-            <div class="tech-card fade-in d1"><span class="emoji">🔴</span><div class="name">Redis</div><div class="desc">Message Broker</div></div>
-            <div class="tech-card fade-in d2"><span class="emoji">🐳</span><div class="name">Docker</div><div class="desc">Container Sandbox</div></div>
-            <div class="tech-card fade-in d2"><span class="emoji">🥒</span><div class="name">Celery</div><div class="desc">Task Queue</div></div>
-            <div class="tech-card fade-in d3"><span class="emoji">🧠</span><div class="name">Scikit-Learn</div><div class="desc">ML Evaluation</div></div>
-            <div class="tech-card fade-in d3"><span class="emoji">🔥</span><div class="name">PyTorch</div><div class="desc">Deep Learning</div></div>
-            <div class="tech-card fade-in d4"><span class="emoji">📊</span><div class="name">Chart.js</div><div class="desc">Visualizations</div></div>
-            <div class="tech-card fade-in d4"><span class="emoji">🔑</span><div class="name">JWT Auth</div><div class="desc">Security</div></div>
-            <div class="tech-card fade-in d5"><span class="emoji">🌐</span><div class="name">Nginx</div><div class="desc">Reverse Proxy</div></div>
-            <div class="tech-card fade-in d5"><span class="emoji">🧪</span><div class="name">SQLAlchemy</div><div class="desc">ORM</div></div>
-            <div class="tech-card fade-in d6"><span class="emoji">📦</span><div class="name">ONNX</div><div class="desc">Model Format</div></div>
-        </div>
-    </div>
-</section>
-
-<section class="section" id="quickstart">
-    <div class="container">
-        <div class="section-header">
-            <span class="section-label fade-in">Get Started</span>
-            <h2 class="fade-in d1">Up and Running in 2 Minutes</h2>
-        </div>
-        <div class="qs-grid">
-            <div class="qs-card fade-in">
-                <div class="card-hd"><span style="font-size:1.3rem">🧑‍💻</span><h3>Development Mode</h3></div>
-                <div class="card-bd"><div class="code-block"><span class="cmt"># Clone the repo</span>
-<span class="cmd">git clone</span> https://github.com/kartheekbvs/openbenchml.git
-<span class="cmd">cd</span> openbenchml
-
-<span class="cmt"># Install dependencies</span>
-<span class="cmd">pip install</span> -r requirements.txt
-
-<span class="cmt"># Run with SQLite (no Docker needed)</span>
-<span class="cmd">python</span> run.py
-
-<span class="cmt"># Open in browser</span>
-<span class="str">http://localhost:8000</span></div></div>
+        <div class="hero-content">
+            <div class="hero-badge">
+                <span class="hero-badge-dot"></span>
+                Open Source &middot; MIT License
             </div>
-            <div class="qs-card fade-in d2">
-                <div class="card-hd"><span style="font-size:1.3rem">🐳</span><h3>Production Mode</h3></div>
-                <div class="card-bd"><div class="code-block"><span class="cmt"># Clone the repo</span>
-<span class="cmd">git clone</span> https://github.com/kartheekbvs/openbenchml.git
-<span class="cmd">cd</span> openbenchml
-
-<span class="cmt"># Configure environment</span>
-<span class="cmd">cp</span> .env.example .env
-
-<span class="cmt"># Launch all services</span>
-<span class="cmd">docker compose</span> up -d
-
-<span class="cmt"># Services running:</span>
-<span class="str">App:</span>    http://localhost:8000
-<span class="str">DB:</span>     localhost:5432
-<span class="str">Redis:</span>  localhost:6379
-<span class="str">Nginx:</span>  http://localhost:80</div></div>
+            <h1 class="hero-title">
+                <span class="hero-title-gradient">OpenBenchML</span>
+            </h1>
+            <p class="hero-subtitle">
+                Open Source ML Model Benchmarking Platform. Compare, evaluate, and benchmark machine learning models with Docker sandboxing, real-time leaderboards, and a powerful REST API.
+            </p>
+            <div class="hero-actions">
+                <a href="#quickstart" class="btn btn-primary">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    Get Started
+                </a>
+                <a href="https://github.com/kartheekbvs/openbenchml" target="_blank" rel="noopener noreferrer" class="btn btn-secondary">
+                    <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                    View on GitHub
+                </a>
+            </div>
+            <div class="hero-stats">
+                <div class="hero-stat">
+                    <div class="hero-stat-value">6+</div>
+                    <div class="hero-stat-label">ML Frameworks</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="hero-stat-value">Docker</div>
+                    <div class="hero-stat-label">Sandboxed Runs</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="hero-stat-value">REST</div>
+                    <div class="hero-stat-label">API First</div>
+                </div>
+                <div class="hero-stat">
+                    <div class="hero-stat-value">MIT</div>
+                    <div class="hero-stat-label">License</div>
+                </div>
             </div>
         </div>
-    </div>
-</section>
+    </section>
 
-<section class="section" style="background:var(--bg2)">
-    <div class="container">
-        <div class="section-header">
-            <span class="section-label fade-in">Roadmap</span>
-            <h2 class="fade-in d1">8-10 Week Development Plan</h2>
+    <!-- ========== FEATURES ========== -->
+    <section class="section" id="features">
+        <div class="section-container">
+            <div class="section-header reveal">
+                <div class="section-label">Features</div>
+                <h2 class="section-title">Everything You Need to Benchmark ML Models</h2>
+                <p class="section-desc">A comprehensive platform for fair, reproducible, and secure model evaluation &mdash; from upload to leaderboard.</p>
+            </div>
+            <div class="features-grid">
+                <!-- Feature 1: Multi-Framework -->
+                <div class="feature-card reveal reveal-delay-1">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                            <line x1="8" y1="21" x2="16" y2="21"/>
+                            <line x1="12" y1="17" x2="12" y2="21"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Multi-Framework Support</h3>
+                    <p class="feature-desc">Benchmark models from PyTorch, TensorFlow, scikit-learn, XGBoost, LightGBM, and more. Upload your model and let the platform handle the rest.</p>
+                </div>
+                <!-- Feature 2: Docker Sandbox -->
+                <div class="feature-card reveal reveal-delay-2">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M22 12s-3-3-7-3-7 3-7 3 3 3 7 3 7-3 7-3z"/>
+                            <path d="M2 12h4"/>
+                            <path d="M12 2v4"/>
+                            <path d="M5.64 5.64l2.83 2.83"/>
+                            <path d="M18.36 5.64l-2.83 2.83"/>
+                            <rect x="3" y="14" width="18" height="7" rx="2"/>
+                            <line x1="7" y1="17.5" x2="7" y2="17.5"/>
+                            <line x1="11" y1="17.5" x2="11" y2="17.5"/>
+                            <line x1="15" y1="17.5" x2="15" y2="17.5"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Docker Sandbox</h3>
+                    <p class="feature-desc">Every benchmark runs in an isolated Docker container. No side effects, no resource leaks, and guaranteed reproducibility across runs.</p>
+                </div>
+                <!-- Feature 3: Real-time Leaderboards -->
+                <div class="feature-card reveal reveal-delay-3">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="18" y1="20" x2="18" y2="10"/>
+                            <line x1="12" y1="20" x2="12" y2="4"/>
+                            <line x1="6" y1="20" x2="6" y2="14"/>
+                            <line x1="2" y1="20" x2="22" y2="20"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Real-time Leaderboards</h3>
+                    <p class="feature-desc">Instantly compare models side-by-side with live-updating leaderboards. Sort by accuracy, F1, latency, throughput, or any custom metric.</p>
+                </div>
+                <!-- Feature 4: Performance Metrics -->
+                <div class="feature-card reveal reveal-delay-1">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Performance Metrics</h3>
+                    <p class="feature-desc">Track accuracy, precision, recall, F1, AUC-ROC, inference time, memory usage, and more. Rich visualizations powered by Chart.js.</p>
+                </div>
+                <!-- Feature 5: REST API -->
+                <div class="feature-card reveal reveal-delay-2">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="16 18 22 12 16 6"/>
+                            <polyline points="8 6 2 12 8 18"/>
+                            <line x1="14" y1="4" x2="10" y2="20"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">REST API</h3>
+                    <p class="feature-desc">Full-featured API built on FastAPI with automatic OpenAPI docs. Integrate benchmarking into your CI/CD pipeline or custom tooling.</p>
+                </div>
+                <!-- Feature 6: Async Processing -->
+                <div class="feature-card reveal reveal-delay-3">
+                    <div class="feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                        </svg>
+                    </div>
+                    <h3 class="feature-title">Async Processing</h3>
+                    <p class="feature-desc">Celery-powered async task queue with Redis backend. Submit benchmarks and get notified when results are ready &mdash; no blocking.</p>
+                </div>
+            </div>
         </div>
-        <div class="roadmap">
-            <div class="rm-card done fade-in"><div class="week">Week 1-2</div><h4>Auth &amp; Database</h4><p>JWT auth, user registration, PostgreSQL, SQLAlchemy models</p></div>
-            <div class="rm-card done fade-in d1"><div class="week">Week 3-4</div><h4>Upload &amp; Datasets</h4><p>Multi-framework upload, validation, dataset library, benchmark engine</p></div>
-            <div class="rm-card done fade-in d2"><div class="week">Week 5-6</div><h4>Docker &amp; Queue</h4><p>Docker sandbox, Celery workers, Redis, secure execution</p></div>
-            <div class="rm-card done fade-in d3"><div class="week">Week 7-8</div><h4>Leaderboard &amp; Charts</h4><p>Rankings, Chart.js visualizations, model comparison</p></div>
-            <div class="rm-card fade-in d4"><div class="week">Week 9</div><h4>CI/CD</h4><p>Docker Compose, Nginx, GitHub Actions, testing</p></div>
-            <div class="rm-card fade-in d5"><div class="week">Week 10</div><h4>Release</h4><p>API docs, README, contributing guide, v1.0 release</p></div>
-        </div>
-    </div>
-</section>
+    </section>
 
-<footer class="footer">
-    <div class="footer-inner">
-        <div class="footer-text">OpenBenchML — Open Source ML Model Benchmarking Platform</div>
-        <div class="footer-links">
-            <a href="https://github.com/kartheekbvs/openbenchml" target="_blank">GitHub</a>
-            <a href="https://github.com/kartheekbvs/openbenchml/issues" target="_blank">Issues</a>
-            <a href="https://github.com/kartheekbvs/openbenchml/pulls" target="_blank">Pull Requests</a>
-        </div>
-    </div>
-</footer>
+    <!-- ========== QUICK START ========== -->
+    <section class="section quickstart-section" id="quickstart">
+        <div class="section-container">
+            <div class="section-header reveal">
+                <div class="section-label">Quick Start</div>
+                <h2 class="section-title">Up and Running in Minutes</h2>
+                <p class="section-desc">Clone, configure, and launch your benchmarking platform with just a few commands.</p>
+            </div>
+            <div class="quickstart-grid">
+                <div class="quickstart-steps">
+                    <div class="step reveal reveal-delay-1">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h4>Clone the Repository</h4>
+                            <p>Get the source code from GitHub and navigate into the project directory.</p>
+                        </div>
+                    </div>
+                    <div class="step reveal reveal-delay-2">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h4>Configure Environment</h4>
+                            <p>Copy the example .env file and set your database URL, Redis connection, and secret key.</p>
+                        </div>
+                    </div>
+                    <div class="step reveal reveal-delay-3">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h4>Launch with Docker Compose</h4>
+                            <p>Spin up the entire stack &mdash; API, worker, Redis, and database &mdash; with a single command.</p>
+                        </div>
+                    </div>
+                    <div class="step reveal reveal-delay-4">
+                        <div class="step-number">4</div>
+                        <div class="step-content">
+                            <h4>Start Benchmarking</h4>
+                            <p>Open the dashboard at localhost:8000, upload a model, select a dataset, and hit benchmark!</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="reveal reveal-delay-2">
+                    <div class="code-block">
+                        <div class="code-header">
+                            <div class="code-dots">
+                                <span class="code-dot code-dot-red"></span>
+                                <span class="code-dot code-dot-yellow"></span>
+                                <span class="code-dot code-dot-green"></span>
+                            </div>
+                            <span class="code-title">Terminal</span>
+                            <button class="code-copy" onclick="copyCode(this)">Copy</button>
+                        </div>
+                        <div class="code-body">
+<pre><span class="comment"># Clone the repository</span>
+<span class="command">git</span> clone <span class="url">https://github.com/kartheekbvs/openbenchml.git</span>
+<span class="command">cd</span> <span class="path">openbenchml</span>
 
+<span class="comment"># Configure environment</span>
+<span class="command">cp</span> <span class="path">.env.example</span> <span class="path">.env</span>
+
+<span class="comment"># Launch the full stack</span>
+<span class="command">docker-compose</span> <span class="flag">up</span> <span class="flag">--build</span> <span class="flag">-d</span>
+
+<span class="comment"># Access the platform</span>
+<span class="comment"># Dashboard: http://localhost:8000</span>
+<span class="comment"># API Docs:  http://localhost:8000/docs</span></pre>
+                        </div>
+                    </div>
+                    <div class="code-block" style="margin-top: 1.25rem;">
+                        <div class="code-header">
+                            <div class="code-dots">
+                                <span class="code-dot code-dot-red"></span>
+                                <span class="code-dot code-dot-yellow"></span>
+                                <span class="code-dot code-dot-green"></span>
+                            </div>
+                            <span class="code-title">Python SDK Example</span>
+                            <button class="code-copy" onclick="copyCode(this)">Copy</button>
+                        </div>
+                        <div class="code-body">
+<pre><span class="keyword">import</span> requests
+
+<span class="comment"># Submit a benchmark job</span>
+response = requests.<span class="method">post</span>(
+    <span class="string">"http://localhost:8000/api/benchmark"</span>,
+    json={
+        <span class="string">"model_id"</span>: <span class="string">"my-pytorch-model"</span>,
+        <span class="string">"dataset_id"</span>: <span class="string">"mnist-test"</span>,
+        <span class="string">"metrics"</span>: [<span class="string">"accuracy"</span>, <span class="string">"f1_score"</span>]
+    }
+)
+
+job = response.json()
+<span class="command">print</span>(<span class="string">f"Job submitted: </span>{job[<span class="string">'job_id'</span>]}<span class="string">"</span>)</pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== API DOCS ========== -->
+    <section class="section" id="api">
+        <div class="section-container">
+            <div class="section-header reveal">
+                <div class="section-label">API Reference</div>
+                <h2 class="section-title">Powerful REST API</h2>
+                <p class="section-desc">Full-featured API with automatic documentation. Integrate benchmarking into any workflow.</p>
+            </div>
+            <div class="api-endpoints reveal">
+                <!-- Endpoint 1 -->
+                <div class="api-endpoint">
+                    <div class="api-endpoint-header" onclick="toggleEndpoint(this)">
+                        <span class="api-method api-method-get">GET</span>
+                        <span class="api-path">/api/models</span>
+                        <span class="api-desc">List all uploaded models</span>
+                        <svg class="api-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="api-endpoint-body">
+                        <div class="api-response">{
+  "models": [
+    {
+      "id": "resnet50-v1",
+      "name": "ResNet-50",
+      "framework": "pytorch",
+      "uploaded_at": "2025-01-15T10:30:00Z",
+      "status": "ready"
+    }
+  ],
+  "total": 1,
+  "page": 1
+}</div>
+                    </div>
+                </div>
+                <!-- Endpoint 2 -->
+                <div class="api-endpoint">
+                    <div class="api-endpoint-header" onclick="toggleEndpoint(this)">
+                        <span class="api-method api-method-post">POST</span>
+                        <span class="api-path">/api/benchmark</span>
+                        <span class="api-desc">Submit a benchmark job</span>
+                        <svg class="api-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="api-endpoint-body">
+                        <div class="api-response">{
+  "job_id": "bench-a7f3c2e1",
+  "model_id": "resnet50-v1",
+  "dataset_id": "imagenet-val",
+  "status": "queued",
+  "metrics": ["accuracy", "f1_score", "latency"],
+  "estimated_time": "2-5 min"
+}</div>
+                    </div>
+                </div>
+                <!-- Endpoint 3 -->
+                <div class="api-endpoint">
+                    <div class="api-endpoint-header" onclick="toggleEndpoint(this)">
+                        <span class="api-method api-method-get">GET</span>
+                        <span class="api-path">/api/leaderboard</span>
+                        <span class="api-desc">Get ranked model results</span>
+                        <svg class="api-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="api-endpoint-body">
+                        <div class="api-response">{
+  "leaderboard": [
+    {
+      "rank": 1,
+      "model": "ResNet-50",
+      "accuracy": 0.963,
+      "f1_score": 0.958,
+      "latency_ms": 12.4
+    }
+  ],
+  "dataset": "imagenet-val",
+  "sort_by": "accuracy"
+}</div>
+                    </div>
+                </div>
+                <!-- Endpoint 4 -->
+                <div class="api-endpoint">
+                    <div class="api-endpoint-header" onclick="toggleEndpoint(this)">
+                        <span class="api-method api-method-get">GET</span>
+                        <span class="api-path">/api/jobs/{job_id}</span>
+                        <span class="api-desc">Check benchmark job status</span>
+                        <svg class="api-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="api-endpoint-body">
+                        <div class="api-response">{
+  "job_id": "bench-a7f3c2e1",
+  "status": "completed",
+  "progress": 100,
+  "results": {
+    "accuracy": 0.963,
+    "f1_score": 0.958,
+    "latency_ms": 12.4,
+    "memory_mb": 245
+  },
+  "completed_at": "2025-01-15T10:35:22Z"
+}</div>
+                    </div>
+                </div>
+                <!-- Endpoint 5 -->
+                <div class="api-endpoint">
+                    <div class="api-endpoint-header" onclick="toggleEndpoint(this)">
+                        <span class="api-method api-method-delete">DELETE</span>
+                        <span class="api-path">/api/models/{model_id}</span>
+                        <span class="api-desc">Remove a model and its results</span>
+                        <svg class="api-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </div>
+                    <div class="api-endpoint-body">
+                        <div class="api-response">{
+  "message": "Model deleted successfully",
+  "model_id": "resnet50-v1",
+  "deleted_jobs": 3
+}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== ARCHITECTURE ========== -->
+    <section class="section architecture-section" id="architecture">
+        <div class="section-container">
+            <div class="section-header reveal">
+                <div class="section-label">Architecture</div>
+                <h2 class="section-title">How It Works</h2>
+                <p class="section-desc">A clean, scalable architecture designed for secure and reproducible ML benchmarking.</p>
+            </div>
+            <div class="architecture-diagram reveal">
+                <!-- Row 1: Client -->
+                <div class="arch-row-label">Client Layer</div>
+                <div class="arch-flow">
+                    <div class="arch-box">
+                        <div class="arch-box-label">Web UI</div>
+                        <div class="arch-box-name">Dashboard</div>
+                        <div class="arch-box-detail">Chart.js Visualizations</div>
+                    </div>
+                    <div class="arch-arrow">&rarr;</div>
+                    <div class="arch-box">
+                        <div class="arch-box-label">API Client</div>
+                        <div class="arch-box-name">REST API</div>
+                        <div class="arch-box-detail">OpenAPI / Swagger</div>
+                    </div>
+                </div>
+
+                <!-- Row 2: API -->
+                <div style="padding: 0.5rem 0;">
+                    <div class="arch-arrow" style="display: block; text-align: center;">&darr;</div>
+                </div>
+                <div class="arch-row-label">Application Layer</div>
+                <div class="arch-flow">
+                    <div class="arch-box">
+                        <div class="arch-box-label">Framework</div>
+                        <div class="arch-box-name">FastAPI</div>
+                        <div class="arch-box-detail">Routes &amp; Auth</div>
+                    </div>
+                    <div class="arch-arrow">&rarr;</div>
+                    <div class="arch-box">
+                        <div class="arch-box-label">ORM</div>
+                        <div class="arch-box-name">SQLAlchemy</div>
+                        <div class="arch-box-detail">Models &amp; Migrations</div>
+                    </div>
+                    <div class="arch-arrow">&rarr;</div>
+                    <div class="arch-box">
+                        <div class="arch-box-label">Tasks</div>
+                        <div class="arch-box-name">Celery</div>
+                        <div class="arch-box-detail">Async Job Queue</div>
+                    </div>
+                </div>
+
+                <!-- Row 3: Infra -->
+                <div style="padding: 0.5rem 0;">
+                    <div class="arch-arrow" style="display: block; text-align: center;">&darr;</div>
+                </div>
+                <div class="arch-row-label">Infrastructure Layer</div>
+                <div class="arch-flow">
+                    <div class="arch-box">
+                        <div class="arch-box-label">Database</div>
+                        <div class="arch-box-name">PostgreSQL</div>
+                        <div class="arch-box-detail">Models &amp; Results</div>
+                    </div>
+                    <div class="arch-arrow">&rarr;</div>
+                    <div class="arch-box">
+                        <div class="arch-box-label">Broker</div>
+                        <div class="arch-box-name">Redis</div>
+                        <div class="arch-box-detail">Queue &amp; Cache</div>
+                    </div>
+                    <div class="arch-arrow">&rarr;</div>
+                    <div class="arch-box">
+                        <div class="arch-box-label">Runtime</div>
+                        <div class="arch-box-name">Docker</div>
+                        <div class="arch-box-detail">Sandboxed Benchmarks</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== TECH STACK ========== -->
+    <section class="section" id="techstack">
+        <div class="section-container">
+            <div class="section-header reveal">
+                <div class="section-label">Tech Stack</div>
+                <h2 class="section-title">Built With Proven Technologies</h2>
+                <p class="section-desc">Leveraging the best of the Python and cloud-native ecosystem for reliability and performance.</p>
+            </div>
+            <div class="tech-grid">
+                <!-- FastAPI -->
+                <div class="tech-card reveal reveal-delay-1">
+                    <div class="tech-icon" style="background: rgba(0, 150, 136, 0.1); border: 1px solid rgba(0, 150, 136, 0.2);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#009688" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                    </div>
+                    <div>
+                        <div class="tech-name">FastAPI</div>
+                        <div class="tech-desc">High-performance async API framework</div>
+                    </div>
+                </div>
+                <!-- SQLAlchemy -->
+                <div class="tech-card reveal reveal-delay-2">
+                    <div class="tech-icon" style="background: rgba(211, 69, 34, 0.1); border: 1px solid rgba(211, 69, 34, 0.2);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#d34522" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                    </div>
+                    <div>
+                        <div class="tech-name">SQLAlchemy</div>
+                        <div class="tech-desc">Python SQL toolkit and ORM</div>
+                    </div>
+                </div>
+                <!-- Celery -->
+                <div class="tech-card reveal reveal-delay-3">
+                    <div class="tech-icon" style="background: rgba(61, 166, 69, 0.1); border: 1px solid rgba(61, 166, 69, 0.2);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#3da645" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    </div>
+                    <div>
+                        <div class="tech-name">Celery</div>
+                        <div class="tech-desc">Distributed task queue</div>
+                    </div>
+                </div>
+                <!-- Redis -->
+                <div class="tech-card reveal reveal-delay-1">
+                    <div class="tech-icon" style="background: rgba(220, 59, 34, 0.1); border: 1px solid rgba(220, 59, 34, 0.2);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#dc3b22" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                    </div>
+                    <div>
+                        <div class="tech-name">Redis</div>
+                        <div class="tech-desc">In-memory data store &amp; broker</div>
+                    </div>
+                </div>
+                <!-- Docker -->
+                <div class="tech-card reveal reveal-delay-2">
+                    <div class="tech-icon" style="background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.2);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="8" width="5" height="5" rx="0.5"/><rect x="8" y="8" width="5" height="5" rx="0.5"/><rect x="8" y="2" width="5" height="5" rx="0.5"/><rect x="14" y="8" width="5" height="5" rx="0.5"/><rect x="2" y="14" width="5" height="5" rx="0.5"/><rect x="8" y="14" width="5" height="5" rx="0.5"/><rect x="14" y="14" width="5" height="5" rx="0.5"/><path d="M22 12c-1 0-2.5-1-4-1s-2.5 1-4 1"/></svg>
+                    </div>
+                    <div>
+                        <div class="tech-name">Docker</div>
+                        <div class="tech-desc">Containerized benchmark sandbox</div>
+                    </div>
+                </div>
+                <!-- Chart.js -->
+                <div class="tech-card reveal reveal-delay-3">
+                    <div class="tech-icon" style="background: rgba(255, 153, 51, 0.1); border: 1px solid rgba(255, 153, 51, 0.2);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#ff9933" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>
+                    </div>
+                    <div>
+                        <div class="tech-name">Chart.js</div>
+                        <div class="tech-desc">Interactive data visualizations</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== DEPLOY ========== -->
+    <section class="section deploy-section" id="deploy">
+        <div class="section-container">
+            <div class="section-header reveal">
+                <div class="section-label">Deploy</div>
+                <h2 class="section-title">Deploy Your Own Instance</h2>
+                <p class="section-desc">Run OpenBenchML anywhere &mdash; from your laptop to the cloud.</p>
+            </div>
+            <div class="deploy-grid">
+                <!-- Docker Compose -->
+                <div class="deploy-card reveal reveal-delay-1">
+                    <div class="deploy-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="2" y="8" width="5" height="5" rx="0.5"/>
+                            <rect x="8" y="8" width="5" height="5" rx="0.5"/>
+                            <rect x="8" y="2" width="5" height="5" rx="0.5"/>
+                            <rect x="14" y="8" width="5" height="5" rx="0.5"/>
+                            <rect x="2" y="14" width="5" height="5" rx="0.5"/>
+                            <rect x="8" y="14" width="5" height="5" rx="0.5"/>
+                            <rect x="14" y="14" width="5" height="5" rx="0.5"/>
+                        </svg>
+                    </div>
+                    <h3 class="deploy-title">Docker Compose</h3>
+                    <p class="deploy-desc">The easiest way to get started. One command launches the full stack locally.</p>
+                    <div class="deploy-code">docker-compose up --build -d</div>
+                </div>
+                <!-- Railway -->
+                <div class="deploy-card reveal reveal-delay-2">
+                    <div class="deploy-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                            <path d="M2 17l10 5 10-5"/>
+                            <path d="M2 12l10 5 10-5"/>
+                        </svg>
+                    </div>
+                    <h3 class="deploy-title">Railway</h3>
+                    <p class="deploy-desc">Deploy to Railway with one click. Auto-detects Dockerfile and provisions PostgreSQL &amp; Redis.</p>
+                    <div class="deploy-code">railway init<br>railway up</div>
+                </div>
+                <!-- Render -->
+                <div class="deploy-card reveal reveal-delay-3">
+                    <div class="deploy-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M8 12l2 2 4-4"/>
+                        </svg>
+                    </div>
+                    <h3 class="deploy-title">Render</h3>
+                    <p class="deploy-desc">Push to GitHub and let Render handle the rest. Managed DB and background workers included.</p>
+                    <div class="deploy-code"># render.yaml<br>services:<br>  - type: web<br>    runtime: docker</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== CTA ========== -->
+    <section class="section cta-section">
+        <div class="section-container">
+            <div class="cta-box reveal">
+                <div class="cta-content">
+                    <h2 class="cta-title">Ready to Benchmark?</h2>
+                    <p class="cta-desc">Start comparing ML models with confidence. Open source, community-driven, and built for reproducibility.</p>
+                    <div class="hero-actions" style="animation: none;">
+                        <a href="https://github.com/kartheekbvs/openbenchml" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+                            <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                            Star on GitHub
+                        </a>
+                        <a href="#quickstart" class="btn btn-secondary">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                            Read the Docs
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ========== FOOTER ========== -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect width="32" height="32" rx="8" fill="url(#footer-grad)"/>
+                    <path d="M8 12L16 8L24 12V20L16 24L8 20V12Z" stroke="white" stroke-width="1.5" fill="none"/>
+                    <circle cx="16" cy="16" r="3" fill="white" opacity="0.9"/>
+                    <defs>
+                        <linearGradient id="footer-grad" x1="0" y1="0" x2="32" y2="32">
+                            <stop stop-color="#3b82f6"/>
+                            <stop offset="1" stop-color="#8b5cf6"/>
+                        </linearGradient>
+                    </defs>
+                </svg>
+                <span class="footer-brand-name">OpenBenchML</span>
+            </div>
+            <div class="footer-copy">
+                &copy; 2025 Kartheek BVS. Released under the MIT License.
+            </div>
+            <div class="footer-links">
+                <a href="https://github.com/kartheekbvs/openbenchml" target="_blank" rel="noopener noreferrer">GitHub</a>
+                <a href="#api">API</a>
+                <a href="#architecture">Architecture</a>
+                <a href="#deploy">Deploy</a>
+            </div>
+            <div class="footer-social">
+                <a href="https://github.com/kartheekbvs/openbenchml" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+                    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                </a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ========== JAVASCRIPT ========== -->
+    <script>
+        // Navbar scroll effect
+        const navbar = document.getElementById('navbar');
+        let lastScroll = 0;
+
+        window.addEventListener('scroll', () => {
+            const currentScroll = window.pageYOffset;
+            if (currentScroll > 20) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+            lastScroll = currentScroll;
+        });
+
+        // Mobile menu toggle
+        const mobileToggle = document.getElementById('mobileToggle');
+        const navLinks = document.getElementById('navLinks');
+
+        mobileToggle.addEventListener('click', () => {
+            navLinks.classList.toggle('open');
+        });
+
+        // Close mobile menu on link click
+        navLinks.querySelectorAll('a').forEach(link => {
+            link.addEventListener('click', () => {
+                navLinks.classList.remove('open');
+            });
+        });
+
+        // Intersection Observer for scroll animations
+        const revealElements = document.querySelectorAll('.reveal');
+
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                }
+            });
+        }, {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        });
+
+        revealElements.forEach(el => revealObserver.observe(el));
+
+        // API endpoint accordion
+        function toggleEndpoint(header) {
+            const endpoint = header.parentElement;
+            const isOpen = endpoint.classList.contains('open');
+
+            // Close all endpoints
+            document.querySelectorAll('.api-endpoint').forEach(ep => {
+                ep.classList.remove('open');
+            });
+
+            // Toggle the clicked one
+            if (!isOpen) {
+                endpoint.classList.add('open');
+            }
+        }
+
+        // Copy code to clipboard
+        function copyCode(button) {
+            const codeBlock = button.closest('.code-block');
+            const pre = codeBlock.querySelector('pre');
+            const text = pre.textContent;
+
+            navigator.clipboard.writeText(text).then(() => {
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                button.style.color = '#10b981';
+                button.style.borderColor = '#10b981';
+
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.color = '';
+                    button.style.borderColor = '';
+                }, 2000);
+            }).catch(() => {
+                // Fallback for older browsers
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+
+                const originalText = button.textContent;
+                button.textContent = 'Copied!';
+                button.style.color = '#10b981';
+                button.style.borderColor = '#10b981';
+
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.color = '';
+                    button.style.borderColor = '';
+                }, 2000);
+            });
+        }
+
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    const offset = 80; // navbar height + padding
+                    const top = target.getBoundingClientRect().top + window.pageYOffset - offset;
+                    window.scrollTo({
+                        top: top,
+                        behavior: 'smooth'
+                    });
+                }
+            });
+        });
+
+        // Add animation stagger to feature cards
+        const featureCards = document.querySelectorAll('.feature-card');
+        featureCards.forEach((card, index) => {
+            card.style.transitionDelay = `${index * 0.08}s`;
+        });
+
+        // Add animation stagger to tech cards
+        const techCards = document.querySelectorAll('.tech-card');
+        techCards.forEach((card, index) => {
+            card.style.transitionDelay = `${index * 0.08}s`;
+        });
+
+        // Open first API endpoint by default
+        const firstEndpoint = document.querySelector('.api-endpoint');
+        if (firstEndpoint) {
+            firstEndpoint.classList.add('open');
+        }
+    </script>
 </body>
 </html>

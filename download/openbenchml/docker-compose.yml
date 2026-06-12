@@ -19,8 +19,11 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - USE_SQLITE=False
       - DOCKER_ENABLED=True
-      - SECRET_KEY=${SECRET_KEY:-change-this-in-production-2024}
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production-2024-openbenchml}
       - DEBUG=False
+      - CORS_ORIGINS=http://localhost,http://localhost:80
+      - RATE_LIMIT_ENABLED=True
+      - LOG_LEVEL=INFO
     volumes:
       - ./uploads:/app/uploads
       - ./datasets:/app/datasets
@@ -32,6 +35,12 @@ services:
         condition: service_healthy
     networks:
       - openbenchml
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   # ─── PostgreSQL Database ──────────────────────────────────────────────────
   db:
@@ -59,6 +68,7 @@ services:
     image: redis:7-alpine
     container_name: openbenchml-redis
     restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
     ports:
       - "6379:6379"
     volumes:
@@ -84,7 +94,7 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - USE_SQLITE=False
       - DOCKER_ENABLED=True
-      - SECRET_KEY=${SECRET_KEY:-change-this-in-production-2024}
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production-2024-openbenchml}
     volumes:
       - ./uploads:/app/uploads
       - ./datasets:/app/datasets
@@ -92,6 +102,25 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - openbenchml
+
+  # ─── Celery Beat (Periodic Tasks) ─────────────────────────────────────────
+  beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: openbenchml-beat
+    restart: unless-stopped
+    command: celery -A app.workers.celery_worker:celery beat --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://openbenchml:openbenchml@db:5432/openbenchml
+      - REDIS_URL=redis://redis:6379/0
+      - USE_SQLITE=False
+      - SECRET_KEY=${SECRET_KEY:-change-this-in-production-2024-openbenchml}
+    depends_on:
       redis:
         condition: service_healthy
     networks:

@@ -1,0 +1,25 @@
+app = "openbenchml"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[checks]
+  [checks.alive]
+    type = "http"
+    port = 8000
+    path = "/health"
+    interval = "30s"
+    timeout = "10s"
+    grace_period = "5s"
+
+[env]
+  USE_SQLITE = "False"
+  DOCKER_ENABLED = "False"
