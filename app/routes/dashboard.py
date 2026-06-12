@@ -2,21 +2,23 @@
 OpenBenchML Dashboard Routes
 ==============================
 Renders the authenticated user's dashboard with aggregated statistics,
-recent benchmark jobs, and top leaderboard entries.
+recent benchmark jobs, top leaderboard entries, and platform metrics.
+Enhanced with platform stats API and activity feed.
 """
 
 import logging
 from typing import Optional
 
 from fastapi import APIRouter, Request, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse
-from sqlalchemy import func
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from sqlalchemy import func, desc
 from sqlalchemy.orm import Session
 
 from app.database.db import get_db
-from app.database.models import User, MLModel, BenchmarkJob, BenchmarkResult, Leaderboard
+from app.database.models import User, MLModel, BenchmarkJob, BenchmarkResult, Leaderboard, Dataset
 from app.routes.auth import get_current_user_from_cookie
 from app.config import templates
+from app.services.benchmark_service import get_platform_stats
 
 logger = logging.getLogger(__name__)
 
@@ -31,8 +33,7 @@ async def dashboard_page(
     """Render the user dashboard with summary statistics.
 
     Aggregates model counts, benchmark totals, average accuracy, user
-    rank, recent jobs, and top models from the leaderboard.  If the
-    visitor is not authenticated they are redirected to the login page.
+    rank, recent jobs, and top models from the leaderboard.
     """
     # ── Authentication gate ────────────────────────────────────────────────
     user: Optional[User] = await get_current_user_from_cookie(request, db)
@@ -93,7 +94,6 @@ async def dashboard_page(
         .limit(5)
         .all()
     )
-    # Flatten into a list of dicts for easy template access
     top_models_data = [
         {
             "rank": entry.Leaderboard.rank,
@@ -103,6 +103,25 @@ async def dashboard_page(
         }
         for entry in top_models
     ]
+
+    # ── Framework distribution for user's models ───────────────────────────
+    framework_dist = (
+        db.query(MLModel.framework, func.count(MLModel.id))
+        .filter(MLModel.user_id == user.id)
+        .group_by(MLModel.framework)
+        .all()
+    )
+    framework_data = [{"framework": fw, "count": cnt} for fw, cnt in framework_dist]
+
+    # ── Average latency for user's benchmarks ──────────────────────────────
+    avg_latency = (
+        db.query(func.avg(BenchmarkResult.latency_ms))
+        .join(BenchmarkJob, BenchmarkJob.id == BenchmarkResult.job_id)
+        .join(MLModel, MLModel.id == BenchmarkJob.model_id)
+        .filter(MLModel.user_id == user.id, BenchmarkResult.latency_ms.isnot(None))
+        .scalar()
+    )
+    avg_latency = round(avg_latency, 2) if avg_latency else None
 
     logger.debug(
         "Dashboard stats for %s: models=%d, benchmarks=%d, avg_acc=%s, rank=%s",
@@ -115,7 +134,68 @@ async def dashboard_page(
         "total_models": total_models,
         "total_benchmarks": total_benchmarks,
         "avg_accuracy": avg_accuracy,
+        "avg_latency": avg_latency,
         "user_rank": user_rank,
         "recent_jobs": recent_jobs,
         "top_models": top_models_data,
+        "framework_data": framework_data,
     })
+
+
+# ─── JSON API Routes ──────────────────────────────────────────────────────────
+
+
+@router.get("/api/dashboard/stats")
+async def api_dashboard_stats(
+    db: Session = Depends(get_db),
+):
+    """Return platform-wide statistics as JSON.
+
+    Provides aggregated metrics about the platform including total users,
+    models, benchmarks, average accuracy, etc. This is a public endpoint
+    that does not require authentication.
+    """
+    stats = get_platform_stats(db)
+    return stats
+
+
+@router.get("/api/dashboard/activity")
+async def api_recent_activity(
+    limit: int = 20,
+    db: Session = Depends(get_db),
+):
+    """Return recent platform activity as JSON.
+
+    Shows the most recent completed benchmark jobs with their results,
+    useful for a real-time activity feed on the landing page.
+    """
+    from app.routes.auth import get_current_user_from_cookie
+    # This is a public endpoint showing anonymized activity
+    recent = (
+        db.query(BenchmarkJob, MLModel, Dataset, BenchmarkResult)
+        .join(MLModel, MLModel.id == BenchmarkJob.model_id)
+        .join(Dataset, Dataset.id == BenchmarkJob.dataset_id)
+        .outerjoin(BenchmarkResult, BenchmarkResult.job_id == BenchmarkJob.id)
+        .filter(
+            BenchmarkJob.status == "completed",
+            MLModel.is_public == True,
+        )
+        .order_by(BenchmarkJob.finished_at.desc())
+        .limit(min(limit, 50))
+        .all()
+    )
+
+    activity = [
+        {
+            "model_name": job.MLModel.model_name,
+            "framework": job.MLModel.framework,
+            "dataset": job.Dataset.name,
+            "accuracy": job.BenchmarkResult.accuracy if job.BenchmarkResult else None,
+            "f1_score": job.BenchmarkResult.f1_score if job.BenchmarkResult else None,
+            "latency_ms": job.BenchmarkResult.latency_ms if job.BenchmarkResult else None,
+            "finished_at": job.BenchmarkJob.finished_at.isoformat() if job.BenchmarkJob.finished_at else None,
+        }
+        for job in recent
+    ]
+
+    return activity

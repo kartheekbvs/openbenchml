@@ -6,12 +6,12 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-.eggs/
+*.egg
 
 # Virtual environments
 venv/
-.venv/
 env/
+.venv/
 
 # IDE
 .vscode/
@@ -22,21 +22,38 @@ env/
 
 # Environment
 .env
+.env.local
+.env.production
 
 # Database
 *.db
+*.sqlite
 *.sqlite3
 
-# Uploads (user data)
-uploads/*
-!uploads/.gitkeep
+# Uploads & Data
+uploads/
+datasets/*.npz
+datasets/*.joblib
+datasets/*.pkl
+
+# Logs
+*.log
+logs/
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Docker
+# Docker overrides
 docker-compose.override.yml
 
-# Logs
-*.log
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node (if any frontend tooling)
+node_modules/
+
+# Alembic
+alembic/versions/__pycache__/
