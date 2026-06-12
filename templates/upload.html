@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% set current_user = user %}
+
+{% block title %}Upload Model — OpenBenchML{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 2rem;">
+    <h1>Upload Model</h1>
+    <p class="text-muted">Upload a trained machine learning model to benchmark and compare.</p>
+</div>
+
+<div class="grid-2" style="align-items: start;">
+    <!-- Upload Form Card -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Model Details</h3>
+        </div>
+        <form method="POST" action="/models/upload" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="model_name">Model Name</label>
+                <input type="text" id="model_name" name="model_name" placeholder="e.g. XGBoost Classifier v2" required autofocus>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" placeholder="Brief description of your model, its architecture, and training approach..." rows="4"></textarea>
+                <span class="form-hint">Optional — helps others understand your model.</span>
+            </div>
+
+            <div class="form-group">
+                <label for="framework">Framework</label>
+                <select id="framework" name="framework" required>
+                    <option value="" disabled selected>Select a framework</option>
+                    {% for fw in frameworks %}
+                    <option value="{{ fw }}">{{ fw }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="file">Model File</label>
+                <input type="file" id="file" name="file" accept=".pkl,.joblib,.onnx,.pt,.h5" required>
+                <span class="form-hint">Accepted formats: .pkl, .joblib, .onnx, .pt, .h5</span>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">&#128230; Upload Model</button>
+                <a href="/my-models" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Info Card -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Upload Guidelines</h3>
+        </div>
+        <div class="card-body">
+            <h4 style="margin-bottom: 0.75rem;">Supported Formats</h4>
+            <ul style="list-style: none; padding: 0; margin-bottom: 1.25rem;">
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--accent); font-weight: 600; margin-right: 0.5rem;">.pkl</span>
+                    Python pickle (scikit-learn)
+                </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--accent); font-weight: 600; margin-right: 0.5rem;">.joblib</span>
+                    Joblib serialization (scikit-learn)
+                </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--accent); font-weight: 600; margin-right: 0.5rem;">.onnx</span>
+                    ONNX format (cross-framework)
+                </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--accent); font-weight: 600; margin-right: 0.5rem;">.pt</span>
+                    PyTorch state dict
+                </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--accent); font-weight: 600; margin-right: 0.5rem;">.h5</span>
+                    HDF5 / Keras format (TensorFlow)
+                </li>
+            </ul>
+
+            <h4 style="margin-bottom: 0.75rem;">Requirements</h4>
+            <ul style="list-style: none; padding: 0;">
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
+                    Maximum file size: <strong style="color: var(--text-primary);">500 MB</strong>
+                </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
+                    Model must implement <code>predict()</code> method
+                </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
+                    No external dependencies beyond the framework
+                </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
+                    Models are executed in a sandboxed Docker environment
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

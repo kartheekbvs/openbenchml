@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% set current_user = user %}
+
+{% block title %}Run Benchmark — OpenBenchML{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 2rem;">
+    <h1>Run Benchmark</h1>
+    <p class="text-muted">Evaluate your model against a benchmark dataset in an isolated Docker container.</p>
+</div>
+
+<div class="grid-2" style="align-items: start;">
+    <!-- Benchmark Form Card -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Configure Benchmark</h3>
+        </div>
+        <form method="POST" action="/benchmark" id="benchmark-form">
+            <div class="form-group">
+                <label for="model_id">Select Model</label>
+                <select id="model_id" name="model_id" required>
+                    <option value="" disabled selected>Choose a model...</option>
+                    {% for m in models %}
+                    <option value="{{ m.id }}" data-framework="{{ m.framework }}"
+                        {% if request.query_params.get('model_id')|string == m.id|string %}selected{% endif %}>
+                        {{ m.model_name }} ({{ m.framework }})
+                    </option>
+                    {% endfor %}
+                </select>
+                {% if not models %}
+                <span class="form-hint">You have no models yet. <a href="/models/upload">Upload one</a> first.</span>
+                {% endif %}
+            </div>
+
+            <div class="form-group">
+                <label for="dataset_id">Select Dataset</label>
+                <select id="dataset_id" name="dataset_id" required>
+                    <option value="" disabled selected>Choose a dataset...</option>
+                    {% for ds in datasets %}
+                    <option value="{{ ds.id }}"
+                            data-task-type="{{ ds.task_type }}"
+                            data-difficulty="{{ ds.difficulty }}"
+                            data-samples="{{ ds.samples }}"
+                            data-features="{{ ds.features }}"
+                            data-description="{{ ds.description or '' }}">
+                        {{ ds.name }} — {{ ds.task_type }} ({{ ds.difficulty }})
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Dynamic Dataset Info Card -->
+            <div id="dataset-info" class="card" style="display: none; margin-bottom: 1.25rem; background: var(--bg-primary); border-color: var(--accent);">
+                <div class="card-header" style="padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
+                    <h3 id="dataset-info-name" style="font-size: 1rem;">—</h3>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Samples</div>
+                        <div id="dataset-info-samples" style="font-weight: 700; color: var(--text-primary);">—</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Features</div>
+                        <div id="dataset-info-features" style="font-weight: 700; color: var(--text-primary);">—</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Difficulty</div>
+                        <div id="dataset-info-difficulty" style="font-weight: 700; color: var(--text-primary);">—</div>
+                    </div>
+                </div>
+                <p id="dataset-info-description" class="text-muted" style="margin-bottom: 0; font-size: 0.85rem;"></p>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary btn-lg" {% if not models %}disabled{% endif %}>&#9889; Start Benchmark</button>
+                <a href="/dashboard" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Info Card -->
+    <div class="card">
+        <div class="card-header">
+            <h3>How It Works</h3>
+        </div>
+        <div class="card-body">
+            <p style="margin-bottom: 1rem;">Your model will be evaluated in an isolated Docker container against the selected dataset. Results include:</p>
+            <ul style="list-style: none; padding: 0; margin-bottom: 1.25rem;">
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
+                    <strong style="color: var(--text-primary);">Accuracy</strong> — Overall prediction correctness
+                </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
+                    <strong style="color: var(--text-primary);">Precision &amp; Recall</strong> — Class-level performance
+                </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
+                    <strong style="color: var(--text-primary);">F1 Score</strong> — Harmonic mean of precision and recall
+                </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
+                    <strong style="color: var(--text-primary);">Latency</strong> — Average inference time per sample
+                </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
+                    <strong style="color: var(--text-primary);">Memory Usage</strong> — Peak memory during evaluation
+                </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
+                    <strong style="color: var(--text-primary);">CPU Utilization</strong> — Average CPU load during runs
+                </li>
+            </ul>
+            <p style="font-size: 0.85rem;">After the benchmark completes, results are automatically posted to the <a href="/leaderboard">public leaderboard</a>.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const datasetSelect = document.getElementById('dataset_id');
+    const infoPanel     = document.getElementById('dataset-info');
+
+    if (!datasetSelect || !infoPanel) return;
+
+    datasetSelect.addEventListener('change', function() {
+        const opt = this.options[this.selectedIndex];
+        if (!opt || !opt.value) {
+            infoPanel.style.display = 'none';
+            return;
+        }
+        document.getElementById('dataset-info-name').textContent        = opt.textContent.split('—')[0].trim();
+        document.getElementById('dataset-info-samples').textContent     = opt.dataset.samples  || '—';
+        document.getElementById('dataset-info-features').textContent    = opt.dataset.features || '—';
+        document.getElementById('dataset-info-difficulty').textContent  = opt.dataset.difficulty || '—';
+        document.getElementById('dataset-info-description').textContent = opt.dataset.description || 'No description available.';
+        infoPanel.style.display = 'block';
+    });
+})();
+</script>
+{% endblock %}

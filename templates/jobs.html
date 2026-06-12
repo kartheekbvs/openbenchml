@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% set current_user = user %}
+
+{% block title %}Benchmark Jobs — OpenBenchML{% endblock %}
+
+{% block content %}
+<div class="d-flex align-center justify-between" style="margin-bottom: 2rem;">
+    <div>
+        <h1 style="margin-bottom: 0.25rem;">Benchmark Jobs</h1>
+        <p class="text-muted">Monitor and manage your benchmark runs.</p>
+    </div>
+    <a href="/benchmark" class="btn btn-primary">&#9889; New Benchmark</a>
+</div>
+
+<!-- Filter Bar -->
+<div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.25rem;">
+    <div class="d-flex align-center gap-2" style="flex-wrap: wrap;">
+        <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-right: 0.25rem;">Filter:</span>
+        <button class="btn btn-sm btn-primary filter-btn" data-status="all">All</button>
+        <button class="btn btn-sm btn-secondary filter-btn" data-status="pending">Pending</button>
+        <button class="btn btn-sm btn-secondary filter-btn" data-status="running">Running</button>
+        <button class="btn btn-sm btn-secondary filter-btn" data-status="completed">Completed</button>
+        <button class="btn btn-sm btn-secondary filter-btn" data-status="failed">Failed</button>
+    </div>
+</div>
+
+{% if job_rows %}
+<div class="card">
+    <div class="table-wrapper">
+        <table id="jobs-table">
+            <thead>
+                <tr>
+                    <th>Job ID</th>
+                    <th>Model Name</th>
+                    <th>Dataset</th>
+                    <th>Status</th>
+                    <th>Progress</th>
+                    <th>Submitted</th>
+                    <th>Finished</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in job_rows %}
+                <tr data-status="{{ job.status }}">
+                    <td>
+                        <a href="/results/{{ job.id }}" style="font-weight: 600; color: var(--text-primary);">#{{ job.id }}</a>
+                    </td>
+                    <td>{{ job.model_name }}</td>
+                    <td>{{ job.dataset_name }}</td>
+                    <td>
+                        {% if job.status == "pending" %}
+                        <span class="badge badge-pending">{{ job.status }}</span>
+                        {% elif job.status == "running" %}
+                        <span class="badge badge-running">{{ job.status }}</span>
+                        {% elif job.status == "completed" %}
+                        <span class="badge badge-completed">{{ job.status }}</span>
+                        {% elif job.status == "failed" %}
+                        <span class="badge badge-failed">{{ job.status }}</span>
+                        {% else %}
+                        <span class="badge badge-info">{{ job.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if job.status == "running" %}
+                        <div class="progress-bar-wrapper">
+                            <div class="progress-bar-fill" style="width: {{ job.progress | default(0) }}%;"></div>
+                        </div>
+                        <div class="progress-label">
+                            <span>{{ job.progress | default(0) }}%</span>
+                        </div>
+                        {% elif job.status == "completed" %}
+                        <span style="color: var(--success); font-size: 0.85rem;">&#10003; Done</span>
+                        {% elif job.status == "failed" %}
+                        <span style="color: var(--danger); font-size: 0.85rem;">&#10007; Error</span>
+                        {% else %}
+                        <span class="text-muted" style="font-size: 0.85rem;">—</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ job.submitted_at.strftime("%b %d, %H:%M") if job.submitted_at else "—" }}</td>
+                    <td>{{ job.finished_at.strftime("%b %d, %H:%M") if job.finished_at else "—" }}</td>
+                    <td>
+                        <div class="d-flex gap-1">
+                            {% if job.status == "completed" %}
+                            <a href="/results/{{ job.id }}" class="btn btn-info btn-sm">View Results</a>
+                            {% endif %}
+                            {% if job.status in ("pending", "running") %}
+                            <form method="POST" action="/jobs/{{ job.id }}/cancel" style="display: inline;"
+                                  onsubmit="return confirm('Cancel benchmark job #{{ job.id }}?');">
+                                <button type="submit" class="btn btn-danger btn-sm">Cancel</button>
+                            </form>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<!-- Empty State -->
+<div class="card text-center" style="padding: 3rem 2rem;">
+    <div style="font-size: 3rem; margin-bottom: 1rem;">&#9203;</div>
+    <h3 style="margin-bottom: 0.5rem;">No Benchmark Jobs</h3>
+    <p class="text-muted" style="max-width: 400px; margin: 0 auto 1.5rem;">
+        You haven't run any benchmarks yet. Start your first benchmark to see results and track job progress here.
+    </p>
+    <a href="/benchmark" class="btn btn-primary btn-lg">&#9889; Run Your First Benchmark</a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    const filterBtns = document.querySelectorAll('.filter-btn');
+    const rows       = document.querySelectorAll('#jobs-table tbody tr');
+
+    filterBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            // Update active button styling
+            filterBtns.forEach(function(b) {
+                b.classList.remove('btn-primary');
+                b.classList.add('btn-secondary');
+            });
+            this.classList.remove('btn-secondary');
+            this.classList.add('btn-primary');
+
+            const status = this.dataset.status;
+            rows.forEach(function(row) {
+                if (status === 'all' || row.dataset.status === status) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+    });
+})();
+</script>
+{% endblock %}

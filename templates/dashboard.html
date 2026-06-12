@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% set current_user = user %}
+
+{% block title %}Dashboard — OpenBenchML{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 2rem;">
+    <h1>Dashboard</h1>
+    <p class="text-muted">Welcome back, {{ user.username }}! Here's an overview of your activity.</p>
+</div>
+
+<!-- Stats Grid -->
+<div class="stats-grid stagger-children">
+    <div class="stat-card">
+        <div class="stat-icon icon-blue">&#128230;</div>
+        <div class="stat-value">{{ total_models }}</div>
+        <div class="stat-label">Total Models</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon icon-green">&#128202;</div>
+        <div class="stat-value">{{ total_benchmarks }}</div>
+        <div class="stat-label">Benchmarks Run</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon icon-yellow">&#127919;</div>
+        <div class="stat-value">{% if avg_accuracy is not none %}{{ "%.1f"|format(avg_accuracy * 100) }}%{% else %}N/A{% endif %}</div>
+        <div class="stat-label">Avg Accuracy</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-icon icon-cyan">&#127942;</div>
+        <div class="stat-value">{{ user_rank }}</div>
+        <div class="stat-label">Your Rank</div>
+    </div>
+</div>
+
+<!-- Two-Column Section: Recent Benchmarks + Top Models -->
+<div class="grid-2" style="margin-bottom: 2rem;">
+    <!-- Left: Recent Benchmarks -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Recent Benchmarks</h3>
+        </div>
+        {% if recent_jobs %}
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Job ID</th>
+                        <th>Model</th>
+                        <th>Dataset</th>
+                        <th>Status</th>
+                        <th>Submitted</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for job in recent_jobs %}
+                    <tr>
+                        <td><a href="/results/{{ job.id }}">#{{ job.id }}</a></td>
+                        <td>{{ job.model.model_name if job.model else "Unknown" }}</td>
+                        <td>{{ job.dataset.name if job.dataset else "Unknown" }}</td>
+                        <td>
+                            {% if job.status == "pending" %}
+                            <span class="badge badge-pending">{{ job.status }}</span>
+                            {% elif job.status == "running" %}
+                            <span class="badge badge-running">{{ job.status }}</span>
+                            {% elif job.status == "completed" %}
+                            <span class="badge badge-completed">{{ job.status }}</span>
+                            {% elif job.status == "failed" %}
+                            <span class="badge badge-failed">{{ job.status }}</span>
+                            {% else %}
+                            <span class="badge badge-info">{{ job.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ job.submitted_at.strftime("%b %d, %H:%M") if job.submitted_at else "—" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted" style="padding: 1rem 0;">No benchmark jobs yet. Run your first benchmark to see results here.</p>
+        {% endif %}
+    </div>
+
+    <!-- Right: Top Models -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Top Models</h3>
+        </div>
+        {% if top_models %}
+        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+            {% for entry in top_models %}
+            <div class="d-flex align-center gap-2" style="padding: 0.75rem; background: var(--bg-primary); border-radius: var(--radius); border: 1px solid var(--border);">
+                {% if entry.rank == 1 %}
+                <span class="rank-badge rank-gold">{{ entry.rank }}</span>
+                {% elif entry.rank == 2 %}
+                <span class="rank-badge rank-silver">{{ entry.rank }}</span>
+                {% elif entry.rank == 3 %}
+                <span class="rank-badge rank-bronze">{{ entry.rank }}</span>
+                {% else %}
+                <span class="rank-badge" style="background: rgba(148, 163, 184, 0.1); color: var(--text-secondary); border: 1px solid var(--border);">{{ entry.rank }}</span>
+                {% endif %}
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 600; color: var(--text-primary);" class="truncate">{{ entry.model_name }}</div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">by {{ entry.username }}</div>
+                </div>
+                <div style="font-weight: 700; color: var(--success); font-size: 0.95rem;">
+                    {% if entry.score is not none %}{{ "%.1f"|format(entry.score) }}{% else %}—{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted" style="padding: 1rem 0;">No leaderboard entries yet. Be the first to benchmark a model!</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Quick Actions -->
+<div class="card">
+    <div class="card-header">
+        <h3>Quick Actions</h3>
+    </div>
+    <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <a href="/models/upload" class="btn btn-primary">&#128230; Upload Model</a>
+        <a href="/benchmark" class="btn btn-success">&#9889; Run Benchmark</a>
+        <a href="/leaderboard" class="btn btn-info">&#127942; View Leaderboard</a>
+    </div>
+</div>
+{% endblock %}
