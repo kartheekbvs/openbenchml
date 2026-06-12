@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% set current_user = user %}
+
+{% block title %}Benchmark Results — Job #{{ job.id }} — OpenBenchML{% endblock %}
+
+{% block content %}
+<div class="d-flex align-center justify-between" style="margin-bottom: 2rem;">
+    <div>
+        <h1 style="margin-bottom: 0.25rem;">Benchmark Results</h1>
+        <p class="text-muted">Job #{{ job.id }} — {{ job.model.model_name if job.model else "Unknown" }}</p>
+    </div>
+    <div class="d-flex gap-1">
+        <a href="/benchmark?model_id={{ job.model_id }}" class="btn btn-secondary btn-sm">&#8635; Run Again</a>
+        <a href="/leaderboard" class="btn btn-info btn-sm">&#127942; View on Leaderboard</a>
+        <a href="/compare" class="btn btn-outline btn-sm">&#9878; Compare with Another Model</a>
+    </div>
+</div>
+
+<!-- Summary Card -->
+<div class="card" style="margin-bottom: 2rem;">
+    <div class="card-header">
+        <h3>Summary</h3>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1.25rem;">
+        <div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 0.25rem;">Model</div>
+            <div style="font-weight: 700; color: var(--text-primary);">{{ job.model.model_name if job.model else "Unknown" }}</div>
+        </div>
+        <div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 0.25rem;">Dataset</div>
+            <div style="font-weight: 700; color: var(--text-primary);">{{ job.dataset.name if job.dataset else "Unknown" }}</div>
+        </div>
+        <div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 0.25rem;">Status</div>
+            <div>
+                {% if job.status == "completed" %}
+                <span class="badge badge-completed">{{ job.status }}</span>
+                {% elif job.status == "running" %}
+                <span class="badge badge-running">{{ job.status }}</span>
+                {% elif job.status == "failed" %}
+                <span class="badge badge-failed">{{ job.status }}</span>
+                {% else %}
+                <span class="badge badge-pending">{{ job.status }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 0.25rem;">Duration</div>
+            <div style="font-weight: 700; color: var(--text-primary);">
+                {% if job.started_at and job.finished_at %}
+                    {% set duration = job.finished_at - job.started_at %}
+                    {{ duration.seconds }}s
+                {% elif job.started_at %}
+                    In progress...
+                {% else %}
+                    —
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if result %}
+<!-- Classification Metrics -->
+{% if result.accuracy is not none or result.precision is not none or result.recall is not none or result.f1_score is not none %}
+<div style="margin-bottom: 2rem;">
+    <h2 style="margin-bottom: 1rem; font-size: 1.25rem;">Classification Metrics</h2>
+    <div class="metrics-grid">
+        {% if result.accuracy is not none %}
+        <div class="metric-card">
+            <div class="metric-icon" style="color: var(--success);">&#127919;</div>
+            <div class="metric-value">{{ "%.4f"|format(result.accuracy) }}</div>
+            <div class="metric-label">Accuracy</div>
+        </div>
+        {% endif %}
+        {% if result.precision is not none %}
+        <div class="metric-card">
+            <div class="metric-icon" style="color: var(--accent);">&#127919;</div>
+            <div class="metric-value">{{ "%.4f"|format(result.precision) }}</div>
+            <div class="metric-label">Precision</div>
+        </div>
+        {% endif %}
+        {% if result.recall is not none %}
+        <div class="metric-card">
+            <div class="metric-icon" style="color: var(--info);">&#127919;</div>
+            <div class="metric-value">{{ "%.4f"|format(result.recall) }}</div>
+            <div class="metric-label">Recall</div>
+        </div>
+        {% endif %}
+        {% if result.f1_score is not none %}
+        <div class="metric-card">
+            <div class="metric-icon" style="color: var(--warning);">&#127919;</div>
+            <div class="metric-value">{{ "%.4f"|format(result.f1_score) }}</div>
+            <div class="metric-label">F1 Score</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Regression Metrics -->
+{% if result.mae is not none or result.rmse is not none or result.r2_score is not none %}
+<div style="margin-bottom: 2rem;">
+    <h2 style="margin-bottom: 1rem; font-size: 1.25rem;">Regression Metrics</h2>
+    <div class="metrics-grid">
+        {% if result.mae is not none %}
+        <div class="metric-card">
+            <div class="metric-icon" style="color: var(--warning);">&#128200;</div>
+            <div class="metric-value">{{ "%.4f"|format(result.mae) }}</div>
+            <div class="metric-label">MAE</div>
+        </div>
+        {% endif %}
+        {% if result.rmse is not none %}
+        <div class="metric-card">
+            <div class="metric-icon" style="color: var(--danger);">&#128200;</div>
+            <div class="metric-value">{{ "%.4f"|format(result.rmse) }}</div>
+            <div class="metric-label">RMSE</div>
+        </div>
+        {% endif %}
+        {% if result.r2_score is not none %}
+        <div class="metric-card">
+            <div class="metric-icon" style="color: var(--success);">&#128200;</div>
+            <div class="metric-value">{{ "%.4f"|format(result.r2_score) }}</div>
+            <div class="metric-label">R-squared</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Performance Metrics -->
+<div style="margin-bottom: 2rem;">
+    <h2 style="margin-bottom: 1rem; font-size: 1.25rem;">Performance Metrics</h2>
+    <div class="metrics-grid">
+        {% if result.latency_ms is not none %}
+        <div class="metric-card">
+            <div class="metric-icon" style="color: var(--info);">&#9201;</div>
+            <div class="metric-value">{{ "%.1f"|format(result.latency_ms) }}</div>
+            <div class="metric-label">Latency (ms)</div>
+        </div>
+        {% endif %}
+        {% if result.memory_mb is not none %}
+        <div class="metric-card">
+            <div class="metric-icon" style="color: var(--accent);">&#128209;</div>
+            <div class="metric-value">{{ "%.1f"|format(result.memory_mb) }}</div>
+            <div class="metric-label">Memory (MB)</div>
+        </div>
+        {% endif %}
+        {% if result.cpu_percent is not none %}
+        <div class="metric-card">
+            <div class="metric-icon" style="color: var(--warning);">&#9881;</div>
+            <div class="metric-value">{{ "%.1f"|format(result.cpu_percent) }}</div>
+            <div class="metric-label">CPU (%)</div>
+        </div>
+        {% endif %}
+        {% if result.model_size_kb is not none %}
+        <div class="metric-card">
+            <div class="metric-icon" style="color: var(--success);">&#128230;</div>
+            <div class="metric-value">{{ "%.1f"|format(result.model_size_kb) }}</div>
+            <div class="metric-label">Model Size (KB)</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Actions -->
+<div class="card">
+    <div class="card-header">
+        <h3>Actions</h3>
+    </div>
+    <div class="d-flex gap-2" style="flex-wrap: wrap;">
+        <a href="/benchmark?model_id={{ job.model_id }}" class="btn btn-primary">&#8635; Run Again</a>
+        <a href="/leaderboard" class="btn btn-success">&#127942; View on Leaderboard</a>
+        <a href="/compare" class="btn btn-info">&#9878; Compare with Another Model</a>
+    </div>
+</div>
+
+{% elif job.status == "failed" %}
+<!-- Failed State -->
+<div class="card text-center" style="padding: 3rem 2rem;">
+    <div style="font-size: 3rem; margin-bottom: 1rem;">&#10060;</div>
+    <h3 style="margin-bottom: 0.5rem;">Benchmark Failed</h3>
+    <p class="text-muted" style="max-width: 500px; margin: 0 auto 1.5rem;">
+        This benchmark job encountered an error and could not complete.
+        {% if job.error_message %}<br><code style="margin-top: 0.5rem; display: inline-block;">{{ job.error_message }}</code>{% endif %}
+    </p>
+    <a href="/benchmark?model_id={{ job.model_id }}" class="btn btn-primary">&#8635; Retry Benchmark</a>
+</div>
+
+{% elif job.status in ("pending", "running") %}
+<!-- In Progress State -->
+<div class="card text-center" style="padding: 3rem 2rem;">
+    <div style="font-size: 3rem; margin-bottom: 1rem;">&#9881;</div>
+    <h3 style="margin-bottom: 0.5rem;">Benchmark In Progress</h3>
+    <p class="text-muted" style="max-width: 400px; margin: 0 auto 1rem;">
+        This benchmark is currently {{ job.status }}. Results will appear here once it completes.
+    </p>
+    {% if job.status == "running" %}
+    <div class="progress-bar-wrapper" style="max-width: 400px; margin: 0 auto 1.5rem;">
+        <div class="progress-bar-fill" style="width: {{ job.progress | default(0) }}%;"></div>
+    </div>
+    <div class="progress-label" style="max-width: 400px; margin: 0 auto 1.5rem;">
+        <span>{{ job.progress | default(0) }}%</span>
+    </div>
+    {% endif %}
+    <a href="/results/{{ job.id }}" class="btn btn-info">&#8635; Refresh</a>
+</div>
+
+{% endif %}
+{% endblock %}

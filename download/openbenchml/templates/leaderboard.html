@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+{% set current_user = user %}
+
+{% block title %}Leaderboard — OpenBenchML{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 2rem;">
+    <h1>&#127942; Leaderboard</h1>
+    <p class="text-muted">See how your models rank against the competition.</p>
+</div>
+
+<!-- Tab Navigation -->
+<div class="card" style="padding: 0.5rem 0.75rem; margin-bottom: 1.5rem;">
+    <div class="d-flex align-center justify-between" style="flex-wrap: wrap; gap: 0.75rem;">
+        <div class="d-flex gap-1">
+            <a href="/leaderboard{% if selected_dataset_id %}?dataset_id={{ selected_dataset_id }}{% endif %}"
+               class="btn btn-sm {% if sort_mode == 'score' %}btn-primary{% else %}btn-secondary{% endif %}">
+                &#127919; By Accuracy
+            </a>
+            <a href="/leaderboard/fastest{% if selected_dataset_id %}?dataset_id={{ selected_dataset_id }}{% endif %}"
+               class="btn btn-sm {% if sort_mode == 'fastest' %}btn-primary{% else %}btn-secondary{% endif %}">
+                &#9889; Fastest
+            </a>
+            <a href="/leaderboard/smallest{% if selected_dataset_id %}?dataset_id={{ selected_dataset_id }}{% endif %}"
+               class="btn btn-sm {% if sort_mode == 'smallest' %}btn-primary{% else %}btn-secondary{% endif %}">
+                &#128230; Smallest
+            </a>
+        </div>
+
+        <!-- Dataset Filter -->
+        <form method="GET" action="" class="d-flex align-center gap-1" id="dataset-filter-form">
+            <label for="dataset_filter" style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); white-space: nowrap;">Dataset:</label>
+            <select id="dataset_filter" name="dataset_id" style="width: auto; min-width: 180px; font-size: 0.85rem; padding: 0.4rem 2rem 0.4rem 0.65rem;">
+                <option value="">All Datasets</option>
+                {% for ds in datasets %}
+                <option value="{{ ds.id }}" {% if selected_dataset_id == ds.id %}selected{% endif %}>{{ ds.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+</div>
+
+{% if rows %}
+<div class="card">
+    <div class="table-wrapper">
+        <table class="leaderboard-table">
+            <thead>
+                <tr>
+                    <th style="width: 70px;">Rank</th>
+                    <th>Model</th>
+                    <th>Owner</th>
+                    <th>Dataset</th>
+                    <th>Score</th>
+                    <th class="hide-mobile">Latency (ms)</th>
+                    <th class="hide-mobile">Size (KB)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr {% if row.is_current_user %}class="current-user"{% endif %}>
+                    <td>
+                        {% if row.rank == 1 %}
+                        <span class="rank-badge rank-gold">1</span>
+                        {% elif row.rank == 2 %}
+                        <span class="rank-badge rank-silver">2</span>
+                        {% elif row.rank == 3 %}
+                        <span class="rank-badge rank-bronze">3</span>
+                        {% else %}
+                        <span class="rank-badge" style="background: rgba(148, 163, 184, 0.1); color: var(--text-secondary); border: 1px solid var(--border);">{{ row.rank }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/models/{{ row.model_id }}" style="font-weight: 600; color: var(--text-primary);">{{ row.model_name }}</a>
+                    </td>
+                    <td>
+                        {{ row.owner }}
+                        {% if row.is_current_user %}
+                        <span class="badge badge-info" style="margin-left: 0.35rem; font-size: 0.65rem;">You</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/datasets/{{ row.dataset_id }}" style="color: var(--text-secondary);">{{ row.dataset }}</a>
+                    </td>
+                    <td>
+                        <span style="font-weight: 700; color: var(--success); font-size: 0.95rem;">
+                            {% if row.score is not none %}{{ "%.4f"|format(row.score) }}{% else %}—{% endif %}
+                        </span>
+                    </td>
+                    <td class="hide-mobile">
+                        {% if row.latency_ms is not none %}
+                            {{ "%.1f"|format(row.latency_ms) }}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td class="hide-mobile">
+                        {% if row.model_size_kb is not none %}
+                            {% if row.model_size_kb >= 1024 %}
+                                {{ "%.1f"|format(row.model_size_kb / 1024) }} MB
+                            {% else %}
+                                {{ "%.1f"|format(row.model_size_kb) }}
+                            {% endif %}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<!-- Empty State -->
+<div class="card text-center" style="padding: 3rem 2rem;">
+    <div style="font-size: 3rem; margin-bottom: 1rem;">&#127942;</div>
+    <h3 style="margin-bottom: 0.5rem;">No Leaderboard Entries</h3>
+    <p class="text-muted" style="max-width: 400px; margin: 0 auto 1.5rem;">
+        {% if selected_dataset_id %}
+        No models have been benchmarked on this dataset yet. Be the first!
+        {% else %}
+        The leaderboard is empty. Run your first benchmark to claim the top spot!
+        {% endif %}
+    </p>
+    {% if user %}
+    <a href="/benchmark" class="btn btn-primary btn-lg">&#9889; Run a Benchmark</a>
+    {% else %}
+    <a href="/register" class="btn btn-primary btn-lg">Get Started</a>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function() {
+    var filterForm = document.getElementById('dataset-filter-form');
+    var filterSelect = document.getElementById('dataset_filter');
+    if (filterSelect) {
+        filterSelect.addEventListener('change', function() {
+            // Determine the base URL from the current sort mode tab
+            var basePath = '/leaderboard';
+            {% if sort_mode == 'fastest' %}
+            basePath = '/leaderboard/fastest';
+            {% elif sort_mode == 'smallest' %}
+            basePath = '/leaderboard/smallest';
+            {% endif %}
+
+            var datasetId = this.value;
+            var url = basePath;
+            if (datasetId) {
+                url += '?dataset_id=' + encodeURIComponent(datasetId);
+            }
+            window.location.href = url;
+        });
+    }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,1114 @@
+   250→  padding: 1.5rem;
+   251→  transition: transform var(--transition-base), box-shadow var(--transition-base);
+   252→  box-shadow: var(--shadow-sm);
+   253→}
+   254→
+   255→.card:hover {
+   256→  transform: translateY(-2px);
+   257→  box-shadow: var(--shadow-md);
+   258→}
+   259→
+   260→.card-header {
+   261→  display: flex;
+   262→  align-items: center;
+   263→  justify-content: space-between;
+   264→  margin-bottom: 1rem;
+   265→  padding-bottom: 0.75rem;
+   266→  border-bottom: 1px solid var(--border);
+   267→}
+   268→
+   269→.card-header h3 {
+   270→  font-size: 1.1rem;
+   271→  font-weight: 600;
+   272→}
+   273→
+   274→.card-body {
+   275→  color: var(--text-secondary);
+   276→  font-size: 0.925rem;
+   277→}
+   278→
+   279→.card-footer {
+   280→  margin-top: 1rem;
+   281→  padding-top: 0.75rem;
+   282→  border-top: 1px solid var(--border);
+   283→  display: flex;
+   284→  align-items: center;
+   285→  justify-content: flex-end;
+   286→  gap: 0.5rem;
+   287→}
+   288→
+   289→/* ========================================================================
+   290→   BUTTONS
+   291→   ======================================================================== */
+   292→.btn {
+   293→  display: inline-flex;
+   294→  align-items: center;
+   295→  justify-content: center;
+   296→  gap: 0.4rem;
+   297→  padding: 0.6rem 1.25rem;
+   298→  font-size: 0.9rem;
+   299→  font-weight: 600;
+   300→  font-family: var(--font-sans);
+   301→  line-height: 1.4;
+   302→  border: none;
+   303→  border-radius: var(--radius);
+   304→  cursor: pointer;
+   305→  transition: transform var(--transition-fast),
+   306→    box-shadow var(--transition-fast),
+   307→    background var(--transition-fast),
+   308→    opacity var(--transition-fast);
+   309→  text-decoration: none;
+   310→  white-space: nowrap;
+   311→  user-select: none;
+   312→}
+   313→
+   314→.btn:active {
+   315→  transform: scale(0.97);
+   316→}
+   317→
+   318→.btn:disabled,
+   319→.btn.disabled {
+   320→  opacity: 0.5;
+   321→  cursor: not-allowed;
+   322→  pointer-events: none;
+   323→}
+   324→
+   325→.btn-primary {
+   326→  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+   327→  color: #fff;
+   328→  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
+   329→}
+   330→
+   331→.btn-primary:hover {
+   332→  background: linear-gradient(135deg, var(--accent-hover), #1d4ed8);
+   333→  transform: translateY(-1px);
+   334→  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.45);
+   335→  color: #fff;
+   336→}
+   337→
+   338→.btn-secondary {
+   339→  background: var(--bg-secondary);
+   340→  color: var(--text-primary);
+   341→  border: 1px solid var(--border);
+   342→}
+   343→
+   344→.btn-secondary:hover {
+   345→  background: var(--border);
+   346→  transform: translateY(-1px);
+   347→  color: var(--text-primary);
+   348→}
+   349→
+   350→.btn-danger {
+   351→  background: linear-gradient(135deg, var(--danger), #dc2626);
+   352→  color: #fff;
+   353→  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+   354→}
+   355→
+   356→.btn-danger:hover {
+   357→  background: linear-gradient(135deg, #dc2626, #b91c1c);
+   358→  transform: translateY(-1px);
+   359→  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+   360→  color: #fff;
+   361→}
+   362→
+   363→.btn-success {
+   364→  background: linear-gradient(135deg, var(--success), #16a34a);
+   365→  color: #fff;
+   366→  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+   367→}
+   368→
+   369→.btn-success:hover {
+   370→  background: linear-gradient(135deg, #16a34a, #15803d);
+   371→  transform: translateY(-1px);
+   372→  box-shadow: 0 4px 16px rgba(34, 197, 94, 0.4);
+   373→  color: #fff;
+   374→}
+   375→
+   376→.btn-info {
+   377→  background: linear-gradient(135deg, var(--info), #0891b2);
+   378→  color: #fff;
+   379→  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.3);
+   380→}
+   381→
+   382→.btn-info:hover {
+   383→  background: linear-gradient(135deg, #0891b2, #0e7490);
+   384→  transform: translateY(-1px);
+   385→  box-shadow: 0 4px 16px rgba(6, 182, 212, 0.4);
+   386→  color: #fff;
+   387→}
+   388→
+   389→.btn-sm {
+   390→  padding: 0.35rem 0.75rem;
+   391→  font-size: 0.8rem;
+   392→  border-radius: 6px;
+   393→}
+   394→
+   395→.btn-lg {
+   396→  padding: 0.85rem 2rem;
+   397→  font-size: 1.05rem;
+   398→  border-radius: 10px;
+   399→}
+   400→
+   401→.btn-outline {
+   402→  background: transparent;
+   403→  color: var(--accent);
+   404→  border: 1.5px solid var(--accent);
+   405→}
+   406→
+   407→.btn-outline:hover {
+   408→  background: rgba(59, 130, 246, 0.1);
+   409→  transform: translateY(-1px);
+   410→  color: var(--accent);
+   411→}
+   412→
+   413→/* ========================================================================
+   414→   FORMS
+   415→   ======================================================================== */
+   416→.form-group {
+   417→  margin-bottom: 1.25rem;
+   418→}
+   419→
+   420→.form-group label {
+   421→  display: block;
+   422→  margin-bottom: 0.4rem;
+   423→  font-size: 0.875rem;
+   424→  font-weight: 600;
+   425→  color: var(--text-secondary);
+   426→}
+   427→
+   428→.form-control,
+   429→input[type="text"],
+   430→input[type="email"],
+   431→input[type="password"],
+   432→input[type="number"],
+   433→input[type="url"],
+   434→input[type="file"],
+   435→select,
+   436→textarea {
+   437→  width: 100%;
+   438→  padding: 0.65rem 0.85rem;
+   439→  font-size: 0.9rem;
+   440→  font-family: var(--font-sans);
+   441→  color: var(--text-primary);
+   442→  background: var(--bg-primary);
+   443→  border: 1px solid var(--border);
+   444→  border-radius: var(--radius);
+   445→  outline: none;
+   446→  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+   447→}
+   448→
+   449→.form-control:focus,
+   450→input:focus,
+   451→select:focus,
+   452→textarea:focus {
+   453→  border-color: var(--accent);
+   454→  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2), var(--shadow-glow);
+   455→}
+   456→
+   457→.form-control::placeholder {
+   458→  color: #4b5e78;
+   459→}
+   460→
+   461→textarea {
+   462→  resize: vertical;
+   463→  min-height: 100px;
+   464→}
+   465→
+   466→select {
+   467→  appearance: none;
+   468→  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+   469→  background-repeat: no-repeat;
+   470→  background-position: right 0.75rem center;
+   471→  padding-right: 2rem;
+   472→}
+   473→
+   474→.form-hint {
+   475→  display: block;
+   476→  margin-top: 0.3rem;
+   477→  font-size: 0.8rem;
+   478→  color: #64748b;
+   479→}
+   480→
+   481→.form-error {
+   482→  display: block;
+   483→  margin-top: 0.3rem;
+   484→  font-size: 0.8rem;
+   485→  color: var(--danger);
+   486→}
+   487→
+   488→.form-row {
+   489→  display: grid;
+   490→  grid-template-columns: 1fr 1fr;
+   491→  gap: 1rem;
+   492→}
+   493→
+   494→.form-actions {
+   495→  display: flex;
+   496→  align-items: center;
+   497→  gap: 0.75rem;
+   498→  margin-top: 1.5rem;
+   499→}
+   500→
+   501→/* Checkbox & Radio */
+   502→.form-check {
+   503→  display: flex;
+   504→  align-items: center;
+   505→  gap: 0.5rem;
+   506→  margin-bottom: 0.5rem;
+   507→}
+   508→
+   509→.form-check input[type="checkbox"],
+   510→.form-check input[type="radio"] {
+   511→  width: auto;
+   512→  accent-color: var(--accent);
+   513→}
+   514→
+   515→/* ========================================================================
+   516→   TABLES
+   517→   ======================================================================== */
+   518→.table-wrapper {
+   519→  overflow-x: auto;
+   520→  border: 1px solid var(--border);
+   521→  border-radius: var(--radius);
+   522→}
+   523→
+   524→table {
+   525→  width: 100%;
+   526→  border-collapse: collapse;
+   527→  font-size: 0.9rem;
+   528→}
+   529→
+   530→thead {
+   531→  background: var(--bg-primary);
+   532→}
+   533→
+   534→thead th {
+   535→  padding: 0.85rem 1rem;
+   536→  text-align: left;
+   537→  font-size: 0.8rem;
+   538→  font-weight: 700;
+   539→  text-transform: uppercase;
+   540→  letter-spacing: 0.5px;
+   541→  color: var(--text-secondary);
+   542→  border-bottom: 2px solid var(--border);
+   543→  white-space: nowrap;
+   544→}
+   545→
+   546→tbody td {
+   547→  padding: 0.75rem 1rem;
+   548→  border-bottom: 1px solid var(--border);
+   549→  color: var(--text-secondary);
+   550→}
+   551→
+   552→tbody tr:nth-child(even) {
+   553→  background: rgba(30, 41, 59, 0.5);
+   554→}
+   555→
+   556→tbody tr:hover {
+   557→  background: rgba(59, 130, 246, 0.06);
+   558→}
+   559→
+   560→tbody tr:last-child td {
+   561→  border-bottom: none;
+   562→}
+   563→
+   564→/* ========================================================================
+   565→   STATS CARDS
+   566→   ======================================================================== */
+   567→.stats-grid {
+   568→  display: grid;
+   569→  grid-template-columns: repeat(4, 1fr);
+   570→  gap: 1.25rem;
+   571→  margin-bottom: 2rem;
+   572→}
+   573→
+   574→.stat-card {
+   575→  background: var(--bg-card);
+   576→  border: 1px solid var(--border);
+   577→  border-radius: var(--radius);
+   578→  padding: 1.5rem;
+   579→  display: flex;
+   580→  flex-direction: column;
+   581→  gap: 0.5rem;
+   582→  transition: transform var(--transition-base), box-shadow var(--transition-base);
+   583→}
+   584→
+   585→.stat-card:hover {
+   586→  transform: translateY(-3px);
+   587→  box-shadow: var(--shadow-md);
+   588→}
+   589→
+   590→.stat-card .stat-icon {
+   591→  width: 44px;
+   592→  height: 44px;
+   593→  border-radius: 10px;
+   594→  display: flex;
+   595→  align-items: center;
+   596→  justify-content: center;
+   597→  font-size: 1.25rem;
+   598→  margin-bottom: 0.25rem;
+   599→}
+   600→
+   601→.stat-icon.icon-blue {
+   602→  background: rgba(59, 130, 246, 0.15);
+   603→  color: var(--accent);
+   604→}
+   605→
+   606→.stat-icon.icon-green {
+   607→  background: rgba(34, 197, 94, 0.15);
+   608→  color: var(--success);
+   609→}
+   610→
+   611→.stat-icon.icon-yellow {
+   612→  background: rgba(234, 179, 8, 0.15);
+   613→  color: var(--warning);
+   614→}
+   615→
+   616→.stat-icon.icon-red {
+   617→  background: rgba(239, 68, 68, 0.15);
+   618→  color: var(--danger);
+   619→}
+   620→
+   621→.stat-icon.icon-cyan {
+   622→  background: rgba(6, 182, 212, 0.15);
+   623→  color: var(--info);
+   624→}
+   625→
+   626→.stat-card .stat-value {
+   627→  font-size: 2rem;
+   628→  font-weight: 800;
+   629→  color: var(--text-primary);
+   630→  line-height: 1.1;
+   631→}
+   632→
+   633→.stat-card .stat-label {
+   634→  font-size: 0.825rem;
+   635→  font-weight: 500;
+   636→  color: var(--text-secondary);
+   637→  text-transform: uppercase;
+   638→  letter-spacing: 0.5px;
+   639→}
+   640→
+   641→/* ========================================================================
+   642→   STATUS BADGES
+   643→   ======================================================================== */
+   644→.badge {
+   645→  display: inline-flex;
+   646→  align-items: center;
+   647→  gap: 0.35rem;
+   648→  padding: 0.25rem 0.7rem;
+   649→  font-size: 0.75rem;
+   650→  font-weight: 600;
+   651→  border-radius: 9999px;
+   652→  text-transform: uppercase;
+   653→  letter-spacing: 0.4px;
+   654→  white-space: nowrap;
+   655→}
+   656→
+   657→.badge::before {
+   658→  content: '';
+   659→  width: 6px;
+   660→  height: 6px;
+   661→  border-radius: 50%;
+   662→  flex-shrink: 0;
+   663→}
+   664→
+   665→.badge-pending {
+   666→  background: rgba(234, 179, 8, 0.12);
+   667→  color: var(--warning);
+   668→}
+   669→
+   670→.badge-pending::before {
+   671→  background: var(--warning);
+   672→}
+   673→
+   674→.badge-running {
+   675→  background: rgba(59, 130, 246, 0.12);
+   676→  color: var(--accent);
+   677→  animation: pulse 2s infinite;
+   678→}
+   679→
+   680→.badge-running::before {
+   681→  background: var(--accent);
+   682→  animation: pulse-dot 1.5s infinite;
+   683→}
+   684→
+   685→.badge-completed {
+   686→  background: rgba(34, 197, 94, 0.12);
+   687→  color: var(--success);
+   688→}
+   689→
+   690→.badge-completed::before {
+   691→  background: var(--success);
+   692→}
+   693→
+   694→.badge-failed {
+   695→  background: rgba(239, 68, 68, 0.12);
+   696→  color: var(--danger);
+   697→}
+   698→
+   699→.badge-failed::before {
+   700→  background: var(--danger);
+   701→}
+   702→
+   703→.badge-info {
+   704→  background: rgba(6, 182, 212, 0.12);
+   705→  color: var(--info);
+   706→}
+   707→
+   708→.badge-info::before {
+   709→  background: var(--info);
+   710→}
+   711→
+   712→/* ========================================================================
+   713→   LEADERBOARD
+   714→   ======================================================================== */
+   715→.leaderboard-table {
+   716→  margin-top: 1.5rem;
+   717→}
+   718→
+   719→.leaderboard-table tr.current-user {
+   720→  background: rgba(59, 130, 246, 0.08) !important;
+   721→  border-left: 3px solid var(--accent);
+   722→}
+   723→
+   724→.leaderboard-table tr.current-user td {
+   725→  color: var(--text-primary);
+   726→  font-weight: 600;
+   727→}
+   728→
+   729→.rank-badge {
+   730→  display: inline-flex;
+   731→  align-items: center;
+   732→  justify-content: center;
+   733→  width: 32px;
+   734→  height: 32px;
+   735→  border-radius: 50%;
+   736→  font-size: 0.85rem;
+   737→  font-weight: 800;
+   738→}
+   739→
+   740→.rank-gold {
+   741→  background: rgba(255, 215, 0, 0.15);
+   742→  color: #FFD700;
+   743→  border: 2px solid rgba(255, 215, 0, 0.4);
+   744→}
+   745→
+   746→.rank-silver {
+   747→  background: rgba(192, 192, 192, 0.15);
+   748→  color: #C0C0C0;
+   749→  border: 2px solid rgba(192, 192, 192, 0.4);
+   750→}
+   751→
+   752→.rank-bronze {
+   753→  background: rgba(205, 127, 50, 0.15);
+   754→  color: #CD7F32;
+   755→  border: 2px solid rgba(205, 127, 50, 0.4);
+   756→}
+   757→
+   758→/* ========================================================================
+   759→   METRIC CARDS (Benchmark Results)
+   760→   ======================================================================== */
+   761→.metrics-grid {
+   762→  display: grid;
+   763→  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+   764→  gap: 1rem;
+   765→  margin: 1.5rem 0;
+   766→}
+   767→
+   768→.metric-card {
+   769→  background: var(--bg-card);
+   770→  border: 1px solid var(--border);
+   771→  border-radius: var(--radius);
+   772→  padding: 1.25rem;
+   773→  text-align: center;
+   774→  transition: transform var(--transition-base), box-shadow var(--transition-base);
+   775→}
+   776→
+   777→.metric-card:hover {
+   778→  transform: translateY(-2px);
+   779→  box-shadow: var(--shadow-md);
+   780→}
+   781→
+   782→.metric-card .metric-icon {
+   783→  font-size: 1.75rem;
+   784→  margin-bottom: 0.5rem;
+   785→}
+   786→
+   787→.metric-card .metric-value {
+   788→  font-size: 1.75rem;
+   789→  font-weight: 800;
+   790→  color: var(--text-primary);
+   791→  margin-bottom: 0.25rem;
+   792→}
+   793→
+   794→.metric-card .metric-label {
+   795→  font-size: 0.8rem;
+   796→  color: var(--text-secondary);
+   797→  text-transform: uppercase;
+   798→  letter-spacing: 0.5px;
+   799→  font-weight: 500;
+   800→}
+   801→
+   802→/* ========================================================================
+   803→   COMPARISON SECTION (Side-by-Side)
+   804→   ======================================================================== */
+   805→.comparison {
+   806→  display: grid;
+   807→  grid-template-columns: 1fr 1fr;
+   808→  gap: 1.5rem;
+   809→  margin: 2rem 0;
+   810→}
+   811→
+   812→.comparison-card {
+   813→  background: var(--bg-card);
+   814→  border: 1px solid var(--border);
+   815→  border-radius: var(--radius);
+   816→  padding: 1.5rem;
+   817→}
+   818→
+   819→.comparison-card.winner {
+   820→  border-color: var(--success);
+   821→  box-shadow: 0 0 12px rgba(34, 197, 94, 0.15);
+   822→}
+   823→
+   824→.comparison-card h4 {
+   825→  margin-bottom: 1rem;
+   826→  padding-bottom: 0.75rem;
+   827→  border-bottom: 1px solid var(--border);
+   828→}
+   829→
+   830→.comparison-metric {
+   831→  display: flex;
+   832→  justify-content: space-between;
+   833→  align-items: center;
+   834→  padding: 0.6rem 0;
+   835→  border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+   836→}
+   837→
+   838→.comparison-metric:last-child {
+   839→  border-bottom: none;
+   840→}
+   841→
+   842→.comparison-metric .metric-name {
+   843→  color: var(--text-secondary);
+   844→  font-size: 0.9rem;
+   845→}
+   846→
+   847→.comparison-metric .metric-score {
+   848→  font-weight: 700;
+   849→  font-size: 1rem;
+   850→}
+   851→
+   852→.comparison-metric .metric-score.better {
+   853→  color: var(--success);
+   854→}
+   855→
+   856→.comparison-metric .metric-score.worse {
+   857→  color: var(--danger);
+   858→}
+   859→
+   860→/* ========================================================================
+   861→   GRID UTILITIES
+   862→   ======================================================================== */
+   863→.grid-2 {
+   864→  display: grid;
+   865→  grid-template-columns: repeat(2, 1fr);
+   866→  gap: 1.25rem;
+   867→}
+   868→
+   869→.grid-3 {
+   870→  display: grid;
+   871→  grid-template-columns: repeat(3, 1fr);
+   872→  gap: 1.25rem;
+   873→}
+   874→
+   875→.grid-4 {
+   876→  display: grid;
+   877→  grid-template-columns: repeat(4, 1fr);
+   878→  gap: 1.25rem;
+   879→}
+   880→
+   881→/* ========================================================================
+   882→   ALERTS / NOTIFICATIONS
+   883→   ======================================================================== */
+   884→.alert-container {
+   885→  padding: 1rem 1.5rem 0;
+   886→  max-width: 1200px;
+   887→  margin: 0 auto;
+   888→  display: flex;
+   889→  flex-direction: column;
+   890→  gap: 0.5rem;
+   891→}
+   892→
+   893→.alert {
+   894→  padding: 0.85rem 1.1rem;
+   895→  border-radius: var(--radius);
+   896→  font-size: 0.9rem;
+   897→  font-weight: 500;
+   898→  display: flex;
+   899→  align-items: center;
+   900→  gap: 0.5rem;
+   901→  animation: slide-down 0.3s ease;
+   902→}
+   903→
+   904→.alert-success {
+   905→  background: rgba(34, 197, 94, 0.12);
+   906→  border: 1px solid rgba(34, 197, 94, 0.3);
+   907→  color: var(--success);
+   908→}
+   909→
+   910→.alert-warning {
+   911→  background: rgba(234, 179, 8, 0.12);
+   912→  border: 1px solid rgba(234, 179, 8, 0.3);
+   913→  color: var(--warning);
+   914→}
+   915→
+   916→.alert-danger {
+   917→  background: rgba(239, 68, 68, 0.12);
+   918→  border: 1px solid rgba(239, 68, 68, 0.3);
+   919→  color: var(--danger);
+   920→}
+   921→
+   922→.alert-info {
+   923→  background: rgba(6, 182, 212, 0.12);
+   924→  border: 1px solid rgba(6, 182, 212, 0.3);
+   925→  color: var(--info);
+   926→}
+   927→
+   928→.alert-dismissible {
+   929→  position: relative;
+   930→  padding-right: 2.5rem;
+   931→}
+   932→
+   933→.alert-close {
+   934→  position: absolute;
+   935→  top: 50%;
+   936→  right: 0.75rem;
+   937→  transform: translateY(-50%);
+   938→  background: none;
+   939→  border: none;
+   940→  color: inherit;
+   941→  font-size: 1.2rem;
+   942→  cursor: pointer;
+   943→  opacity: 0.7;
+   944→  transition: opacity var(--transition-fast);
+   945→}
+   946→
+   947→.alert-close:hover {
+   948→  opacity: 1;
+   949→}
+   950→
+   951→/* ========================================================================
+   952→   FOOTER
+   953→   ======================================================================== */
+   954→.footer {
+   955→  margin-top: auto;
+   956→  padding: 2rem 0;
+   957→  background: var(--bg-secondary);
+   958→  border-top: 1px solid var(--border);
+   959→}
+   960→
+   961→.footer .container {
+   962→  display: flex;
+   963→  align-items: center;
+   964→  justify-content: space-between;
+   965→  flex-wrap: wrap;
+   966→  gap: 1rem;
+   967→}
+   968→
+   969→.footer p {
+   970→  color: #4b5e78;
+   971→  font-size: 0.85rem;
+   972→  margin-bottom: 0;
+   973→}
+   974→
+   975→.footer-links {
+   976→  display: flex;
+   977→  gap: 1.5rem;
+   978→}
+   979→
+   980→.footer-links a {
+   981→  color: #4b5e78;
+   982→  font-size: 0.85rem;
+   983→  transition: color var(--transition-fast);
+   984→}
+   985→
+   986→.footer-links a:hover {
+   987→  color: var(--text-primary);
+   988→}
+   989→
+   990→/* ========================================================================
+   991→   UTILITIES
+   992→   ======================================================================== */
+   993→.text-center { text-align: center; }
+   994→.text-right { text-align: right; }
+   995→.text-muted { color: var(--text-secondary); }
+   996→.text-success { color: var(--success); }
+   997→.text-warning { color: var(--warning); }
+   998→.text-danger { color: var(--danger); }
+   999→.text-info { color: var(--info); }
+  1000→
+  1001→.mt-1 { margin-top: 0.5rem; }
+  1002→.mt-2 { margin-top: 1rem; }
+  1003→.mt-3 { margin-top: 1.5rem; }
+  1004→.mt-4 { margin-top: 2rem; }
+  1005→.mb-1 { margin-bottom: 0.5rem; }
+  1006→.mb-2 { margin-bottom: 1rem; }
+  1007→.mb-3 { margin-bottom: 1.5rem; }
+  1008→.mb-4 { margin-bottom: 2rem; }
+  1009→.mx-auto { margin-left: auto; margin-right: auto; }
+  1010→
+  1011→.d-flex { display: flex; }
+  1012→.align-center { align-items: center; }
+  1013→.justify-between { justify-content: space-between; }
+  1014→.gap-1 { gap: 0.5rem; }
+  1015→.gap-2 { gap: 1rem; }
+  1016→.gap-3 { gap: 1.5rem; }
+  1017→
+  1018→.w-full { width: 100%; }
+  1019→.truncate {
+  1020→  overflow: hidden;
+  1021→  text-overflow: ellipsis;
+  1022→  white-space: nowrap;
+  1023→}
+  1024→
+  1025→.sr-only {
+  1026→  position: absolute;
+  1027→  width: 1px;
+  1028→  height: 1px;
+  1029→  padding: 0;
+  1030→  margin: -1px;
+  1031→  overflow: hidden;
+  1032→  clip: rect(0, 0, 0, 0);
+  1033→  border: 0;
+  1034→}
+  1035→
+  1036→/* ========================================================================
+  1037→   PAGE-SPECIFIC: Auth Forms
+  1038→   ======================================================================== */
+  1039→.auth-wrapper {
+  1040→  display: flex;
+  1041→  align-items: center;
+  1042→  justify-content: center;
+  1043→  min-height: calc(100vh - 64px - 80px);
+  1044→  padding: 2rem 0;
+  1045→}
+  1046→
+  1047→.auth-card {
+  1048→  background: var(--bg-card);
+  1049→  border: 1px solid var(--border);
+  1050→  border-radius: 12px;
+  1051→  padding: 2.5rem;
+  1052→  width: 100%;
+  1053→  max-width: 420px;
+  1054→  box-shadow: var(--shadow-lg);
+  1055→}
+  1056→
+  1057→.auth-card h2 {
+  1058→  text-align: center;
+  1059→  margin-bottom: 0.5rem;
+  1060→}
+  1061→
+  1062→.auth-card .auth-subtitle {
+  1063→  text-align: center;
+  1064→  color: var(--text-secondary);
+  1065→  font-size: 0.9rem;
+  1066→  margin-bottom: 2rem;
+  1067→}
+  1068→
+  1069→.auth-divider {
+  1070→  display: flex;
+  1071→  align-items: center;
+  1072→  gap: 0.75rem;
+  1073→  margin: 1.5rem 0;
+  1074→  color: var(--text-secondary);
+  1075→  font-size: 0.8rem;
+  1076→}
+  1077→
+  1078→.auth-divider::before,
+  1079→.auth-divider::after {
+  1080→  content: '';
+  1081→  flex: 1;
+  1082→  height: 1px;
+  1083→  background: var(--border);
+  1084→}
+  1085→
+  1086→/* ========================================================================
+  1087→   PAGE-SPECIFIC: Jobs / Progress
+  1088→   ======================================================================== */
+  1089→.progress-bar-wrapper {
+  1090→  width: 100%;
+  1091→  height: 8px;
+  1092→  background: var(--bg-primary);
+  1093→  border-radius: 9999px;
+  1094→  overflow: hidden;
+  1095→}
+  1096→
+  1097→.progress-bar-fill {
+  1098→  height: 100%;
+  1099→  border-radius: 9999px;
+  1100→  background: linear-gradient(90deg, var(--accent), var(--info));
+  1101→  transition: width 0.5s ease;
+  1102→}
+  1103→
+  1104→.progress-label {
+  1105→  display: flex;
+  1106→  justify-content: space-between;
+  1107→  font-size: 0.8rem;
+  1108→  color: var(--text-secondary);
+  1109→  margin-top: 0.35rem;
+  1110→}
+  1111→
+  1112→/* ========================================================================
+  1113→   ANIMATIONS
+  1114→   ======================================================================== */
+  1115→@keyframes fade-in {
+  1116→  from {
+  1117→    opacity: 0;
+  1118→  }
+  1119→  to {
+  1120→    opacity: 1;
+  1121→  }
+  1122→}
+  1123→
+  1124→@keyframes slide-up {
+  1125→  from {
+  1126→    opacity: 0;
+  1127→    transform: translateY(20px);
+  1128→  }
+  1129→  to {
+  1130→    opacity: 1;
+  1131→    transform: translateY(0);
+  1132→  }
+  1133→}
+  1134→
+  1135→@keyframes slide-down {
+  1136→  from {
+  1137→    opacity: 0;
+  1138→    transform: translateY(-10px);
+  1139→  }
+  1140→  to {
+  1141→    opacity: 1;
+  1142→    transform: translateY(0);
+  1143→  }
+  1144→}
+  1145→
+  1146→@keyframes pulse {
+  1147→  0%, 100% {
+  1148→    opacity: 1;
+  1149→  }
+  1150→  50% {
+  1151→    opacity: 0.7;
+  1152→  }
+  1153→}
+  1154→
+  1155→@keyframes pulse-dot {
+  1156→  0%, 100% {
+  1157→    opacity: 1;
+  1158→    transform: scale(1);
+  1159→  }
+  1160→  50% {
+  1161→    opacity: 0.5;
+  1162→    transform: scale(1.4);
+  1163→  }
+  1164→}
+  1165→
+  1166→@keyframes shimmer {
+  1167→  0% {
+  1168→    background-position: -200% 0;
+  1169→  }
+  1170→  100% {
+  1171→    background-position: 200% 0;
+  1172→  }
+  1173→}
+  1174→
+  1175→.animate-fade-in {
+  1176→  animation: fade-in 0.5s ease both;
+  1177→}
+  1178→
+  1179→.animate-slide-up {
+  1180→  animation: slide-up 0.5s ease both;
+  1181→}
+  1182→
+  1183→.animate-slide-up-delay-1 {
+  1184→  animation: slide-up 0.5s ease 0.1s both;
+  1185→}
+  1186→
+  1187→.animate-slide-up-delay-2 {
+  1188→  animation: slide-up 0.5s ease 0.2s both;
+  1189→}
+  1190→
+  1191→.animate-slide-up-delay-3 {
+  1192→  animation: slide-up 0.5s ease 0.3s both;
+  1193→}
+  1194→
+  1195→/* Staggered children animation */
+  1196→.stagger-children > * {
+  1197→  animation: slide-up 0.4s ease both;
+  1198→}
+  1199→
+  1200→.stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+  1201→.stagger-children > *:nth-child(2) { animation-delay: 0.1s; }
+  1202→.stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+  1203→.stagger-children > *:nth-child(4) { animation-delay: 0.2s; }
+  1204→.stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+  1205→.stagger-children > *:nth-child(6) { animation-delay: 0.3s; }
+  1206→.stagger-children > *:nth-child(7) { animation-delay: 0.35s; }
+  1207→.stagger-children > *:nth-child(8) { animation-delay: 0.4s; }
+  1208→
+  1209→/* Loading skeleton */
+  1210→.skeleton {
+  1211→  background: linear-gradient(90deg, var(--bg-secondary) 25%, #2a3a52 50%, var(--bg-secondary) 75%);
+  1212→  background-size: 200% 100%;
+  1213→  animation: shimmer 1.5s infinite;
+  1214→  border-radius: var(--radius);
+  1215→}
+  1216→
+  1217→/* ========================================================================
+  1218→   RESPONSIVE — Mobile (<768px)
+  1219→   ======================================================================== */
+  1220→@media (max-width: 768px) {
+  1221→  .navbar {
+  1222→    padding: 0 1rem;
+  1223→    flex-wrap: wrap;
+  1224→    height: auto;
+  1225→    min-height: 64px;
+  1226→  }
+  1227→
+  1228→  .navbar-links {
+  1229→    display: none;
+  1230→    flex-direction: column;
+  1231→    width: 100%;
+  1232→    padding: 0.75rem 0;
+  1233→    gap: 0;
+  1234→  }
+  1235→
+  1236→  .navbar-links.active {
+  1237→    display: flex;
+  1238→  }
+  1239→
+  1240→  .navbar-links a {
+  1241→    padding: 0.65rem 1rem;
+  1242→    width: 100%;
+  1243→  }
+  1244→
+  1245→  .navbar-links a::after {
+  1246→    display: none;
+  1247→  }
+  1248→
+  1249→  .navbar-toggle {
+  1250→    display: block;
+  1251→  }
+  1252→
+  1253→  .hero h1 {
+  1254→    font-size: 2rem;
+  1255→  }
+  1256→
+  1257→  .hero .subtitle {
+  1258→    font-size: 1rem;
+  1259→  }
+  1260→
+  1261→  .stats-grid {
+  1262→    grid-template-columns: repeat(2, 1fr);
+  1263→  }
+  1264→
+  1265→  .grid-2,
+  1266→  .grid-3,
+  1267→  .grid-4 {
+  1268→    grid-template-columns: 1fr;
+  1269→  }
+  1270→
+  1271→  .comparison {
+  1272→    grid-template-columns: 1fr;
+  1273→  }
+  1274→
+  1275→  .form-row {
+  1276→    grid-template-columns: 1fr;
+  1277→  }
+  1278→
+  1279→  .metrics-grid {
+  1280→    grid-template-columns: repeat(2, 1fr);
+  1281→  }
+  1282→
+  1283→  /* Hide less-important columns in tables on mobile */
+  1284→  table .hide-mobile {
+  1285→    display: none;
+  1286→  }
+  1287→
+  1288→  .auth-card {
+  1289→    padding: 1.5rem;
+  1290→    margin: 0 1rem;
+  1291→  }
+  1292→
+  1293→  h1 { font-size: 1.75rem; }
+  1294→  h2 { font-size: 1.375rem; }
+  1295→}
+  1296→
+  1297→/* ========================================================================
+  1298→   RESPONSIVE — Tablet (768px–1024px)
+  1299→   ======================================================================== */
+  1300→@media (min-width: 769px) and (max-width: 1024px) {
+  1301→  .stats-grid {
+  1302→    grid-template-columns: repeat(2, 1fr);
+  1303→  }
+  1304→
+  1305→  .grid-4 {
+  1306→    grid-template-columns: repeat(2, 1fr);
+  1307→  }
+  1308→
+  1309→  .metrics-grid {
+  1310→    grid-template-columns: repeat(3, 1fr);
+  1311→  }
+  1312→}
+  1313→
+  1314→/* ========================================================================
+  1315→   SCROLLBAR STYLING
+  1316→   ======================================================================== */
+  1317→::-webkit-scrollbar {
+  1318→  width: 8px;
+  1319→  height: 8px;
+  1320→}
+  1321→
+  1322→::-webkit-scrollbar-track {
+  1323→  background: var(--bg-primary);
+  1324→}
+  1325→
+  1326→::-webkit-scrollbar-thumb {
+  1327→  background: var(--border);
+  1328→  border-radius: 4px;
+  1329→}
+  1330→
+  1331→::-webkit-scrollbar-thumb:hover {
+  1332→  background: #475569;
+  1333→}
+  1334→
+  1335→/* ========================================================================
+  1336→   SELECTION
+  1337→   ======================================================================== */
+  1338→::selection {
+  1339→  background: rgba(59, 130, 246, 0.3);
+  1340→  color: var(--text-primary);
+  1341→}
+  1342→
+  1343→/* ========================================================================
+  1344→   PRINT STYLES (minimal)
+  1345→   ======================================================================== */
+  1346→@media print {
+  1347→  .navbar,
+  1348→  .footer,
+  1349→  .btn {
+  1350→    display: none !important;
+  1351→  }
+  1352→
+  1353→  body {
+  1354→    background: #fff;
+  1355→    color: #000;
+  1356→  }
+  1357→
+  1358→  .card {
+  1359→    border: 1px solid #ddd;
+  1360→    box-shadow: none;
+  1361→  }
+  1362→}
+  1363→

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}OpenBenchML{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <a href="/">OpenBenchML</a>
+        </div>
+        <button class="navbar-toggle" onclick="document.querySelector('.navbar-links').classList.toggle('active')" aria-label="Toggle navigation">
+            &#9776;
+        </button>
+        <div class="navbar-links">
+            {% if current_user %}
+                <a href="/dashboard">Dashboard</a>
+                <a href="/my-models">My Models</a>
+                <a href="/datasets">Datasets</a>
+                <a href="/benchmark">Benchmark</a>
+                <a href="/leaderboard">Leaderboard</a>
+                <a href="/jobs">Jobs</a>
+                <a href="/logout" class="btn btn-secondary btn-sm">Logout</a>
+            {% else %}
+                <a href="/login">Login</a>
+                <a href="/register">Register</a>
+            {% endif %}
+        </div>
+    </nav>
+
+    {% if message %}
+    <div class="alert-container">
+        <div class="alert alert-{{ message_type | default('info') }}">
+            {{ message }}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if error %}
+    <div class="alert-container">
+        <div class="alert alert-danger">
+            {{ error }}
+        </div>
+    </div>
+    {% endif %}
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 OpenBenchML v1.0.0 &mdash; Open Source ML Model Benchmarking Platform</p>
+            <div class="footer-links">
+                <a href="/about">About</a>
+                <a href="/docs">Documentation</a>
+                <a href="https://github.com/openbenchml" target="_blank" rel="noopener">GitHub</a>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/js/main.js"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

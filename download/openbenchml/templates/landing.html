@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% set current_user = None %}
+
+{% block title %}OpenBenchML — Benchmark, Compare, and Rank ML Models{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero">
+    <h1>OpenBenchML</h1>
+    <p class="subtitle">Benchmark, Compare, and Rank Machine Learning Models</p>
+    <div class="hero-cta">
+        <a href="/register" class="btn btn-primary btn-lg">Get Started</a>
+        <a href="/leaderboard" class="btn btn-secondary btn-lg">View Leaderboard</a>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section style="padding: 4rem 0;">
+    <h2 style="text-align: center; font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem;">Platform Features</h2>
+    <p style="text-align: center; color: var(--text-secondary); margin-bottom: 2.5rem; max-width: 540px; margin-left: auto; margin-right: auto;">
+        Everything you need to evaluate, compare, and rank machine learning models objectively.
+    </p>
+    <div class="grid-3">
+        <!-- Feature 1 -->
+        <div class="card" style="text-align: center;">
+            <div class="stat-icon icon-blue" style="margin: 0 auto 1rem; font-size: 1.5rem;">&#128230;</div>
+            <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem;">Upload Models</h3>
+            <p class="card-body">Upload your trained ML models (.pkl, .joblib, .onnx, .pt)</p>
+        </div>
+        <!-- Feature 2 -->
+        <div class="card" style="text-align: center;">
+            <div class="stat-icon icon-green" style="margin: 0 auto 1rem; font-size: 1.5rem;">&#128202;</div>
+            <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem;">Benchmark Datasets</h3>
+            <p class="card-body">Run against Iris, Wine, MNIST, and more standard datasets</p>
+        </div>
+        <!-- Feature 3 -->
+        <div class="card" style="text-align: center;">
+            <div class="stat-icon icon-cyan" style="margin: 0 auto 1rem; font-size: 1.5rem;">&#128640;</div>
+            <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem;">Performance Metrics</h3>
+            <p class="card-body">Measure accuracy, latency, memory, CPU, and model size</p>
+        </div>
+        <!-- Feature 4 -->
+        <div class="card" style="text-align: center;">
+            <div class="stat-icon icon-red" style="margin: 0 auto 1rem; font-size: 1.5rem;">&#128737;</div>
+            <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem;">Docker Sandbox</h3>
+            <p class="card-body">Secure model execution in isolated Docker containers</p>
+        </div>
+        <!-- Feature 5 -->
+        <div class="card" style="text-align: center;">
+            <div class="stat-icon icon-yellow" style="margin: 0 auto 1rem; font-size: 1.5rem;">&#127942;</div>
+            <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem;">Public Leaderboard</h3>
+            <p class="card-body">Compare your models against the community</p>
+        </div>
+        <!-- Feature 6 -->
+        <div class="card" style="text-align: center;">
+            <div class="stat-icon icon-blue" style="margin: 0 auto 1rem; font-size: 1.5rem;">&#128274;</div>
+            <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem;">REST API</h3>
+            <p class="card-body">Full API access for programmatic benchmarking</p>
+        </div>
+    </div>
+</section>
+
+<!-- Leaderboard Preview Section -->
+<section style="padding: 3rem 0;">
+    <h2 style="text-align: center; font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem;">Leaderboard Preview</h2>
+    <p style="text-align: center; color: var(--text-secondary); margin-bottom: 2rem;">
+        Top performing models ranked by composite score
+    </p>
+    <div class="table-wrapper">
+        <table class="leaderboard-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Model</th>
+                    <th>Owner</th>
+                    <th>Dataset</th>
+                    <th>Accuracy</th>
+                    <th>Latency</th>
+                    <th>Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><span class="rank-badge rank-gold">1</span></td>
+                    <td style="font-weight: 600; color: var(--text-primary);">XGBoost v2.1</td>
+                    <td>ml_champion</td>
+                    <td>Iris</td>
+                    <td><span style="color: var(--success); font-weight: 600;">98.7%</span></td>
+                    <td>1.2 ms</td>
+                    <td><strong style="color: var(--text-primary);">96.4</strong></td>
+                </tr>
+                <tr>
+                    <td><span class="rank-badge rank-silver">2</span></td>
+                    <td style="font-weight: 600; color: var(--text-primary);">RandomForest Opt</td>
+                    <td>data_science_pro</td>
+                    <td>Wine</td>
+                    <td><span style="color: var(--success); font-weight: 600;">97.2%</span></td>
+                    <td>0.8 ms</td>
+                    <td><strong style="color: var(--text-primary);">94.8</strong></td>
+                </tr>
+                <tr>
+                    <td><span class="rank-badge rank-bronze">3</span></td>
+                    <td style="font-weight: 600; color: var(--text-primary);">NeuralNet-Lite</td>
+                    <td>ai_researcher</td>
+                    <td>MNIST</td>
+                    <td><span style="color: var(--success); font-weight: 600;">96.5%</span></td>
+                    <td>3.4 ms</td>
+                    <td><strong style="color: var(--text-primary);">93.1</strong></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+    <div style="text-align: center; margin-top: 1.5rem;">
+        <a href="/leaderboard" class="btn btn-outline">View Full Leaderboard</a>
+    </div>
+</section>
+
+<!-- Statistics Section -->
+<section style="padding: 3rem 0;">
+    <div class="stats-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="stat-card" style="text-align: center;">
+            <div class="stat-icon icon-blue" style="margin: 0 auto 0.5rem;">&#128202;</div>
+            <div class="stat-value">1,247</div>
+            <div class="stat-label">Models Benchmarked</div>
+        </div>
+        <div class="stat-card" style="text-align: center;">
+            <div class="stat-icon icon-green" style="margin: 0 auto 0.5rem;">&#128451;</div>
+            <div class="stat-value">12</div>
+            <div class="stat-label">Datasets Available</div>
+        </div>
+        <div class="stat-card" style="text-align: center;">
+            <div class="stat-icon icon-cyan" style="margin: 0 auto 0.5rem;">&#9889;</div>
+            <div class="stat-value">8,439</div>
+            <div class="stat-label">Benchmarks Run</div>
+        </div>
+    </div>
+</section>
+{% endblock %}

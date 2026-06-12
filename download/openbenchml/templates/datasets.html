@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% set current_user = user %}
+
+{% block title %}Benchmark Datasets — OpenBenchML{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 2rem;">
+    <h1>Benchmark Datasets</h1>
+    <p class="text-muted">Browse built-in datasets for evaluating your models. Grouped by difficulty level.</p>
+</div>
+
+{% set difficulty_labels = {
+    "beginner": {"icon": "&#127793;", "color": "var(--success)", "label": "Beginner"},
+    "intermediate": {"icon": "&#127794;", "color": "var(--warning)", "label": "Intermediate"},
+    "advanced": {"icon": "&#127795;", "color": "var(--danger)", "label": "Advanced"},
+} %}
+
+{% for difficulty in ["beginner", "intermediate", "advanced"] %}
+{% set datasets_in_group = grouped_datasets.get(difficulty, []) %}
+{% set meta = difficulty_labels[difficulty] %}
+
+<div style="margin-bottom: 2.5rem;">
+    <div class="d-flex align-center gap-2" style="margin-bottom: 1.25rem;">
+        <span style="font-size: 1.5rem;">{{ meta.icon|safe }}</span>
+        <h2 style="margin-bottom: 0; color: {{ meta.color }};">{{ meta.label }}</h2>
+        <span class="badge badge-info" style="margin-left: 0.25rem;">{{ datasets_in_group|length }} dataset{{ 's' if datasets_in_group|length != 1 else '' }}</span>
+    </div>
+
+    {% if datasets_in_group %}
+    <div class="grid-3">
+        {% for ds in datasets_in_group %}
+        <div class="card">
+            <div class="card-header" style="padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
+                <h3 style="font-size: 1.05rem;">{{ ds.name }}</h3>
+                <span class="badge badge-info">{{ ds.task_type }}</span>
+            </div>
+            <div class="card-body">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <div>
+                        <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary);">Samples</div>
+                        <div style="font-weight: 700; color: var(--text-primary);">{{ ds.samples or '—' }}</div>
+                    </div>
+                    <div>
+                        <div style="font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary);">Features</div>
+                        <div style="font-weight: 700; color: var(--text-primary);">{{ ds.features or '—' }}</div>
+                    </div>
+                </div>
+                <p class="text-muted" style="font-size: 0.85rem; margin-bottom: 1rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;">
+                    {{ ds.description or 'No description available.' }}
+                </p>
+            </div>
+            <div class="card-footer">
+                <a href="/datasets/{{ ds.id }}" class="btn btn-secondary btn-sm">View Details</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted" style="padding: 1rem 0;">No {{ difficulty }} datasets available yet.</p>
+    {% endif %}
+</div>
+
+{% endfor %}
+{% endblock %}
