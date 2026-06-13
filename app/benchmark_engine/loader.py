@@ -251,9 +251,25 @@ def _load_lightgbm_model(file_path: str) -> Any:
 
 def _load_tensorflow_model(file_path: str) -> Any:
     """Load a TensorFlow / Keras model via ``tf.keras.models.load_model``."""
-    import tensorflow as tf
+    try:
+        import tensorflow as tf
+    except Exception as exc:
+        raise RuntimeError(
+            "TensorFlow import failed. This usually means the installed TensorFlow wheel "
+            "is not compatible with the current Python or platform, or a dependency like "
+            "protobuf is mismatched. Try installing a compatible TensorFlow package and "
+            "pinning protobuf to a supported version: `pip install \"protobuf<7.0.0,>=3.20.2\"`."
+        ) from exc
 
-    model = tf.keras.models.load_model(file_path)
+    try:
+        model = tf.keras.models.load_model(file_path)
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to load TensorFlow/Keras model from '{file_path}': {exc}. "
+            "Make sure the file is a valid Keras model and that TensorFlow is installed "
+            "correctly for your Python version."
+        ) from exc
+
     logger.debug("Loaded TensorFlow/Keras model: %s", type(model).__name__)
     return model
 
