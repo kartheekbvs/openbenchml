@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ lesson.title }}{% endblock %}
+
+{% block content %}
+<section class="lesson-page">
+    <h1>{{ lesson.title }}</h1>
+    <p class="subtitle">{{ lesson.summary }}</p>
+    {% for section in lesson.sections %}
+    <div class="lesson-section">
+        <h2>{{ section.heading }}</h2>
+        <p>{{ section.text }}</p>
+        {% if section.code %}
+        <pre><code>{{ section.code }}</code></pre>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    {% if lesson.code_examples %}
+    <section class="code-examples">
+        <h2>Code examples</h2>
+        {% for example in lesson.code_examples %}
+        <pre><code>{{ example }}</code></pre>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if next_lesson %}
+    <div class="next-lesson">
+        <p>Next lesson:</p>
+        <a class="btn btn-primary" href="{{ request.url_for('course_lesson', module_slug=module.slug, lesson_slug=next_lesson.slug) }}">{{ next_lesson.title }}</a>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

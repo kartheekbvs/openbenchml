@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ course_title }} — Welcome{% endblock %}
+
+{% block content %}
+<section class="hero">
+    <h1>{{ course_title }}</h1>
+    <p class="subtitle">{{ course_subtitle }}</p>
+    <p class="description">{{ course_overview }}</p>
+    <div class="hero-actions">
+        <a class="btn btn-primary" href="{{ request.url_for('course_syllabus') }}">View Syllabus</a>
+        <a class="btn btn-secondary" href="{{ request.url_for('course_module', module_slug='fastapi-introduction') }}">Start the course</a>
+    </div>
+</section>
+
+<section class="module-preview">
+    <h2>Featured Modules</h2>
+    <div class="module-grid">
+        {% for module in modules[:3] %}
+        <article class="module-card">
+            <h3>{{ module.title }}</h3>
+            <p>{{ module.description }}</p>
+            <p class="lesson-count">{{ module.lessons | length }} lessons</p>
+            <a class="btn btn-outline" href="{{ request.url_for('course_module', module_slug=module.slug) }}">Open Module</a>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

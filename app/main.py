@@ -232,6 +232,10 @@ async def rate_limit_handler(request: Request, exc):
 # ─── Mount Static Files ──────────────────────────────────────────────────────
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+# ─── Mount Course App ─────────────────────────────────────────────────────────
+from course_app.main import app as course_app
+app.mount("/course", course_app, name="course_app")
+
 
 # ─── Include Routers ─────────────────────────────────────────────────────────
 from app.routes import auth, dashboard, models, datasets, benchmark, leaderboard, fastapi_course  # noqa: E402

@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ module.title }}{% endblock %}
+
+{% block content %}
+<section class="module-page">
+    <h1>{{ module.title }}</h1>
+    <p class="subtitle">{{ module.description }}</p>
+    <div class="lesson-grid">
+        {% for lesson in module.lessons %}
+        <article class="lesson-card">
+            <h3>{{ lesson.title }}</h3>
+            <p>{{ lesson.summary }}</p>
+            <a class="btn btn-outline" href="{{ request.url_for('course_lesson', module_slug=module.slug, lesson_slug=lesson.slug) }}">Open lesson</a>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
