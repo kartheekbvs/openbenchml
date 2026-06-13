@@ -343,7 +343,7 @@ async def api_info():
             "health": "/health",
         },
         "supported_frameworks": [
-            "scikit-learn", "pytorch", "onnx", "tensorflow", "xgboost", "lightgbm"
+            "auto", "scikit-learn", "pytorch", "onnx", "tensorflow", "xgboost", "lightgbm"
         ],
         "supported_task_types": [
             "classification", "regression", "clustering"

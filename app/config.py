@@ -109,8 +109,7 @@ GZIP_MIN_SIZE = int(os.getenv("GZIP_MIN_SIZE", "1000"))
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 
 # ─── Allowed Model Frameworks ────────────────────────────────────────────────
-FRAMEWORKS = [
-    "scikit-learn",
+FRAMEWORKS = [    "auto",    "scikit-learn",
     "pytorch",
     "onnx",
     "tensorflow",

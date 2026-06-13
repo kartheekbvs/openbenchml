@@ -21,6 +21,19 @@ from sklearn.model_selection import train_test_split
 
 logger = logging.getLogger(__name__)
 
+_FRAMEWORK_EXTENSIONS = {
+    ".pkl": "scikit-learn",
+    ".joblib": "scikit-learn",
+    ".pt": "pytorch",
+    ".pth": "pytorch",
+    ".onnx": "onnx",
+    ".h5": "tensorflow",
+    ".pb": "tensorflow",
+    ".bin": "xgboost",
+    ".json": "xgboost",
+    ".model": "lightgbm",
+}
+
 # ─── Built-in dataset registry ────────────────────────────────────────────────
 _BUILTIN_DATASETS = {
     "iris": {"loader": load_iris, "task_type": "classification"},
@@ -37,6 +50,8 @@ def load_model(file_path: str, framework: str) -> Any:
 
     Supported frameworks and their loading strategies:
 
+    * **auto** – infer the framework from the file extension and load the
+      model with the appropriate backend.
     * **scikit-learn** – :func:`joblib.load`
     * **pytorch** – :func:`torch.load` with ``map_location='cpu'``
     * **onnx** – :class:`onnxruntime.InferenceSession`
@@ -47,7 +62,7 @@ def load_model(file_path: str, framework: str) -> Any:
     Args:
         file_path: Absolute or relative path to the serialized model file.
         framework: One of the supported framework identifiers
-            (``scikit-learn``, ``pytorch``, ``onnx``, ``xgboost``,
+            (``auto``, ``scikit-learn``, ``pytorch``, ``onnx``, ``xgboost``,
             ``lightgbm``, ``tensorflow``).
 
     Returns:
@@ -62,6 +77,20 @@ def load_model(file_path: str, framework: str) -> Any:
         raise FileNotFoundError(f"Model file not found: {file_path}")
 
     framework = framework.lower().strip()
+    if framework in ("auto", "detect"):
+        guessed = _guess_framework_from_path(file_path)
+        if guessed is None:
+            raise ValueError(
+                f"Could not detect framework from file extension for '{file_path}'. "
+                f"Please select one of: scikit-learn, pytorch, onnx, xgboost, lightgbm, tensorflow"
+            )
+        logger.info(
+            "Auto-detected framework '%s' from file extension '%s'",
+            guessed,
+            os.path.splitext(file_path)[1].lower(),
+        )
+        framework = guessed
+
     logger.info("Loading model from '%s' (framework=%s)", file_path, framework)
 
     try:
@@ -91,9 +120,30 @@ def load_model(file_path: str, framework: str) -> Any:
     except (FileNotFoundError, ValueError):
         raise
     except Exception as exc:
+        fallback = _guess_framework_from_path(file_path)
+        if fallback is not None and fallback != framework:
+            logger.warning(
+                "Initial load failed for framework '%s'; attempting fallback to detected framework '%s'",
+                framework,
+                fallback,
+            )
+            try:
+                return load_model(file_path, fallback)
+            except Exception as fallback_exc:
+                raise RuntimeError(
+                    f"Failed to load model from '{file_path}' using both "
+                    f"framework='{framework}' and fallback='{fallback}': {fallback_exc}"
+                ) from fallback_exc
+
         raise RuntimeError(
             f"Failed to load model from '{file_path}' (framework={framework}): {exc}"
         ) from exc
+
+
+def _guess_framework_from_path(file_path: str) -> Optional[str]:
+    """Infer the most likely framework from a model file extension."""
+    ext = os.path.splitext(file_path)[1].lower()
+    return _FRAMEWORK_EXTENSIONS.get(ext)
 
 
 # ─── Framework-specific private loaders ────────────────────────────────────────

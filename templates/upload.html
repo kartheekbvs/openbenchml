@@ -35,12 +35,13 @@
                     <option value="{{ fw }}">{{ fw }}</option>
                     {% endfor %}
                 </select>
+                <span class="form-hint">Choose <strong>auto</strong> to detect the backend from the uploaded file type.</span>
             </div>
 
             <div class="form-group">
                 <label for="file">Model File</label>
-                <input type="file" id="file" name="file" accept=".pkl,.joblib,.onnx,.pt,.h5" required>
-                <span class="form-hint">Accepted formats: .pkl, .joblib, .onnx, .pt, .h5</span>
+                <input type="file" id="file" name="file" accept=".pkl,.joblib,.onnx,.pt,.h5,.pb,.model,.bin" required>
+                <span class="form-hint">Accepted formats: .pkl, .joblib, .onnx, .pt, .h5, .pb, .model, .bin</span>
             </div>
 
             <div class="form-actions">
@@ -78,6 +79,18 @@
                     <span style="color: var(--accent); font-weight: 600; margin-right: 0.5rem;">.h5</span>
                     HDF5 / Keras format (TensorFlow)
                 </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--accent); font-weight: 600; margin-right: 0.5rem;">.pb</span>
+                    TensorFlow SavedModel / protobuf
+                </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--accent); font-weight: 600; margin-right: 0.5rem;">.model</span>
+                    LightGBM / XGBoost native format
+                </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--accent); font-weight: 600; margin-right: 0.5rem;">.bin</span>
+                    XGBoost native model format
+                </li>
             </ul>
 
             <h4 style="margin-bottom: 0.75rem;">Requirements</h4>
@@ -89,6 +102,10 @@
                 <li style="padding: 0.35rem 0; color: var(--text-secondary);">
                     <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
                     Model must implement <code>predict()</code> method
+                </li>
+                <li style="padding: 0.35rem 0; color: var(--text-secondary);">
+                    <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
+                    Choose <strong>auto</strong> to detect the framework from the file type
                 </li>
                 <li style="padding: 0.35rem 0; color: var(--text-secondary);">
                     <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
