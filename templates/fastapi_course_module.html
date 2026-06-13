@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ module.title }} — FastAPI Mastery{% endblock %}
+
+{% block content %}
+<section class="course-page-header">
+    <div class="container">
+        <a class="breadcrumb" href="/fastapi-course">← Back to course home</a>
+        <h1>{{ module.title }}</h1>
+        <p class="section-lead">{{ module.description }}</p>
+    </div>
+</section>
+
+<div class="container course-grid">
+    <aside class="course-sidebar">
+        <div class="sidebar-card">
+            <h2>Course Modules</h2>
+            <ul class="sidebar-list">
+                {% for item in modules %}
+                <li class="sidebar-item {% if item.slug == module.slug %}active{% endif %}"><a href="/fastapi-course/modules/{{ item.slug }}">{{ item.title }}</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+    </aside>
+
+    <main class="course-main">
+        <section class="lesson-list">
+            <h2>Lessons in this module</h2>
+            <div class="lesson-grid">
+                {% for lesson in module.lessons %}
+                <article class="lesson-card">
+                    <h3>{{ lesson.title }}</h3>
+                    <p>{{ lesson.summary }}</p>
+                    <a class="btn btn-primary btn-sm" href="/fastapi-course/modules/{{ module.slug }}/lessons/{{ lesson.slug }}">View lesson</a>
+                </article>
+                {% endfor %}
+            </div>
+        </section>
+    </main>
+</div>
+{% endblock %}

@@ -779,6 +779,172 @@ tbody tr:last-child td {
   box-shadow: var(--shadow-md);
 }
 
+/* ========================================================================
+   COURSE SITE STYLES
+   ======================================================================== */
+.course-hero {
+  padding: 5rem 0 3rem;
+  text-align: center;
+}
+
+.hero-content .eyebrow {
+  display: inline-flex;
+  margin-bottom: 1rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 9999px;
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.hero-content h1 {
+  font-size: clamp(2.5rem, 4vw, 4rem);
+  line-height: 1.05;
+  margin: 1rem 0;
+}
+
+.hero-subtitle,
+.hero-description {
+  max-width: 760px;
+  margin: 0.85rem auto;
+  color: var(--text-secondary);
+}
+
+.hero-actions {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-top: 1.5rem;
+}
+
+.course-modules {
+  padding: 3rem 0 5rem;
+}
+
+.module-grid,
+.lesson-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+
+.module-card,
+.lesson-card,
+.sidebar-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.5rem;
+}
+
+.module-card h3,
+.lesson-card h3 {
+  margin-bottom: 0.75rem;
+}
+
+.module-card p,
+.lesson-card p {
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+.module-count {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.course-page-header {
+  padding: 3rem 0 2rem;
+}
+
+.course-grid {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 2rem;
+  align-items: start;
+  margin-bottom: 4rem;
+}
+
+.course-sidebar {
+  position: sticky;
+  top: 86px;
+  align-self: start;
+}
+
+.sidebar-card h2 {
+  margin-bottom: 1rem;
+}
+
+.sidebar-list {
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.sidebar-item a {
+  display: block;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  color: var(--text-secondary);
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.sidebar-item.active a,
+.sidebar-item a:hover {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--text-primary);
+}
+
+.lesson-section {
+  margin-bottom: 2rem;
+}
+
+.lesson-section h2 {
+  margin-bottom: 0.75rem;
+}
+
+.code-examples pre,
+.lesson-section pre {
+  margin: 1rem 0;
+  background: rgba(15, 23, 42, 0.95);
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+.next-lesson {
+  margin-top: 2rem;
+}
+
+.section-lead {
+  color: var(--text-secondary);
+  max-width: 800px;
+  margin-bottom: 1.5rem;
+}
+
+@media (max-width: 900px) {
+  .course-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .course-sidebar {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .hero-content h1 {
+    font-size: 2.5rem;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+  }
+}
+
 .metric-card .metric-icon {
   font-size: 1.75rem;
   margin-bottom: 0.5rem;

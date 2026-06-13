@@ -234,7 +234,8 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 # ─── Include Routers ─────────────────────────────────────────────────────────
-from app.routes import auth, dashboard, models, datasets, benchmark, leaderboard  # noqa: E402
+from app.routes import auth, dashboard, models, datasets, benchmark, leaderboard, fastapi_course  # noqa: E402
+from app.learning.router import router as learning_router  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(dashboard.router)
@@ -242,6 +243,8 @@ app.include_router(models.router)
 app.include_router(datasets.router)
 app.include_router(benchmark.router)
 app.include_router(leaderboard.router)
+app.include_router(fastapi_course.router)
+app.include_router(learning_router)
 
 
 # ─── Landing Page ────────────────────────────────────────────────────────────

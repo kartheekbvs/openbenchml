@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block title %}FastAPI Mastery — OpenBenchML{% endblock %}
+
+{% block content %}
+<section class="course-hero">
+    <div class="container hero-content">
+        <p class="eyebrow">FastAPI Course</p>
+        <h1>{{ course_title }}</h1>
+        <p class="hero-subtitle">{{ course_subtitle }}</p>
+        <p class="hero-description">{{ course_overview }}</p>
+        <div class="hero-actions">
+            <a class="btn btn-primary" href="/fastapi-course/modules/fastapi-introduction">Start Learning</a>
+            <a class="btn btn-secondary" href="#modules">View Modules</a>
+        </div>
+    </div>
+</section>
+
+<section class="course-modules" id="modules">
+    <div class="container">
+        <h2>Course Modules</h2>
+        <p class="section-lead">A full FastAPI learning path from beginner fundamentals to advanced production topics.</p>
+        <div class="module-grid">
+            {% for module in modules %}
+            <article class="module-card">
+                <h3>{{ module.title }}</h3>
+                <p>{{ module.description }}</p>
+                <p class="module-count">{{ module.lessons | length }} lessons</p>
+                <a class="btn btn-outline" href="/fastapi-course/modules/{{ module.slug }}">Open Module</a>
+            </article>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}

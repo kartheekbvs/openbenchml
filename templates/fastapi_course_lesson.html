@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ lesson.title }} — {{ module.title }} — FastAPI Mastery{% endblock %}
+
+{% block content %}
+<section class="course-page-header">
+    <div class="container">
+        <a class="breadcrumb" href="/fastapi-course/modules/{{ module.slug }}">← Back to {{ module.title }}</a>
+        <h1>{{ lesson.title }}</h1>
+        <p class="section-lead">{{ lesson.summary }}</p>
+    </div>
+</section>
+
+<div class="container course-grid">
+    <aside class="course-sidebar">
+        <div class="sidebar-card">
+            <h2>{{ module.title }}</h2>
+            <ul class="sidebar-list">
+                {% for item in module.lessons %}
+                <li class="sidebar-item {% if item.slug == lesson.slug %}active{% endif %}"><a href="/fastapi-course/modules/{{ module.slug }}/lessons/{{ item.slug }}">{{ item.title }}</a></li>
+                {% endfor %}
+            </ul>
+        </div>
+    </aside>
+
+    <main class="course-main">
+        {% for section in lesson.sections %}
+        <article class="lesson-section">
+            <h2>{{ section.heading }}</h2>
+            <p>{{ section.text }}</p>
+            {% if section.code %}
+            <pre><code>{{ section.code }}</code></pre>
+            {% endif %}
+        </article>
+        {% endfor %}
+
+        {% if lesson.code_examples %}
+        <section class="code-examples">
+            <h2>Code examples</h2>
+            {% for code in lesson.code_examples %}
+            <pre><code>{{ code }}</code></pre>
+            {% endfor %}
+        </section>
+        {% endif %}
+
+        {% if next_lesson %}
+        <div class="next-lesson">
+            <a class="btn btn-primary" href="/fastapi-course/modules/{{ module.slug }}/lessons/{{ next_lesson.slug }}">Next lesson: {{ next_lesson.title }}</a>
+        </div>
+        {% endif %}
+    </main>
+</div>
+{% endblock %}
