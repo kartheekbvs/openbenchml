@@ -33,6 +33,19 @@ async def fastapi_course_home(request: Request):
     })
 
 
+@router.get('/fastapi-course/syllabus', response_class=HTMLResponse)
+async def fastapi_course_syllabus(request: Request):
+    total_lessons = sum(len(module['lessons']) for module in COURSE_MODULES)
+    return templates.TemplateResponse('fastapi_course_syllabus.html', {
+        'request': request,
+        'course_title': COURSE_TITLE,
+        'course_subtitle': COURSE_SUBTITLE,
+        'course_overview': COURSE_OVERVIEW,
+        'modules': COURSE_MODULES,
+        'total_lessons': total_lessons,
+    })
+
+
 @router.get('/fastapi-course/modules/{module_slug}', response_class=HTMLResponse)
 async def fastapi_course_module(request: Request, module_slug: str):
     module = get_module(module_slug)

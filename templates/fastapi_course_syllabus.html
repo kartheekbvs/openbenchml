@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+
+{% block title %}FastAPI Course Syllabus — OpenBenchML{% endblock %}
+
+{% block content %}
+<section class="course-syllabus">
+    <div class="container">
+        <p class="eyebrow">FastAPI Course</p>
+        <h1>Syllabus</h1>
+        <p class="hero-subtitle">Follow the full curriculum from beginner concepts to advanced deployment and ML APIs.</p>
+        <p class="hero-description">This syllabus page gives you a complete view of every module and lesson in the FastAPI course.</p>
+
+        <div class="syllabus-summary">
+            <p><strong>{{ modules | length }}</strong> modules</p>
+            <p><strong>{{ total_lessons }}</strong> lessons</p>
+        </div>
+
+        <div class="syllabus-list">
+            {% for module in modules %}
+            <article class="syllabus-module">
+                <header>
+                    <h2>{{ module.title }}</h2>
+                    <p>{{ module.description }}</p>
+                </header>
+                <ol class="lesson-list">
+                    {% for lesson in module.lessons %}
+                    <li>
+                        <a href="/fastapi-course/modules/{{ module.slug }}/lessons/{{ lesson.slug }}">{{ lesson.title }}</a>
+                        <p>{{ lesson.summary }}</p>
+                    </li>
+                    {% endfor %}
+                </ol>
+            </article>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}
