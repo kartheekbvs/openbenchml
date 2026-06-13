@@ -30,12 +30,12 @@
             <div class="form-group">
                 <label for="framework">Framework</label>
                 <select id="framework" name="framework" required>
-                    <option value="" disabled selected>Select a framework</option>
                     {% for fw in frameworks %}
-                    <option value="{{ fw }}">{{ fw }}</option>
+                    <option value="{{ fw }}" {% if fw == 'auto' %}selected{% endif %}>{{ fw }}</option>
                     {% endfor %}
                 </select>
                 <span class="form-hint">Choose <strong>auto</strong> to detect the backend from the uploaded file type.</span>
+                <div id="framework-warning" class="form-hint" style="margin-top:0.5rem; color: var(--warning); display:none;"></div>
             </div>
 
             <div class="form-group">
@@ -119,4 +119,76 @@
         </div>
     </div>
 </div>
+{% endblock %}
+{% block extra_js %}
+<script>
+(function() {
+    const frameworkSelect = document.getElementById('framework');
+    const fileInput = document.getElementById('file');
+    const warningEl = document.getElementById('framework-warning');
+
+    const extensionMap = {
+        '.pkl': 'scikit-learn',
+        '.joblib': 'scikit-learn',
+        '.pt': 'pytorch',
+        '.pth': 'pytorch',
+        '.onnx': 'onnx',
+        '.h5': 'tensorflow',
+        '.pb': 'tensorflow',
+        '.bin': 'xgboost',
+        '.model': 'lightgbm',
+    };
+
+    function setWarning(message) {
+        if (!message) {
+            warningEl.style.display = 'none';
+            warningEl.innerHTML = '';
+            return;
+        }
+        warningEl.style.display = 'block';
+        warningEl.innerHTML = message;
+    }
+
+    function getExtension(fileName) {
+        const dotIndex = fileName.lastIndexOf('.');
+        return dotIndex !== -1 ? fileName.slice(dotIndex).toLowerCase() : '';
+    }
+
+    function updateWarning() {
+        const file = fileInput.files && fileInput.files[0];
+        if (!file) {
+            setWarning('');
+            return;
+        }
+
+        const ext = getExtension(file.name);
+        const expected = extensionMap[ext];
+        const selected = frameworkSelect.value;
+
+        if (!expected) {
+            if (selected === 'auto') {
+                setWarning(`File extension <strong>${ext || '(none)'}</strong> is not recognised. Please choose the framework manually if needed.`);
+            } else {
+                setWarning('');
+            }
+            return;
+        }
+
+        if (selected === 'auto') {
+            setWarning(`Auto-detect will load this <strong>${ext}</strong> file as <strong>${expected}</strong>.`);
+            return;
+        }
+
+        if (selected !== expected) {
+            setWarning(`This looks like a <strong>${expected}</strong> model file based on its extension '${ext}'. Choose <strong>auto</strong> or <strong>${expected}</strong> for best results.`);
+            return;
+        }
+
+        setWarning('');
+    }
+
+    frameworkSelect.addEventListener('change', updateWarning);
+    fileInput.addEventListener('change', updateWarning);
+})();
+</script>
 {% endblock %}
