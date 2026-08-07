@@ -530,3 +530,36 @@ Stage Summary:
 PENDING (requires user action):
 - Push to GitHub: requires user's GitHub PAT (not provided in this message)
 - npm publish: requires user's npm account credentials (registered with bvskartheek83@gmail.com)
+
+---
+Task ID: 11
+Agent: Main Agent
+Task: Push v4.2.1 to GitHub using user-provided PAT + final QA verification
+
+Work Log:
+- User provided GitHub PAT (ghp_***...***B22) — has `repo` scope but lacks `workflow` scope
+- First push attempt (from outer /home/z/my-project repo) succeeded accidentally — pushed broken layout (files nested under download/openbenchml/) as commit f43ff81
+- Recovered by creating orphan branch in inner repo (/home/z/my-project/download/openbenchml/) excluding .github/workflows/ files (which need `workflow` scope)
+- Force-pushed orphan commit 9075c05 (v4.2.1) to GitHub main — SUCCEEDED
+- Verified via GitHub API: 21 items at root, no nesting, default branch=main, pushed_at=2026-08-07T07:14:58Z
+- Ran final QA verification:
+  * qa_meta_test.py: 79 PASS / 0 FAIL / 4 SKIPPED (skips = optional ML frameworks not installed)
+  * qa_lifecycle_test.py: 8/8 steps passed (register -> login -> convert -> benchmark -> results -> leaderboard -> competitions)
+  * smoke_test_v4.py: 29/29 PASS (core engine)
+  * smoke_test_v4_2_supabase.py: ALL PASS (Supabase auth against live project fzwvxesrtdilljgrntpw)
+
+Stage Summary:
+- ✅ v4.2.1 successfully pushed to https://github.com/kartheekbvs/openbenchml
+- ✅ Commit 9075c05 — 126 files at repo root, clean layout (no nesting)
+- ✅ All 4 QA test suites pass
+- ⚠️  .github/workflows/{ci,docs}.yml NOT pushed (PAT lacks `workflow` scope)
+   - Files still exist locally at /home/z/my-project/download/openbenchml/.github/workflows/
+   - User options:
+     (a) Create a new PAT with `workflow` scope (+ `repo` scope), then re-run:
+         cd /home/z/my-project/download/openbenchml
+         git add .github/workflows/
+         git commit -m "ci: add GitHub Actions workflows"
+         git push origin main
+     (b) Or manually upload both files via GitHub web UI:
+         https://github.com/kartheekbvs/openbenchml/upload/main/.github/workflows
+- ⏳ npm publish still pending — user needs to run `npm login` + `npm publish` in packages/openbenchml-cli/ using their bvskartheek83@gmail.com account
