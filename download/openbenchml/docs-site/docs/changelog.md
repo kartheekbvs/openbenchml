@@ -2,6 +2,37 @@
 
 All notable changes to OpenBenchML are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.2.0] — 2026-08-07
+
+The "Supabase Auth + clean GitHub layout" release.
+
+### Added
+
+- **Supabase Auth integration** — login and registration now go through Supabase Auth by default. Supabase is the source of truth for credentials (password hashes, email confirmation, password reset). After Supabase verifies a login, we still mint our own short-lived JWT so the rest of the app keeps working unchanged.
+  - New module: `app/services/supabase_auth_service.py` — lazy-init Supabase client with `sign_up`, `sign_in_with_password`, `sign_out`, `get_user`, and friendly error mapping (e.g. "Invalid login credentials" → "Invalid email or password.").
+  - Hybrid fallback: if Supabase is unavailable (offline dev, network down), the app transparently falls back to local DB password hashing.
+  - Auto-creates local `User` rows for Supabase-first users on first login — no manual sync needed.
+  - Login & register pages show "Powered by Supabase Auth" footer when Supabase is available.
+- **`GET /api/auth/status` endpoint** — reports which auth backends are wired up, the Supabase URL, and the list of auth endpoints. Useful for diagnosing deployment issues.
+- **Top-level `DEPLOY_RENDER.md`** — clear, copy-pasteable, 6-step Render deployment guide. The only secret you need is `SUPABASE_DB_PASSWORD`.
+- **Top-level `NPM_PUBLISH.md`** + `packages/openbenchml-cli/NPM_PUBLISH.md` — full npm publish walkthrough using author email `bvskartheek83@gmail.com`.
+
+### Changed
+
+- **App version** bumped to 4.2.0.
+- **CLI version** bumped to 4.2.0.
+- **`package.json`** author/maintainer/contributors updated to `Kartheek BVS <bvskartheek83@gmail.com>`. Added `publishConfig.registry` and `npmUser` metadata.
+- **`.env.example`** — Supabase URL + anon key now explicitly listed (with comments explaining which are safe to commit and which are secret).
+- **GitHub layout fix** — the `.git` directory previously lived one level above the project root, causing files to appear under `download/openbenchml/...` on GitHub. Re-initialized git **inside** `openbenchml/` so the repo root now contains `app/`, `templates/`, `packages/`, etc. directly.
+
+### Migration notes
+
+If you're upgrading from v4.1.0:
+
+1. **Existing users keep working** — the local DB still has their `password_hash`. New logins try Supabase first; if Supabase says "Invalid login credentials" and the user has a non-`supabase-managed` hash, we fall back to local verification.
+2. **New registrations** — Supabase is the source of truth. The local `password_hash` column is set to `"supabase-managed"` (a sentinel; the real hash lives in Supabase).
+3. **Email confirmation** — Supabase requires email confirmation by default. Either disable it in Supabase → Authentication → Email Auth, or have new users confirm their email before first login.
+
 ## [4.1.0] — 2026-08-07
 
 The "Supabase backend + olive/teal UI + Render deploy" release. No new features — this is a deployment/branding release.

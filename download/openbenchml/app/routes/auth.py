@@ -27,9 +27,11 @@ from app.services.auth_service import (
     oauth2_scheme,
     log_user_activity,
 )
+from app.services import supabase_auth_service as supa_auth
 from app.config import (
     templates, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES,
     SECURE_COOKIES, COOKIE_SAMESITE, RATE_LIMIT_LOGIN, RATE_LIMIT_REGISTER,
+    SUPABASE_URL,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,7 +45,10 @@ router = APIRouter()
 @router.get("/register", response_class=HTMLResponse)
 async def register_page(request: Request):
     """Render the registration form."""
-    return templates.TemplateResponse("register.html", {"request": request})
+    return templates.TemplateResponse("register.html", {
+        "request": request,
+        "supabase_enabled": supa_auth.is_available(),
+    })
 
 
 @router.post("/register", response_class=HTMLResponse)
@@ -55,7 +60,12 @@ async def register_submit(
     confirm_password: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    """Handle registration form submission."""
+    """Handle registration form submission.
+
+    Hybrid auth: tries Supabase Auth first (single source of truth for
+    credentials in production). If Supabase is unavailable (offline dev),
+    falls back to local DB password hashing.
+    """
     # ── Validate passwords match ───────────────────────────────────────────
     if password != confirm_password:
         return templates.TemplateResponse("register.html", {
@@ -81,9 +91,25 @@ async def register_submit(
             "error": f"{field} is already registered.",
         })
 
-    # ── Create the user ────────────────────────────────────────────────────
+    # ── Try Supabase Auth first ────────────────────────────────────────────
+    if supa_auth.is_available():
+        supa_result = supa_auth.sign_up(email, password)
+        if not supa_result["success"]:
+            return templates.TemplateResponse("register.html", {
+                "request": request,
+                "error": supa_result["error"] or "Supabase registration failed.",
+            })
+        logger.info("Supabase Auth: new user %s", email)
+
+    # ── Create the local user row (mirrors Supabase) ──────────────────────
     try:
-        hashed = hash_password(password)
+        # Only store a password hash locally when Supabase is NOT used
+        # (otherwise Supabase is the source of truth; we keep a placeholder).
+        if supa_auth.is_available():
+            hashed = "supabase-managed"  # credentials live in Supabase
+        else:
+            hashed = hash_password(password)
+
         new_user = User(
             username=username.strip(),
             email=email.strip().lower(),
@@ -115,7 +141,10 @@ async def register_submit(
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     """Render the login form."""
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse("login.html", {
+        "request": request,
+        "supabase_enabled": supa_auth.is_available(),
+    })
 
 
 @router.post("/login", response_class=HTMLResponse)
@@ -125,9 +154,55 @@ async def login_submit(
     password: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    """Handle login form submission."""
+    """Handle login form submission.
+
+    Hybrid auth: tries Supabase Auth first. If Supabase is unavailable
+    OR the user has no Supabase account, falls back to local DB.
+    """
     user = db.query(User).filter(User.email == email.strip().lower()).first()
-    if not user or not verify_password(password, user.password_hash):
+
+    # ── Try Supabase first when available ─────────────────────────────────
+    if supa_auth.is_available():
+        supa_result = supa_auth.sign_in_with_password(email, password)
+        if supa_result["success"]:
+            # Auto-create the local user row if missing (Supabase-first flow)
+            if user is None:
+                supa_user = supa_result["user"] or {}
+                username = (
+                    supa_user.get("user_metadata", {}).get("username")
+                    or supa_user.get("email", "").split("@")[0]
+                    or "user"
+                )
+                user = User(
+                    username=username[:50],
+                    email=email.strip().lower(),
+                    password_hash="supabase-managed",
+                )
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+                logger.info("Auto-created local row for Supabase user %s", email)
+        elif user is not None and user.password_hash != "supabase-managed":
+            # Supabase failed but the user has a local password — try local
+            if not verify_password(password, user.password_hash):
+                return templates.TemplateResponse("login.html", {
+                    "request": request,
+                    "error": "Invalid email or password.",
+                })
+        else:
+            return templates.TemplateResponse("login.html", {
+                "request": request,
+                "error": supa_result["error"] or "Invalid email or password.",
+            })
+    else:
+        # ── Local-only fallback ────────────────────────────────────────────
+        if not user or not verify_password(password, user.password_hash):
+            return templates.TemplateResponse("login.html", {
+                "request": request,
+                "error": "Invalid email or password.",
+            })
+
+    if user is None:
         return templates.TemplateResponse("login.html", {
             "request": request,
             "error": "Invalid email or password.",
@@ -258,7 +333,7 @@ async def api_register(
     body: RegisterRequest,
     db: Session = Depends(get_db),
 ):
-    """JSON API version of user registration."""
+    """JSON API version of user registration (Supabase-first, local fallback)."""
     if body.confirm_password and body.password != body.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match.")
 
@@ -272,8 +347,21 @@ async def api_register(
         field = "username" if existing_user.username == body.username.strip() else "email"
         raise HTTPException(status_code=409, detail=f"That {field} is already registered.")
 
+    # ── Supabase first ─────────────────────────────────────────────────────
+    if supa_auth.is_available():
+        supa_result = supa_auth.sign_up(body.email, body.password)
+        if not supa_result["success"]:
+            raise HTTPException(
+                status_code=400,
+                detail=supa_result["error"] or "Supabase registration failed.",
+            )
+
     try:
-        hashed = hash_password(body.password)
+        if supa_auth.is_available():
+            hashed = "supabase-managed"
+        else:
+            hashed = hash_password(body.password)
+
         new_user = User(
             username=body.username.strip(),
             email=body.email.strip().lower(),
@@ -317,9 +405,43 @@ async def api_login(
     body: LoginRequest,
     db: Session = Depends(get_db),
 ):
-    """JSON API version of login."""
+    """JSON API version of login (Supabase-first, local fallback)."""
     user = db.query(User).filter(User.email == body.email.strip().lower()).first()
-    if not user or not verify_password(body.password, user.password_hash):
+
+    # ── Supabase first ─────────────────────────────────────────────────────
+    if supa_auth.is_available():
+        supa_result = supa_auth.sign_in_with_password(body.email, body.password)
+        if supa_result["success"]:
+            if user is None:
+                # Auto-create local row for Supabase-first users
+                supa_user = supa_result["user"] or {}
+                username = (
+                    supa_user.get("user_metadata", {}).get("username")
+                    or supa_user.get("email", "").split("@")[0]
+                    or "user"
+                )
+                user = User(
+                    username=username[:50],
+                    email=body.email.strip().lower(),
+                    password_hash="supabase-managed",
+                )
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+        elif user is not None and user.password_hash != "supabase-managed":
+            # Local fallback for legacy users
+            if not verify_password(body.password, user.password_hash):
+                raise HTTPException(status_code=401, detail="Invalid email or password.")
+        else:
+            raise HTTPException(
+                status_code=401,
+                detail=supa_result["error"] or "Invalid email or password.",
+            )
+    else:
+        if not user or not verify_password(body.password, user.password_hash):
+            raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+    if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password.")
 
     if not user.is_active:
@@ -391,3 +513,27 @@ async def api_get_current_user(
     if user is None:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return user.public_profile
+
+
+@router.get("/api/auth/status")
+async def api_auth_status():
+    """Report which auth backends are wired up.
+
+    Useful for diagnosing deployment issues — the CLI calls this on `obml
+    whoami` to give the user a friendly hint about their setup.
+    """
+    return {
+        "app": "OpenBenchML",
+        "version": "4.2.0",
+        "supabase_auth_enabled": supa_auth.is_available(),
+        "supabase_url": SUPABASE_URL if supa_auth.is_available() else None,
+        "local_auth_enabled": True,  # always available as fallback
+        "endpoints": {
+            "html_login": "/login",
+            "html_register": "/register",
+            "api_login": "/api/auth/login",
+            "api_register": "/api/auth/register",
+            "api_refresh": "/api/auth/refresh",
+            "api_me": "/api/auth/me",
+        },
+    }

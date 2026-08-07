@@ -5,13 +5,54 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green.svg)](https://fastapi.tiangolo.com)
-[![npm](https://img.shields.io/badge/npm-openbenchml--cli_v4.1.0-red.svg)](https://www.npmjs.com/package/openbenchml-cli)
+[![npm](https://img.shields.io/badge/npm-openbenchml--cli_v4.2.0-red.svg)](https://www.npmjs.com/package/openbenchml-cli)
 [![Docs](https://img.shields.io/badge/docs-mkdocs-material-blue.svg)](https://kartheekbvs.github.io/openbenchml/)
 [![Deploy on Render](https://img.shields.io/badge/Deploy-Render-46E3B7.svg)](https://render.com/deploy)
 
 OpenBenchML lets you **paste Python code** that trains a model, **pickle it server-side**, and **benchmark it** against standard datasets — all without a local Python install. Plus Kaggle-style competitions, live leaderboards, real-time WebSocket updates, and an in-browser Python notebook.
 
-Built with FastAPI + SQLAlchemy + WebSocket + Jinja2. **Supabase Postgres** for storage (project `fzwvxesrtdilljgrntpw`), Render for deployment, Node.js CLI. Olive/teal UI palette.
+Built with FastAPI + SQLAlchemy + WebSocket + Jinja2. **Supabase Postgres + Supabase Auth** for storage and login (project `fzwvxesrtdilljgrntpw`), Render for deployment, Node.js CLI. Olive/teal UI palette.
+
+---
+
+## What's new in v4.2
+
+The "Supabase Auth + clean GitHub layout" release.
+
+### Supabase Auth (simple email/password login)
+
+Login and registration now go through **Supabase Auth** by default. Supabase is the source of truth for credentials — it stores the password hashes, handles email confirmation, password reset, etc. After Supabase verifies a login, we still mint our own short-lived JWT so the rest of the app (which already speaks our JWT dialect via `get_current_user`) keeps working unchanged.
+
+- New module: `app/services/supabase_auth_service.py` — lazy-init Supabase client, `sign_up`, `sign_in_with_password`, `sign_out`, `get_user`, friendly error mapping.
+- `app/routes/auth.py` — register/login (HTML + JSON) now try Supabase first, fall back to local DB when Supabase is unavailable.
+- New endpoint `GET /api/auth/status` — reports which backends are wired up. Useful for diagnosing deployment issues.
+- Login & register pages show "Powered by Supabase Auth" footer when Supabase is available.
+- The Supabase URL + anon key are baked into `app/config.py` so login works out-of-box — no env setup needed for development.
+
+### Clean GitHub layout (path fix)
+
+The repo previously committed everything under `download/openbenchml/...` because the git root was one level above the project. Fixed: the `.git` directory now lives **inside** `openbenchml/`, so on GitHub you see `app/`, `templates/`, `packages/`, etc. at the repo root.
+
+### npm CLI v4.2.0
+
+- Author/maintainer email updated to `bvskartheek83@gmail.com`.
+- New `NPM_PUBLISH.md` guide at the repo root and in `packages/openbenchml-cli/`.
+- `publishConfig.registry` and `npmUser` metadata added to `package.json`.
+
+### Render deployment — clear and copy-pasteable
+
+New top-level guide: [`DEPLOY_RENDER.md`](DEPLOY_RENDER.md). Walks you from zero to live in 6 steps. The only secret you need is `SUPABASE_DB_PASSWORD`.
+
+---
+
+## What's new in v4.1
+
+The "Supabase backend + olive/teal UI + Render deployment" release.
+
+- **Supabase Postgres** as the production database backend (project ref `fzwvxesrtdilljgrntpw`). The app auto-assembles `DATABASE_URL` from `SUPABASE_PROJECT_REF + SUPABASE_DB_PASSWORD`.
+- **Olive/teal UI palette** — replaced all blue/indigo references with the brand colors derived from the design image (#202020 charcoal, #a0c000 olive, #608080 teal).
+- **Render deployment** — `render.yaml`, `start.sh`, and `docs-site/docs/deployment/render.md` make deploying to Render a one-click operation.
+- CLI bumped to v4.1.0.
 
 ---
 

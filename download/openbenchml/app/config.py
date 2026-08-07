@@ -7,6 +7,7 @@ Production-ready with CORS, rate limiting, caching, and security settings.
 """
 
 import os
+import logging
 from pathlib import Path
 from fastapi.templating import Jinja2Templates
 
@@ -23,7 +24,7 @@ DATASET_DIR.mkdir(exist_ok=True)
 
 # ─── Application Settings ────────────────────────────────────────────────────
 APP_NAME = "OpenBenchML"
-APP_VERSION = "4.1.0"
+APP_VERSION = "4.2.0"
 APP_DESCRIPTION = (
     "Open Source ML Model Benchmarking Platform — code → pickle → benchmark, "
     "with Kaggle-style real-time leaderboards, competitions, an in-browser "
