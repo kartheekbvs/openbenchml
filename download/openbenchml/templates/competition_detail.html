@@ -1,0 +1,238 @@
+{% extends "base.html" %}
+{% block title %}{{ comp.title }} &mdash; OpenBenchML{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <h1>{{ comp.title }}</h1>
+            <p class="text-muted">{{ comp.description[:300] }}{% if comp.description|length > 300 %}...{% endif %}</p>
+        </div>
+        <span class="badge badge-{{ comp.status }} badge-large">{{ comp.status | upper }}</span>
+    </div>
+</div>
+
+<div class="competition-detail-grid">
+    <div class="competition-main">
+        <div class="card">
+            <div class="card-header"><h3>Leaderboard</h3></div>
+            <div id="leaderboard-container">
+                {% if leaderboard_rows %}
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Rank</th>
+                            <th>User</th>
+                            <th>Model</th>
+                            <th>{{ comp.evaluation_metric }}</th>
+                            <th>Submitted</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-body">
+                        {% for r in leaderboard_rows %}
+                        <tr class="{% if user and r.user_id == user.id %}highlight-row{% endif %}">
+                            <td>#{{ r.rank }}</td>
+                            <td><a href="/models/{{ r.model_id }}">{{ r.username }}</a></td>
+                            <td>{{ r.model_name }}</td>
+                            <td><strong>{{ '%.4f' % r.score if r.score is not none else '-' }}</strong></td>
+                            <td>{{ r.submitted_at.strftime('%Y-%m-%d %H:%M') if r.submitted_at else '-' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p class="empty-state">No submissions yet. Be the first!</p>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if comp.status == 'live' and user %}
+        <div class="card">
+            <div class="card-header"><h3>Submit a Model</h3></div>
+            <form action="/competitions/{{ comp.slug }}/submit" method="POST">
+                <div class="form-group">
+                    <label for="model_id">Choose one of your models</label>
+                    <select id="model_id" name="model_id" required>
+                        {% if user_models %}
+                            {% for m in user_models %}
+                            <option value="{{ m.id }}">{{ m.model_name }} ({{ m.framework }})</option>
+                            {% endfor %}
+                        {% else %}
+                            <option value="" disabled>No models available — upload one first</option>
+                        {% endif %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="submission_note">Submission Note (optional)</label>
+                    <textarea id="submission_note" name="submission_note" rows="2"
+                              placeholder="Describe your approach..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary"
+                        {% if not user_models %}disabled{% endif %}>
+                    Submit &amp; Benchmark
+                </button>
+                {% if not user_models %}
+                <a href="/models/upload" class="btn btn-secondary">Upload a model first</a>
+                {% endif %}
+            </form>
+
+            {% if user_submissions %}
+            <h4 style="margin-top: 1.5rem;">Your Submissions ({{ user_submissions | length }} / {{ comp.max_submissions_per_user }})</h4>
+            <table class="table table-sm">
+                <thead>
+                    <tr><th>Model</th><th>Score</th><th>Best?</th><th>Submitted</th></tr>
+                </thead>
+                <tbody>
+                    {% for s in user_submissions %}
+                    <tr>
+                        <td>{{ s.model.model_name if s.model else '?' }}</td>
+                        <td>{{ '%.4f' % s.score if s.score is not none else 'pending' }}</td>
+                        <td>{% if s.is_best %}<span class="badge badge-success">BEST</span>{% endif %}</td>
+                        <td>{{ s.submitted_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="card">
+            <div class="card-header"><h3>Discussion</h3></div>
+            <div id="comments-container">
+                <p class="text-muted">Loading comments...</p>
+            </div>
+            {% if user %}
+            <form action="/comments" method="POST" style="margin-top: 1rem;">
+                <input type="hidden" name="competition_id" value="{{ comp.id }}">
+                <div class="form-group">
+                    <textarea name="body" rows="2" required placeholder="Add a comment..."></textarea>
+                </div>
+                <button type="submit" class="btn btn-primary btn-sm">Post Comment</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="competition-sidebar">
+        <div class="card">
+            <div class="card-header"><h4>Details</h4></div>
+            <ul class="meta-list">
+                <li><strong>Dataset:</strong> <a href="/datasets/{{ comp.dataset_id }}">{{ comp.dataset.name if comp.dataset else '?' }}</a></li>
+                <li><strong>Metric:</strong> {{ comp.evaluation_metric }}</li>
+                <li><strong>Task:</strong> {{ comp.task_type }}</li>
+                <li><strong>Start:</strong> {{ comp.starts_at.strftime('%Y-%m-%d %H:%M UTC') }}</li>
+                <li><strong>End:</strong> {{ comp.ends_at.strftime('%Y-%m-%d %H:%M UTC') }}</li>
+                <li><strong>Max submissions:</strong> {{ comp.max_submissions_per_user }} / user</li>
+            </ul>
+        </div>
+
+        {% if comp.prize %}
+        <div class="card">
+            <div class="card-header"><h4>Prize</h4></div>
+            <p>{{ comp.prize }}</p>
+        </div>
+        {% endif %}
+
+        {% if comp.rules %}
+        <div class="card">
+            <div class="card-header"><h4>Rules</h4></div>
+            <pre style="white-space: pre-wrap; font-family: inherit;">{{ comp.rules }}</pre>
+        </div>
+        {% endif %}
+
+        {% if comp.status == 'live' and time_to_end %}
+        <div class="card countdown-card">
+            <div class="card-header"><h4>Time Remaining</h4></div>
+            <div id="countdown" data-seconds="{{ time_to_end | int }}">Loading...</div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+// Real-time leaderboard updates via WebSocket
+(function() {
+    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const ws = new WebSocket(`${proto}//${location.host}/ws/leaderboard`);
+    ws.onopen = () => console.log('[WS] Leaderboard stream connected');
+    ws.onmessage = async (evt) => {
+        const msg = JSON.parse(evt.data);
+        if (msg.type === 'leaderboard_update' && msg.dataset_id === {{ comp.dataset_id }}) {
+            // Refresh leaderboard via API
+            try {
+                const r = await fetch(`/api/competitions/{{ comp.slug }}/leaderboard`);
+                if (r.ok) {
+                    const rows = await r.json();
+                    const tbody = document.getElementById('leaderboard-body');
+                    if (tbody && rows.length) {
+                        tbody.innerHTML = rows.map(r => `
+                            <tr>
+                                <td>#${r.rank}</td>
+                                <td><a href="/models/${r.model_id}">${r.username}</a></td>
+                                <td>${r.model_name}</td>
+                                <td><strong>${r.score !== null ? r.score.toFixed(4) : '-'}</strong></td>
+                                <td>${new Date(r.submitted_at).toLocaleString()}</td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+            } catch (e) { console.error('Leaderboard refresh failed', e); }
+        }
+    };
+    // Heartbeat
+    setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type: 'ping'}));
+    }, 30000);
+})();
+
+// Countdown timer
+(function() {
+    const el = document.getElementById('countdown');
+    if (!el) return;
+    let remaining = parseInt(el.dataset.seconds, 10);
+    function tick() {
+        if (remaining <= 0) { el.textContent = 'Competition ended'; return; }
+        const d = Math.floor(remaining / 86400);
+        const h = Math.floor((remaining % 86400) / 3600);
+        const m = Math.floor((remaining % 3600) / 60);
+        const s = remaining % 60;
+        el.textContent = `${d}d ${h}h ${m}m ${s}s`;
+        remaining--;
+    }
+    tick();
+    setInterval(tick, 1000);
+})();
+
+// Load comments
+(function() {
+    fetch('/api/comments?competition_id={{ comp.id }}')
+        .then(r => r.json())
+        .then(comments => {
+            const container = document.getElementById('comments-container');
+            if (!comments.length) {
+                container.innerHTML = '<p class="text-muted">No comments yet. Start the conversation!</p>';
+                return;
+            }
+            container.innerHTML = comments.map(c => `
+                <div class="comment">
+                    <strong>${c.author_username || 'Unknown'}</strong>
+                    <span class="text-muted" style="font-size: 0.85em;">${new Date(c.created_at).toLocaleString()}</span>
+                    <p>${c.body}</p>
+                    ${c.replies && c.replies.length ? c.replies.map(r => `
+                        <div class="comment comment-reply" style="margin-left: 1.5rem;">
+                            <strong>${r.author_username || 'Unknown'}</strong>
+                            <span class="text-muted" style="font-size: 0.85em;">${new Date(r.created_at).toLocaleString()}</span>
+                            <p>${r.body}</p>
+                        </div>
+                    `).join('') : ''}
+                </div>
+            `).join('');
+        })
+        .catch(e => {
+            document.getElementById('comments-container').innerHTML =
+                '<p class="text-muted">Could not load comments.</p>';
+        });
+})();
+</script>
+{% endblock %}

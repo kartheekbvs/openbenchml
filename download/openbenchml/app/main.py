@@ -235,6 +235,7 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # ─── Include Routers ─────────────────────────────────────────────────────────
 from app.routes import auth, dashboard, models, datasets, benchmark, leaderboard  # noqa: E402
+from app.routes import competitions, comments  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(dashboard.router)
@@ -242,6 +243,8 @@ app.include_router(models.router)
 app.include_router(datasets.router)
 app.include_router(benchmark.router)
 app.include_router(leaderboard.router)
+app.include_router(competitions.router)
+app.include_router(comments.router)
 
 
 # ─── Landing Page ────────────────────────────────────────────────────────────
@@ -386,4 +389,59 @@ async def websocket_benchmark(websocket: WebSocket):
         ws_manager.disconnect(client_id)
     except Exception as exc:
         logger.error("WebSocket error for client %d: %s", client_id, exc)
+        ws_manager.disconnect(client_id)
+
+
+@app.websocket("/ws/leaderboard")
+async def websocket_leaderboard(websocket: WebSocket):
+    """WebSocket endpoint for real-time leaderboard updates.
+
+    Clients connect to receive notifications whenever a benchmark
+    completes and the leaderboard changes. Messages have the format:
+    {"type": "leaderboard_update", "dataset_id": 1, "model_id": 5, ...}
+    """
+    global _next_ws_id
+    client_id = _next_ws_id
+    _next_ws_id += 1
+
+    await ws_manager.connect(websocket, client_id)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            if data.get("type") == "ping":
+                await ws_manager.send_json(client_id, {"type": "pong"})
+            elif data.get("type") == "subscribe":
+                dataset_id = data.get("dataset_id")
+                await ws_manager.send_json(client_id, {
+                    "type": "subscribed",
+                    "dataset_id": dataset_id,
+                })
+    except WebSocketDisconnect:
+        ws_manager.disconnect(client_id)
+    except Exception as exc:
+        logger.error("Leaderboard WebSocket error for client %d: %s", client_id, exc)
+        ws_manager.disconnect(client_id)
+
+
+@app.websocket("/ws/notifications")
+async def websocket_notifications(websocket: WebSocket):
+    """WebSocket endpoint for in-app real-time notifications.
+
+    Clients receive messages with the format:
+    {"type": "notification", "user_id": 1, "title": "...", "body": "..."}
+    """
+    global _next_ws_id
+    client_id = _next_ws_id
+    _next_ws_id += 1
+
+    await ws_manager.connect(websocket, client_id)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            if data.get("type") == "ping":
+                await ws_manager.send_json(client_id, {"type": "pong"})
+    except WebSocketDisconnect:
+        ws_manager.disconnect(client_id)
+    except Exception as exc:
+        logger.error("Notifications WebSocket error for client %d: %s", client_id, exc)
         ws_manager.disconnect(client_id)

@@ -19,12 +19,13 @@
             &#9776;
         </button>
         <div class="navbar-links">
-            {% if current_user %}
+            {% if user %}
                 <a href="/dashboard">Dashboard</a>
                 <a href="/my-models">My Models</a>
                 <a href="/datasets">Datasets</a>
                 <a href="/benchmark">Benchmark</a>
                 <a href="/leaderboard">Leaderboard</a>
+                <a href="/competitions">Competitions</a>
                 <a href="/jobs">Jobs</a>
                 <a href="/logout" class="btn btn-secondary btn-sm">Logout</a>
             {% else %}

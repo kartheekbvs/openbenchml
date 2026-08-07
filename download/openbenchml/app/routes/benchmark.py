@@ -498,18 +498,29 @@ async def api_get_results(
 
     if job.result:
         response_data["metrics"] = {
+            # Classification
             "accuracy": job.result.accuracy,
             "precision": job.result.precision,
             "recall": job.result.recall,
             "f1_score": job.result.f1_score,
+            "auc_roc": job.result.auc_roc,
+            "log_loss": job.result.log_loss,
+            "confusion_matrix": job.result.confusion_matrix,
+            "classification_report": job.result.classification_report,
+            # Regression
             "mae": job.result.mae,
             "rmse": job.result.rmse,
             "r2_score": job.result.r2_score,
+            # Performance (REAL percentiles)
             "latency_ms": job.result.latency_ms,
+            "latency_p50_ms": job.result.latency_p50_ms,
+            "latency_p95_ms": job.result.latency_p95_ms,
+            "latency_p99_ms": job.result.latency_p99_ms,
             "memory_mb": job.result.memory_mb,
             "cpu_percent": job.result.cpu_percent,
             "model_size_kb": job.result.model_size_kb,
             "inference_count": job.result.inference_count,
+            "throughput_per_sec": job.result.throughput_per_sec,
         }
 
     return response_data

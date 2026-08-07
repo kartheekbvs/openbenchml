@@ -357,17 +357,25 @@ async def api_leaderboard(
 
         results.append({
             "rank": lb.rank,
+            "previous_rank": lb.previous_rank,
             "model_name": model.model_name,
             "model_id": model.id,
             "owner": user_obj.username,
+            "owner_id": user_obj.id,
             "dataset": dataset.name,
             "dataset_id": dataset.id,
             "score": lb.score,
             "latency_ms": best_result.latency_ms if best_result else None,
+            "latency_p50_ms": best_result.latency_p50_ms if best_result else None,
+            "latency_p95_ms": best_result.latency_p95_ms if best_result else None,
+            "latency_p99_ms": best_result.latency_p99_ms if best_result else None,
+            "throughput_per_sec": best_result.throughput_per_sec if best_result else None,
             "model_size_kb": best_result.model_size_kb if best_result else None,
             "accuracy": best_result.accuracy if best_result else None,
             "f1_score": best_result.f1_score if best_result else None,
+            "auc_roc": best_result.auc_roc if best_result else None,
             "r2_score": best_result.r2_score if best_result else None,
+            "framework": model.framework,
             "updated_at": lb.updated_at.isoformat() if lb.updated_at else None,
         })
 

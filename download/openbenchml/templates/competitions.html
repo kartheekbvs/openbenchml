@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Competitions &mdash; OpenBenchML{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Competitions</h1>
+    <p class="text-muted">Compete with the community. Submit your models and climb the leaderboard.</p>
+</div>
+
+<div class="filter-bar" style="margin: 1.5rem 0;">
+    <a href="/competitions" class="btn {% if not filter_status %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">All</a>
+    <a href="/competitions?status=live" class="btn {% if filter_status == 'live' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Live</a>
+    <a href="/competitions?status=upcoming" class="btn {% if filter_status == 'upcoming' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Upcoming</a>
+    <a href="/competitions?status=ended" class="btn {% if filter_status == 'ended' %}btn-primary{% else %}btn-secondary{% endif %} btn-sm">Ended</a>
+    {% if user and user.is_admin %}
+        <a href="/competitions/create" class="btn btn-success btn-sm" style="float: right;">+ Create Competition</a>
+    {% endif %}
+</div>
+
+{% if competitions %}
+<div class="grid grid-cards">
+    {% for c in competitions %}
+    <a href="/competitions/{{ c.slug }}" class="card competition-card status-{{ c.status }}">
+        <div class="card-header">
+            <h3>{{ c.title }}</h3>
+            <span class="badge badge-{{ c.status }}">{{ c.status | upper }}</span>
+        </div>
+        <p class="text-muted">{{ c.description[:200] }}{% if c.description|length > 200 %}...{% endif %}</p>
+        <div class="competition-meta">
+            <span><strong>Metric:</strong> {{ c.evaluation_metric }}</span>
+            <span><strong>Task:</strong> {{ c.task_type }}</span>
+        </div>
+        <div class="competition-dates">
+            {% if c.status == 'live' %}
+                <span class="text-success">Ends in {{ ((c.ends_at - now).total_seconds() / 86400) | round(1) if now else '?' }} days</span>
+            {% elif c.status == 'upcoming' %}
+                <span class="text-info">Starts {{ c.starts_at.strftime('%Y-%m-%d') }}</span>
+            {% else %}
+                <span class="text-muted">Ended {{ c.ends_at.strftime('%Y-%m-%d') }}</span>
+            {% endif %}
+        </div>
+    </a>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    <h3>No competitions yet</h3>
+    <p>Check back soon — new competitions are added regularly.</p>
+</div>
+{% endif %}
+
+<script>
+// Inject current UTC time for the "Ends in" calculation
+const now = new Date("{{ now.isoformat() if now else '' }}");
+</script>
+{% endblock %}

@@ -8,25 +8,47 @@ The public API consumed by ``benchmark_service`` is:
 
 * :func:`load_model`  – deserialise a saved model artifact.
 * :func:`load_dataset` – prepare a train/test split with metadata.
+
+This module is **the foundation of the core engine**. It must never
+silently swallow a bad argument — every error path raises a clear,
+actionable exception so the benchmark service can persist a useful
+error message for the user.
 """
 
 import logging
 import os
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import joblib
 import numpy as np
-from sklearn.datasets import load_iris, load_wine, load_breast_cancer, load_digits
+from sklearn.datasets import (
+    load_iris,
+    load_wine,
+    load_breast_cancer,
+    load_digits,
+    fetch_california_housing,
+    load_diabetes,
+)
 from sklearn.model_selection import train_test_split
 
 logger = logging.getLogger(__name__)
 
 # ─── Built-in dataset registry ────────────────────────────────────────────────
-_BUILTIN_DATASETS = {
+# The "key" matches the lowercase dataset.name as stored in the DB.
+# Each entry records the loader function, the task type, and an
+# optional size cap (large datasets are subsampled to keep benchmarks
+# fast and predictable in shared environments).
+_BUILTIN_DATASETS: Dict[str, Dict[str, Any]] = {
     "iris": {"loader": load_iris, "task_type": "classification"},
     "wine": {"loader": load_wine, "task_type": "classification"},
-    "breast_cancer": {"loader": load_breast_cancer, "task_type": "classification"},
+    "breastcancer": {"loader": load_breast_cancer, "task_type": "classification"},
     "digits": {"loader": load_digits, "task_type": "classification"},
+    "californiahousing": {
+        "loader": fetch_california_housing,
+        "task_type": "regression",
+        "max_samples": 2000,  # subsample for fast benchmarks
+    },
+    "diabetes": {"loader": load_diabetes, "task_type": "regression"},
 }
 
 
@@ -58,10 +80,10 @@ def load_model(file_path: str, framework: str) -> Any:
         ValueError: If *framework* is not recognised.
         RuntimeError: If the model cannot be deserialised.
     """
-    if not os.path.isfile(file_path):
-        raise FileNotFoundError(f"Model file not found: {file_path}")
+    if not file_path or not os.path.isfile(file_path):
+        raise FileNotFoundError(f"Model file not found: {file_path!r}")
 
-    framework = framework.lower().strip()
+    framework = (framework or "").lower().strip()
     logger.info("Loading model from '%s' (framework=%s)", file_path, framework)
 
     try:
@@ -106,12 +128,7 @@ def _load_sklearn_model(file_path: str) -> Any:
 
 
 def _load_pytorch_model(file_path: str) -> Any:
-    """Deserialise a PyTorch model via ``torch.load``.
-
-    The model is mapped to CPU to avoid GPU dependency during
-    benchmarking.  The caller is responsible for setting the model
-    to eval mode.
-    """
+    """Deserialise a PyTorch model via ``torch.load``."""
     import torch
 
     model = torch.load(file_path, map_location="cpu", weights_only=False)
@@ -122,13 +139,11 @@ def _load_pytorch_model(file_path: str) -> Any:
         if "model" in model:
             model = model["model"]
         elif "state_dict" in model:
-            # Cannot reconstruct architecture from state_dict alone.
             logger.warning(
                 "Checkpoint contains only state_dict – the model class "
                 "definition must be available in the Python path."
             )
 
-    # Best-effort: set to eval mode if it is an nn.Module
     if hasattr(model, "eval"):
         model.eval()
 
@@ -150,11 +165,7 @@ def _load_onnx_model(file_path: str) -> Any:
 
 
 def _load_xgboost_model(file_path: str) -> Any:
-    """Load an XGBoost model.
-
-    Tries :class:`xgboost.Booster` first (native format), falling back
-    to :func:`joblib.load` for pickle/joblib-serialised models.
-    """
+    """Load an XGBoost model. Tries native format first, then joblib."""
     import xgboost as xgb
 
     ext = os.path.splitext(file_path)[1].lower()
@@ -176,11 +187,7 @@ def _load_xgboost_model(file_path: str) -> Any:
 
 
 def _load_lightgbm_model(file_path: str) -> Any:
-    """Load a LightGBM model.
-
-    Tries :class:`lightgbm.Booster` first (native text format), falling
-    back to :func:`joblib.load` for pickle/joblib-serialised models.
-    """
+    """Load a LightGBM model. Tries native format first, then joblib."""
     import lightgbm as lgb
 
     ext = os.path.splitext(file_path)[1].lower()
@@ -200,7 +207,7 @@ def _load_lightgbm_model(file_path: str) -> Any:
 
 
 def _load_tensorflow_model(file_path: str) -> Any:
-    """Load a TensorFlow / Keras model via ``tf.keras.models.load_model``."""
+    """Load a TensorFlow / Keras model."""
     import tensorflow as tf
 
     model = tf.keras.models.load_model(file_path)
@@ -211,23 +218,28 @@ def _load_tensorflow_model(file_path: str) -> Any:
 # ─── Dataset loading ───────────────────────────────────────────────────────────
 
 def load_dataset(
-    dataset_name: str,
+    dataset_name: Optional[str],
     task_type: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Load a benchmark dataset and return a train/test split with metadata.
 
-    For built-in datasets the *dataset_name* should match a key in the
-    sklearn registry (``iris``, ``wine``, ``breast_cancer``, ``digits``).
-    For custom datasets *dataset_name* is treated as a file path and must
-    point to a ``.npz`` or ``.joblib`` file containing ``X`` and ``y``
-    arrays.
+    Resolution order:
+
+    1. If *dataset_name* is the lowercased name of a built-in dataset
+       (e.g. ``"iris"``, ``"californiahousing"``), the corresponding
+       sklearn loader is invoked.
+    2. Otherwise, if *dataset_name* is a path to an existing file, the
+       file is loaded as a custom dataset (.npz / .joblib / .pkl).
+    3. Otherwise a :class:`ValueError` is raised with a clear message.
 
     Args:
         dataset_name: Name of a built-in dataset **or** path to a custom
-            dataset file on disk.
+            dataset file on disk.  ``None`` or empty string is treated
+            as "no dataset specified" and raises ``ValueError``.
         task_type: Hint for the task type (``classification`` or
-            ``regression``).  When *None* the value is inferred from the
-            built-in registry or defaults to ``classification``.
+            ``regression``).  When *None* the value is inferred from
+            the built-in registry or defaults to ``classification``
+            for custom datasets.
 
     Returns:
         A dictionary with the following keys:
@@ -240,25 +252,26 @@ def load_dataset(
         * ``feature_names``   – list[str] | None
 
     Raises:
+        ValueError: If *dataset_name* is empty/None, or unrecognised.
         FileNotFoundError: If *dataset_name* looks like a file path but
             does not exist.
-        ValueError: If the dataset cannot be loaded or is malformed.
     """
+    if not dataset_name or not str(dataset_name).strip():
+        raise ValueError(
+            "No dataset name or path provided. Built-in datasets: "
+            f"{sorted(_BUILTIN_DATASETS.keys())}"
+        )
+
     logger.info("Loading dataset: '%s' (task_type=%s)", dataset_name, task_type)
 
     # ── Built-in sklearn datasets ─────────────────────────────────────────
-    normalised = dataset_name.lower().strip()
+    normalised = str(dataset_name).lower().strip().replace("-", "_").replace(" ", "_")
     if normalised in _BUILTIN_DATASETS:
         return _load_sklearn_dataset(normalised)
 
     # ── Custom dataset from file ──────────────────────────────────────────
     if os.path.isfile(dataset_name):
         return _load_custom_dataset(dataset_name, task_type)
-
-    # ── Last resort: maybe the user passed just a name that's close ───────
-    if normalised.replace("-", "_").replace(" ", "_") in _BUILTIN_DATASETS:
-        canonical = normalised.replace("-", "_").replace(" ", "_")
-        return _load_sklearn_dataset(canonical)
 
     raise ValueError(
         f"Dataset '{dataset_name}' is not a built-in dataset and no file "
@@ -279,17 +292,29 @@ def _load_sklearn_dataset(name: str) -> Dict[str, Any]:
     entry = _BUILTIN_DATASETS[name]
     loader_fn = entry["loader"]
     resolved_task = entry["task_type"]
+    max_samples = entry.get("max_samples")
 
     logger.debug("Loading sklearn dataset '%s'", name)
     bunch = loader_fn()
 
-    X: np.ndarray = bunch.data
-    y: np.ndarray = bunch.target
+    X: np.ndarray = np.asarray(bunch.data)
+    y: np.ndarray = np.asarray(bunch.target)
     feature_names: list = (
         list(bunch.feature_names)
         if hasattr(bunch, "feature_names") and bunch.feature_names is not None
         else [f"feature_{i}" for i in range(X.shape[1])]
     )
+
+    # ── Optional subsampling for very large datasets ──────────────────────
+    if max_samples is not None and X.shape[0] > max_samples:
+        rng = np.random.default_rng(seed=42)
+        idx = rng.choice(X.shape[0], size=max_samples, replace=False)
+        X = X[idx]
+        y = y[idx]
+        logger.info(
+            "Subsampled '%s' from %d → %d rows for benchmark speed",
+            name, len(idx), max_samples,
+        )
 
     return _split_data(X, y, resolved_task, feature_names=feature_names)
 
@@ -396,8 +421,6 @@ def _split_data(
     stratify = y if task_type == "classification" else None
 
     # Stratification requires at least 2 samples per class in each split.
-    # Fall back to non-stratified split when the data is too small or
-    # a class has only one member.
     if stratify is not None:
         unique, counts = np.unique(y, return_counts=True)
         if len(unique) < 2 or counts.min() < 2:

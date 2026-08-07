@@ -1,242 +1,242 @@
 # OpenBenchML
 
-**Open Source ML Model Benchmarking Platform**
+**Open-source ML model benchmarking platform with Kaggle-style competitions, real per-sample latency percentiles, and a CLI.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.11](https://img.shields.io/badge/Python-3.11-blue.svg)](https://python.org)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green.svg)](https://fastapi.tiangolo.com)
-[![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://docker.com)
+[![npm](https://img.shields.io/badge/npm-openbenchml--cli-red.svg)](https://www.npmjs.com/package/openbenchml-cli)
+[![Docs](https://img.shields.io/badge/docs-mkdocs-material-blue.svg)](https://kartheekbvs.github.io/openbenchml/)
 
-OpenBenchML is an open-source platform where developers upload ML models, run them against standard datasets, and compare accuracy, speed, and size on a public leaderboard. Built with FastAPI, SQLAlchemy, Celery, Redis, and Docker.
+OpenBenchML lets you upload ML models, benchmark them against standard datasets with **real per-sample latency percentiles** (no fake `mean × 1.5` approximations), and compete in **Kaggle-style competitions** with live leaderboards, threaded discussions, and in-app notifications.
+
+Built with FastAPI + SQLAlchemy + WebSocket + Jinja2. SQLite for dev, PostgreSQL for prod. Optional Celery + Redis for async jobs. CLI in Node.js.
+
+---
+
+## What's new in v3.0
+
+This release is a **complete rewrite of the benchmark engine** plus Kaggle-style features on top.
+
+### The core engine — fixed
+
+The previous version had three critical bugs that meant **every single benchmark failed**:
+
+1. `load_dataset(None, ...)` was called for built-in datasets because `dataset.file_path` is `None`. The loader crashed with `AttributeError`.
+2. `CaliforniaHousing` and `Diabetes` were seeded as datasets but missing from the loader's registry.
+3. Latency percentiles were `latency_ms * 1.5` and `latency_ms * 2.0` — fake approximations.
+
+All three are fixed. The engine now:
+
+- Resolves built-in datasets via lowercase `name` (with CaliforniaHousing + Diabetes properly registered)
+- Times each forward pass per-sample and computes **true P50 / P95 / P99** with `numpy.percentile` over 50 timed runs
+- Captures `predict_proba` when available for AUC-ROC and log-loss
+- Always computes confusion matrix and classification report
+- Runs 5 warmup + 50 timed forward passes by default (configurable)
+
+### Kaggle-style features (new)
+
+- **Competitions** with deadlines, custom evaluation metrics, per-user submission limits
+- **Per-competition leaderboards** that auto-update via WebSocket
+- **Threaded comments** on models and competitions
+- **In-app notifications** pushed over WebSocket
+- **Default competitions seeded** (Iris Classification Challenge, Diabetes Regression Sprint)
+
+### NPM CLI (new)
+
+`openbenchml-cli` is published to npm. Drive the whole platform from the terminal:
+
+```bash
+npm install -g openbenchml-cli
+openbenchml register --username alice --email alice@example.com --password '***'
+openbenchml upload --model ./rf.joblib --name "My RF" --framework scikit-learn
+openbenchml benchmark --model-id 1 --dataset-id 1
+openbenchml submit --competition iris-classification-challenge --model-id 1
+```
+
+### Separate docs site (new)
+
+Documentation moved to a separate mkdocs-material site at `docs-site/`. 20+ pages covering installation, quickstart, concepts, user guide, CLI reference, API reference, architecture, and deployment. Auto-deploys to GitHub Pages via `.github/workflows/docs.yml`.
 
 ---
 
 ## Features
 
-- **Multi-Framework Support** - scikit-learn, PyTorch, ONNX, TensorFlow, XGBoost, LightGBM
-- **Docker Sandbox** - Secure model execution with network isolation, memory/CPU limits
-- **Real-time Leaderboards** - By accuracy, speed, and model size
-- **Performance Metrics** - Accuracy, Precision, Recall, F1, MAE, RMSE, R2, Latency (P50/P95/P99), Memory, CPU, Throughput
-- **REST API** - Full JSON API with JWT authentication, refresh tokens, and API keys
-- **WebSocket** - Real-time benchmark progress updates
-- **Async Processing** - Celery + Redis background task queue
-- **6 Built-in Datasets** - Iris, Wine, Breast Cancer, Digits, California Housing, Diabetes
-- **Dark Theme UI** - Professional dashboard with Chart.js visualizations
-- **Production Ready** - CORS, GZip, rate limiting, security headers, health checks
+- **Multi-framework**: scikit-learn, PyTorch, ONNX, TensorFlow, XGBoost, LightGBM
+- **Real metrics**: accuracy, precision, recall, F1, AUC-ROC, log-loss, confusion matrix, classification report (classification) · MAE, RMSE, R², MSE, explained variance, max error (regression)
+- **Real performance**: latency mean / P50 / P95 / P99 / std / min / max · throughput · memory · CPU · model size — all measured per-sample
+- **6 built-in datasets**: Iris, Wine, BreastCancer, Digits, CaliforniaHousing (subsampled to 2k), Diabetes
+- **Kaggle-style competitions** with deadlines, custom metrics, per-user submission limits, best-submission tracking
+- **Real-time**: WebSocket streams for benchmark progress, leaderboard updates, and notifications
+- **CLI**: full-featured npm package for terminal-driven workflows
+- **REST API**: JWT auth (cookie OR Bearer), 30+ endpoints
+- **Production-ready**: CORS, GZip, rate limiting, security headers, health checks, connection pooling
+- **Self-hostable**: SQLite for dev, PostgreSQL for prod · Docker, Railway, Render, Fly.io configs included
 
 ---
 
-## Quick Start
+## Quick start
 
-### Local Development (SQLite, no Docker required)
+### 1. Run the server
 
 ```bash
-# Clone the repository
 git clone https://github.com/kartheekbvs/openbenchml.git
 cd openbenchml
-
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate   # Windows
-
-# Install dependencies
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
-
-# Run the development server
 python run.py
 ```
 
-Visit http://localhost:8000
+Server starts on `http://localhost:8000`. Open in browser or visit `/docs` for interactive API docs.
 
-### Docker Compose (Full Stack)
+### 2. Install the CLI (optional but recommended)
 
 ```bash
-# Start all services
-docker compose up -d
+npm install -g openbenchml-cli
+```
 
-# View logs
-docker compose logs -f app
+### 3. Register, upload, benchmark
 
-# Stop all services
-docker compose down
+```bash
+# Register
+openbenchml register --username alice --email alice@example.com --password 'supersecret'
+
+# Train a quick model
+python -c "
+import joblib
+from sklearn.datasets import load_iris
+from sklearn.ensemble import RandomForestClassifier
+X, y = load_iris(return_X_y=True)
+clf = RandomForestClassifier(n_estimators=50, random_state=42).fit(X, y)
+joblib.dump(clf, 'rf.joblib')
+"
+
+# Upload and benchmark
+openbenchml upload --model ./rf.joblib --name "RF Iris" --framework scikit-learn
+openbenchml datasets
+openbenchml benchmark --model-id 1 --dataset-id 1
+```
+
+Output:
+
+```
+Job 1 — COMPLETED
+Model: RF Iris   Dataset: Iris
+
+── ML Metrics ──────────────────────────────
+  Accuracy:        100.00%
+  Precision:       1.0000
+  Recall:          1.0000
+  F1 Score:        1.0000
+  AUC-ROC:         1.0000
+  Log Loss:        0.0521
+
+── Performance (real per-sample percentiles) ──
+  Latency mean:    1.898 ms
+  Latency p50:     1.869 ms
+  Latency p95:     2.113 ms
+  Latency p99:     2.575 ms
+  Throughput:      496.3 /s
+```
+
+### 4. Submit to a competition
+
+```bash
+openbenchml competitions
+openbenchml submit --competition iris-classification-challenge --model-id 1
 ```
 
 ---
 
-## API Documentation
+## Project structure
 
-Interactive API docs available at:
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
-### Key Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/register` | Register new user |
-| POST | `/api/auth/login` | Login and get JWT token |
-| POST | `/api/auth/refresh` | Refresh access token |
-| GET | `/api/models` | List public models |
-| POST | `/models/upload` | Upload ML model |
-| GET | `/api/datasets` | List datasets |
-| GET | `/api/jobs` | List benchmark jobs |
-| GET | `/api/results/{id}` | Get benchmark results |
-| GET | `/api/leaderboard` | Get leaderboard data |
-| GET | `/api/info` | API metadata |
-| GET | `/health` | Health check |
-
----
-
-## Architecture
-
-```
-Client (Browser)
-    |
-    v
-Nginx (Reverse Proxy, Static Files)
-    |
-    v
-FastAPI Application
-    |-- Jinja2 Templates (HTML Pages)
-    |-- REST API (JSON Endpoints)
-    |-- WebSocket (Real-time Updates)
-    |
-    +-- PostgreSQL (Production) / SQLite (Dev)
-    +-- Redis (Cache + Message Broker)
-    +-- Celery Worker (Async Benchmark Execution)
-    +-- Docker Sandbox (Secure Model Execution)
-```
-
----
-
-## Project Structure
-
-```
+```text
 openbenchml/
 ├── app/
-│   ├── __init__.py
-│   ├── main.py              # FastAPI app, middleware, WebSocket
-│   ├── config.py             # Central configuration
-│   ├── database/
-│   │   ├── db.py             # SQLAlchemy engine, sessions
-│   │   ├── models.py         # 8 ORM models
-│   │   └── seed.py           # Built-in dataset seeding
-│   ├── routes/
-│   │   ├── auth.py           # Auth routes (HTML + API)
-│   │   ├── dashboard.py      # Dashboard + stats API
-│   │   ├── models.py         # Model management
-│   │   ├── datasets.py       # Dataset browsing
-│   │   ├── benchmark.py      # Benchmark execution
-│   │   └── leaderboard.py    # Leaderboard views
-│   ├── services/
-│   │   ├── auth_service.py   # Auth + API keys + activity logging
-│   │   ├── benchmark_service.py  # Benchmark orchestration
-│   │   └── upload_service.py # File upload handling
-│   ├── benchmark_engine/
-│   │   ├── evaluator.py      # Evaluation pipeline
-│   │   ├── loader.py         # Multi-framework model loading
-│   │   └── metrics.py        # All metric computations
-│   ├── docker_runner/
-│   │   ├── runner.py         # Docker sandbox execution
-│   │   ├── worker.py         # In-container worker
-│   │   └── Dockerfile        # Worker image
-│   └── workers/
-│       └── celery_worker.py  # Celery task queue
-├── templates/                # 15 Jinja2 HTML templates
-├── static/
-│   ├── css/style.css         # Dark theme stylesheet
-│   └── js/
-│       ├── main.js           # Client utilities
-│       └── charts.js         # Chart.js visualizations
-├── docs/
-│   └── index.html            # GitHub Pages landing page
-├── docker-compose.yml        # Full stack deployment
-├── Dockerfile                # App image
-├── nginx.conf                # Reverse proxy config
-├── requirements.txt          # Python dependencies
-├── run.py                    # Dev server launcher
-├── railway.toml              # Railway deployment
-├── render.yaml               # Render deployment
-├── fly.toml                  # Fly.io deployment
-├── .env.example              # Environment template
-└── .gitignore
+│   ├── main.py                  ← FastAPI app + 3 WebSocket endpoints
+│   ├── config.py                ← All settings (env vars + defaults)
+│   ├── database/                ← 14 SQLAlchemy models, session, seed
+│   ├── routes/                  ← auth, models, datasets, benchmark,
+│   │                              leaderboard, competitions, comments
+│   ├── services/                ← auth, upload, benchmark orchestration
+│   └── benchmark_engine/        ← loader, evaluator, metrics (the core)
+├── templates/                   ← Jinja2 HTML templates
+├── static/                      ← CSS, JS, images
+├── scripts/
+│   ├── smoke_test_core.py       ← Headless engine test (no server)
+│   └── smoke_test_http.py       ← Full HTTP end-to-end test
+├── packages/
+│   └── openbenchml-cli/         ← NPM CLI package
+├── docs-site/                   ← mkdocs-material documentation
+├── requirements.txt
+├── Dockerfile / docker-compose.yml
+├── railway.toml / render.yaml / fly.toml
+└── run.py
 ```
 
 ---
 
-## Configuration
+## Documentation
 
-All settings are configurable via environment variables. See `.env.example` for the full list.
+Full documentation at **<https://kartheekbvs.github.io/openbenchml/>** — covers installation, quickstart, concepts, CLI commands, REST API, architecture, deployment, and contributing.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DEBUG` | True | Enable debug mode |
-| `SECRET_KEY` | (change in prod) | JWT signing key |
-| `USE_SQLITE` | True | Use SQLite (True) or PostgreSQL (False) |
-| `DATABASE_URL` | postgresql://... | PostgreSQL connection string |
-| `REDIS_URL` | redis://localhost:6379/0 | Redis connection |
-| `DOCKER_ENABLED` | False | Enable Docker sandbox |
-| `MAX_MODEL_SIZE_MB` | 500 | Max upload size |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | 60 | JWT token expiry |
-| `CORS_ORIGINS` | localhost:8000 | Allowed origins |
-| `RATE_LIMIT_ENABLED` | True | Enable rate limiting |
+Key pages:
+
+- [Quick Start](https://kartheekbvs.github.io/openbenchml/getting-started/quickstart/)
+- [CLI Reference](https://kartheekbvs.github.io/openbenchml/cli/commands/)
+- [API Reference](https://kartheekbvs.github.io/openbenchml/api/)
+- [Architecture — Benchmark Engine](https://kartheekbvs.github.io/openbenchml/architecture/engine/)
+- [Deployment](https://kartheekbvs.github.io/openbenchml/deployment/local/)
+
+---
+
+## Smoke tests
+
+Verify the engine works without a server:
+
+```bash
+.venv/bin/python scripts/smoke_test_core.py
+```
+
+End-to-end HTTP test (starts the server, registers, uploads, benchmarks):
+
+```bash
+.venv/bin/python scripts/smoke_test_http.py
+```
 
 ---
 
 ## Deployment
 
-### Railway
+| Target | Config file | Notes |
+|--------|-------------|-------|
+| Local | (none) | `python run.py` |
+| Docker | `Dockerfile` + `docker-compose.yml` | `docker-compose up --build` |
+| Railway | `railway.toml` | Auto-detects, add Postgres add-on |
+| Render | `render.yaml` | Blueprint with web + Postgres + Redis |
+| Fly.io | `fly.toml` | `fly launch` then `fly deploy` |
 
-```bash
-railway init
-railway up
-```
-
-### Render
-
-Push to GitHub and connect the repository in Render dashboard. The `render.yaml` blueprint configures everything automatically.
-
-### Fly.io
-
-```bash
-fly launch
-fly deploy
-```
-
-### Docker Compose (VPS)
-
-```bash
-docker compose up -d
-```
+See the [deployment docs](https://kartheekbvs.github.io/openbenchml/deployment/local/) for details.
 
 ---
 
-## Tech Stack
+## Roadmap
 
-| Component | Technology |
-|-----------|------------|
-| Backend | FastAPI 0.109, Python 3.11 |
-| Database | SQLAlchemy 2.0, PostgreSQL 16 / SQLite |
-| Auth | JWT (python-jose), bcrypt, HttpOnly cookies |
-| Task Queue | Celery 5.3, Redis 7 |
-| ML | scikit-learn, XGBoost, LightGBM, (PyTorch, ONNX, TF optional) |
-| Frontend | Jinja2, Chart.js, CSS3 |
-| Sandbox | Docker with resource limits |
-| Proxy | Nginx with security headers |
+- [ ] **Code submissions** — submit a Python script that trains + predicts, instead of a pre-trained model
+- [ ] **Sandboxed execution** — gVisor / Firecracker for running untrusted model code
+- [ ] **Custom dataset upload** — UI for uploading `.npz` / `.joblib` files
+- [ ] **Team-based competitions** — expose the `Team` / `TeamMember` models in the UI
+- [ ] **Alembic migrations** — proper schema migrations for production upgrades
+- [ ] **PyTorch probability extraction** — softmax of logits for AUC-ROC
+- [ ] **OAuth login** — GitHub / Google
 
 ---
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing`)
-5. Open a Pull Request
-
----
+PRs welcome! See [CONTRIBUTING](https://kartheekbvs.github.io/openbenchml/contributing/) for the development setup, code style, and PR workflow.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT © OpenBenchML contributors

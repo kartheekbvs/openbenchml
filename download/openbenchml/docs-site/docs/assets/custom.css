@@ -1,0 +1,44 @@
+/* OpenBenchML docs custom styles */
+
+.md-header__title {
+  font-weight: 700;
+}
+
+.md-typeset h1 {
+  font-weight: 800;
+  border-bottom: 2px solid var(--md-primary-fg-color--dark);
+  padding-bottom: 0.4em;
+}
+
+.md-typeset h2 {
+  font-weight: 700;
+  margin-top: 1.5em;
+}
+
+/* Better-looking tables */
+.md-typeset table:not([class]) {
+  font-size: 0.85em;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--md-primary-fg-color--light);
+  color: white;
+  font-weight: 600;
+}
+
+/* Code block styling */
+.md-typeset pre > code {
+  font-size: 0.85em;
+}
+
+/* Admonition tweaks */
+.md-typeset .admonition {
+  border-radius: 6px;
+  border-left-width: 4px;
+}
+
+/* Tabbed content */
+.md-typeset .tabbed-set {
+  border-radius: 6px;
+}

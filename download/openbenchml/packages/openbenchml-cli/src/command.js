@@ -1,0 +1,420 @@
+/**
+ * Command dispatcher & pretty-printers.
+ */
+
+const { ApiClient } = require('./client');
+
+const FORMATS = {
+  // Numeric formats for display
+  pct: (v) => v == null ? '-' : (v * 100).toFixed(2) + '%',
+  float4: (v) => v == null ? '-' : v.toFixed(4),
+  float2: (v) => v == null ? '-' : v.toFixed(2),
+  ms: (v) => v == null ? '-' : v.toFixed(3) + ' ms',
+  size: (kb) => {
+    if (kb == null) return '-';
+    if (kb < 1024) return kb.toFixed(1) + ' KB';
+    return (kb / 1024).toFixed(2) + ' MB';
+  },
+  date: (iso) => {
+    if (!iso) return '-';
+    const d = new Date(iso);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  },
+};
+
+function parseFlags(args) {
+  const flags = {};
+  const positional = [];
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a.startsWith('--')) {
+      const key = a.slice(2);
+      const next = args[i + 1];
+      if (next !== undefined && !next.startsWith('--')) {
+        flags[key] = next; i++;
+      } else {
+        flags[key] = true;
+      }
+    } else {
+      positional.push(a);
+    }
+  }
+  return { flags, positional };
+}
+
+class Command {
+  constructor() {
+    this.client = new ApiClient();
+  }
+
+  run(args) {
+    const cmd = args[0];
+    const rest = args.slice(1);
+    const { flags, positional } = parseFlags(rest);
+
+    // Allow --host / --token overrides on any command.
+    if (flags.host) this.client.host = flags.host.replace(/\/$/, '');
+    if (flags.token) this.client.token = flags.token;
+
+    switch (cmd) {
+      case 'login': return this.login(flags);
+      case 'register': return this.register(flags);
+      case 'whoami': return this.whoami();
+      case 'logout': return this.logout();
+
+      case 'upload': return this.upload(flags);
+      case 'models': return this.models(flags);
+      case 'model': return this.model(positional[0]);
+
+      case 'datasets': return this.datasets(flags);
+
+      case 'benchmark': return this.benchmark(flags);
+      case 'job': return this.job(positional[0]);
+      case 'results': return this.results(positional[0]);
+
+      case 'leaderboard': return this.leaderboard(flags);
+
+      case 'competitions': return this.competitions(flags);
+      case 'competition': return this.competition(positional[0]);
+      case 'submit': return this.submit(flags);
+
+      case 'notifications': return this.notifications(flags);
+
+      default:
+        console.error(`Unknown command: ${cmd}`);
+        console.error('Run "openbenchml --help" for usage.');
+        return 1;
+    }
+  }
+
+  // ─── Auth ──────────────────────────────────────────────────────────────────
+
+  async login(flags) {
+    if (!flags.email || !flags.password) {
+      console.error('Usage: openbenchml login --email <email> --password <password>');
+      return 1;
+    }
+    try {
+      const r = await this.client.login(flags.email, flags.password);
+      console.log(`✓ Logged in as ${r.user.username} (${r.user.email})`);
+      console.log(`  Token saved to ~/.openbenchml/credentials.json`);
+    } catch (e) {
+      console.error(`✗ Login failed: ${e.message}`);
+      return 1;
+    }
+  }
+
+  async register(flags) {
+    if (!flags.username || !flags.email || !flags.password) {
+      console.error('Usage: openbenchml register --username <name> --email <email> --password <pwd>');
+      return 1;
+    }
+    try {
+      const r = await this.client.register(flags);
+      console.log(`✓ Registered and logged in as ${r.user.username}`);
+    } catch (e) {
+      console.error(`✗ Registration failed: ${e.message}`);
+      return 1;
+    }
+  }
+
+  async whoami() {
+    if (!this.client.token) {
+      console.error('Not logged in. Run "openbenchml login" first.');
+      return 1;
+    }
+    try {
+      const u = await this.client.whoami();
+      console.log(`User:   ${u.username}`);
+      console.log(`ID:     ${u.id}`);
+      if (u.organization) console.log(`Org:    ${u.organization}`);
+      console.log(`Joined: ${FORMATS.date(u.created_at)}`);
+    } catch (e) {
+      console.error(`✗ ${e.message}`);
+      return 1;
+    }
+  }
+
+  logout() {
+    this.client.clearSavedToken();
+    console.log('✓ Logged out. Credentials removed.');
+  }
+
+  // ─── Models ────────────────────────────────────────────────────────────────
+
+  async upload(flags) {
+    if (!flags.model || !flags.name || !flags.framework) {
+      console.error('Usage: openbenchml upload --model <file> --name <name> --framework <fw>');
+      console.error('Frameworks: scikit-learn, pytorch, onnx, tensorflow, xgboost, lightgbm');
+      return 1;
+    }
+    try {
+      const r = await this.client.uploadModel({
+        filePath: flags.model,
+        name: flags.name,
+        description: flags.description || '',
+        framework: flags.framework,
+      });
+      console.log(`✓ Uploaded: ${r.model_name} (id=${r.id}, framework=${r.framework}, size=${FORMATS.size(r.size_kb)})`);
+    } catch (e) {
+      console.error(`✗ Upload failed: ${e.message}`);
+      return 1;
+    }
+  }
+
+  async models(flags) {
+    try {
+      const list = await this.client.listModels({ framework: flags.framework });
+      if (!list.length) { console.log('No models found.'); return 0; }
+      console.log('ID   Framework      Size         Name');
+      console.log('---  -------------  -----------  ----------------');
+      for (const m of list) {
+        console.log(
+          `${String(m.id).padEnd(4)} ${m.framework.padEnd(13)}  ${FORMATS.size(m.size_kb).padEnd(11)}  ${m.model_name}`
+        );
+      }
+    } catch (e) {
+      console.error(`✗ ${e.message}`); return 1;
+    }
+  }
+
+  async model(id) {
+    if (!id) { console.error('Usage: openbenchml model <id>'); return 1; }
+    try {
+      const m = await this.client.getModel(parseInt(id, 10));
+      console.log(`ID:          ${m.id}`);
+      console.log(`Name:        ${m.model_name}`);
+      console.log(`Framework:   ${m.framework}`);
+      console.log(`Size:        ${FORMATS.size(m.size_kb)}`);
+      console.log(`Version:     ${m.version}`);
+      console.log(`Owner:       ${m.owner}`);
+      console.log(`Created:     ${FORMATS.date(m.created_at)}`);
+      console.log(`Benchmark summary:`, m.benchmark_summary || {});
+    } catch (e) {
+      console.error(`✗ ${e.message}`); return 1;
+    }
+  }
+
+  // ─── Datasets ──────────────────────────────────────────────────────────────
+
+  async datasets(flags) {
+    try {
+      const list = await this.client.listDatasets({
+        taskType: flags['task-type'],
+        difficulty: flags.difficulty,
+      });
+      console.log('ID  Name                  Task            Samples   Features  Difficulty');
+      console.log('--  --------------------  --------------  --------  --------  -----------');
+      for (const d of list) {
+        console.log(
+          `${String(d.id).padEnd(3)} ${d.name.padEnd(20)}  ${d.task_type.padEnd(14)}  ${String(d.samples).padEnd(8)}  ${String(d.features).padEnd(8)}  ${d.difficulty}`
+        );
+      }
+    } catch (e) {
+      console.error(`✗ ${e.message}`); return 1;
+    }
+  }
+
+  // ─── Benchmarks ────────────────────────────────────────────────────────────
+
+  async benchmark(flags) {
+    if (!flags['model-id'] || !flags['dataset-id']) {
+      console.error('Usage: openbenchml benchmark --model-id <id> --dataset-id <id>');
+      return 1;
+    }
+    try {
+      const r = await this.client.runBenchmark({
+        modelId: parseInt(flags['model-id'], 10),
+        datasetId: parseInt(flags['dataset-id'], 10),
+      });
+      console.log(`✓ Benchmark submitted (job_id=${r.job_id})`);
+      console.log(`  Fetching results...`);
+      const results = await this.client.getResults(r.job_id);
+      this._printResults(results);
+    } catch (e) {
+      console.error(`✗ ${e.message}`); return 1;
+    }
+  }
+
+  async job(id) {
+    if (!id) { console.error('Usage: openbenchml job <id>'); return 1; }
+    try {
+      const j = await this.client.getJob(parseInt(id, 10));
+      if (!j) { console.error('Job not found'); return 1; }
+      console.log(`Job ID:        ${j.id}`);
+      console.log(`Status:        ${j.status}`);
+      console.log(`Progress:      ${j.progress}%`);
+      console.log(`Model:         ${j.model_name}`);
+      console.log(`Dataset:       ${j.dataset_name}`);
+      console.log(`Submitted:     ${FORMATS.date(j.submitted_at)}`);
+      console.log(`Finished:      ${FORMATS.date(j.finished_at)}`);
+      if (j.error_message) console.log(`Error:         ${j.error_message}`);
+    } catch (e) {
+      console.error(`✗ ${e.message}`); return 1;
+    }
+  }
+
+  async results(jobId) {
+    if (!jobId) { console.error('Usage: openbenchml results <job-id>'); return 1; }
+    try {
+      const r = await this.client.getResults(parseInt(jobId, 10));
+      this._printResults(r);
+    } catch (e) {
+      console.error(`✗ ${e.message}`); return 1;
+    }
+  }
+
+  _printResults(r) {
+    console.log('');
+    console.log(`Job ${r.job_id} — ${r.status.toUpperCase()}`);
+    console.log(`Model: ${r.model_name}   Dataset: ${r.dataset_name}`);
+    console.log(`Finished: ${FORMATS.date(r.finished_at)}`);
+    if (r.error_message) {
+      console.log(`Error: ${r.error_message}`);
+      return;
+    }
+    if (!r.metrics) { console.log('No metrics available.'); return; }
+    const m = r.metrics;
+    console.log('');
+    console.log('── ML Metrics ──────────────────────────────');
+    if (m.accuracy != null) console.log(`  Accuracy:        ${FORMATS.pct(m.accuracy)}`);
+    if (m.precision != null) console.log(`  Precision:       ${FORMATS.float4(m.precision)}`);
+    if (m.recall != null) console.log(`  Recall:          ${FORMATS.float4(m.recall)}`);
+    if (m.f1_score != null) console.log(`  F1 Score:        ${FORMATS.float4(m.f1_score)}`);
+    if (m.auc_roc != null) console.log(`  AUC-ROC:         ${FORMATS.float4(m.auc_roc)}`);
+    if (m.log_loss != null) console.log(`  Log Loss:        ${FORMATS.float4(m.log_loss)}`);
+    if (m.mae != null) console.log(`  MAE:             ${FORMATS.float4(m.mae)}`);
+    if (m.rmse != null) console.log(`  RMSE:            ${FORMATS.float4(m.rmse)}`);
+    if (m.r2_score != null) console.log(`  R² Score:        ${FORMATS.float4(m.r2_score)}`);
+
+    console.log('');
+    console.log('── Performance (real per-sample percentiles) ──');
+    console.log(`  Latency mean:    ${FORMATS.ms(m.latency_ms)}`);
+    console.log(`  Latency p50:     ${FORMATS.ms(m.latency_p50_ms)}`);
+    console.log(`  Latency p95:     ${FORMATS.ms(m.latency_p95_ms)}`);
+    console.log(`  Latency p99:     ${FORMATS.ms(m.latency_p99_ms)}`);
+    console.log(`  Throughput:      ${m.throughput_per_sec != null ? m.throughput_per_sec.toFixed(1) + ' /s' : '-'}`);
+    console.log(`  Memory:          ${FORMATS.float2(m.memory_mb)} MB`);
+    console.log(`  Model size:      ${FORMATS.size(m.model_size_kb)}`);
+    console.log(`  Inferences:      ${m.inference_count}`);
+  }
+
+  // ─── Leaderboard ───────────────────────────────────────────────────────────
+
+  async leaderboard(flags) {
+    try {
+      const rows = await this.client.getLeaderboard({
+        datasetId: flags['dataset-id'] ? parseInt(flags['dataset-id'], 10) : undefined,
+        sortBy: flags['sort-by'],
+        limit: flags.limit ? parseInt(flags.limit, 10) : 50,
+      });
+      if (!rows.length) { console.log('Leaderboard is empty.'); return 0; }
+      console.log('Rank  Score      Latency      Size         Owner          Model');
+      console.log('----  ---------  -----------  -----------  -------------  ----------------');
+      for (const r of rows) {
+        console.log(
+          `${String(r.rank).padEnd(5)} ${(r.score != null ? r.score.toFixed(4) : '-').padEnd(9)}  ` +
+          `${FORMATS.ms(r.latency_ms).padEnd(11)}  ${FORMATS.size(r.model_size_kb).padEnd(11)}  ` +
+          `${(r.owner || '-').padEnd(13)}  ${r.model_name}`
+        );
+      }
+    } catch (e) {
+      console.error(`✗ ${e.message}`); return 1;
+    }
+  }
+
+  // ─── Competitions ──────────────────────────────────────────────────────────
+
+  async competitions(flags) {
+    try {
+      const list = await this.client.listCompetitions({ status: flags.status });
+      if (!list.length) { console.log('No competitions found.'); return 0; }
+      console.log('Status    Metric       Title');
+      console.log('--------  -----------  ----------------------------------------');
+      for (const c of list) {
+        console.log(`${c.status.padEnd(8)}  ${c.evaluation_metric.padEnd(11)}  ${c.title}`);
+      }
+    } catch (e) {
+      console.error(`✗ ${e.message}`); return 1;
+    }
+  }
+
+  async competition(slug) {
+    if (!slug) { console.error('Usage: openbenchml competition <slug>'); return 1; }
+    try {
+      const c = await this.client.getCompetition(slug);
+      console.log(`Title:    ${c.title}`);
+      console.log(`Status:   ${c.status}`);
+      console.log(`Metric:   ${c.evaluation_metric}`);
+      console.log(`Task:     ${c.task_type}`);
+      console.log(`Starts:   ${FORMATS.date(c.starts_at)}`);
+      console.log(`Ends:     ${FORMATS.date(c.ends_at)}`);
+      console.log(`Submissions: ${c.total_submissions}  Participants: ${c.unique_participants}`);
+      if (c.prize) console.log(`Prize:    ${c.prize}`);
+      console.log('');
+      if (!c.leaderboard.length) {
+        console.log('Leaderboard is empty — be the first to submit!');
+        return 0;
+      }
+      console.log('── Leaderboard ──────────────────────────────');
+      console.log('Rank  Score      User            Model');
+      console.log('----  ---------  --------------  ----------------');
+      for (const r of c.leaderboard) {
+        console.log(
+          `${String(r.rank).padEnd(5)} ${(r.score != null ? r.score.toFixed(4) : '-').padEnd(9)}  ` +
+          `${(r.username || '-').padEnd(13)}  ${r.model_name}`
+        );
+      }
+    } catch (e) {
+      console.error(`✗ ${e.message}`); return 1;
+    }
+  }
+
+  async submit(flags) {
+    if (!flags.competition || !flags['model-id']) {
+      console.error('Usage: openbenchml submit --competition <slug> --model-id <id>');
+      return 1;
+    }
+    try {
+      const r = await this.client.submitToCompetition(flags.competition, {
+        modelId: parseInt(flags['model-id'], 10),
+        note: flags.note || '',
+      });
+      console.log(`✓ Submitted model ${flags['model-id']} to ${flags.competition}`);
+      console.log('  The model has been auto-benchmarked and added to the leaderboard.');
+
+      // Fetch updated leaderboard
+      const c = await this.client.getCompetition(flags.competition);
+      console.log('');
+      console.log(`Total submissions: ${c.total_submissions}  Participants: ${c.unique_participants}`);
+      if (c.leaderboard.length) {
+        console.log('');
+        console.log('── Current Leaderboard ──────────────────────');
+        for (const r of c.leaderboard) {
+          console.log(`  #${r.rank}  ${r.username}  ${r.model_name}  score=${r.score != null ? r.score.toFixed(4) : '-'}`);
+        }
+      }
+    } catch (e) {
+      console.error(`✗ ${e.message}`); return 1;
+    }
+  }
+
+  // ─── Notifications ─────────────────────────────────────────────────────────
+
+  async notifications(flags) {
+    try {
+      const list = await this.client.listNotifications({ unreadOnly: flags['unread-only'] || flags.unread });
+      if (!list.length) { console.log('No notifications.'); return 0; }
+      for (const n of list) {
+        const marker = n.is_read ? '  ' : '● ';
+        console.log(`${marker}${FORMATS.date(n.created_at)}  ${n.title}`);
+        if (n.body) console.log(`    ${n.body}`);
+        if (n.link) console.log(`    → ${n.link}`);
+      }
+    } catch (e) {
+      console.error(`✗ ${e.message}`); return 1;
+    }
+  }
+}
+
+module.exports = { Command, FORMATS };

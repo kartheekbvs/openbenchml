@@ -1,0 +1,56 @@
+{
+  "name": "openbenchml-cli",
+  "version": "3.0.0",
+  "description": "Command-line client for OpenBenchML — upload models, run benchmarks, and submit to competitions from your terminal.",
+  "main": "src/index.js",
+  "bin": {
+    "openbenchml": "bin/openbenchml.js",
+    "obml": "bin/openbenchml.js"
+  },
+  "scripts": {
+    "test": "node --test test/",
+    "lint": "echo 'Lint not configured yet'",
+    "start": "node bin/openbenchml.js"
+  },
+  "keywords": [
+    "ml",
+    "machine-learning",
+    "benchmark",
+    "kaggle",
+    "competition",
+    "scikit-learn",
+    "pytorch",
+    "onnx",
+    "tensorflow",
+    "xgboost",
+    "lightgbm",
+    "cli"
+  ],
+  "author": "OpenBenchML <kartheekbvs@users.noreply.github.com>",
+  "license": "MIT",
+  "homepage": "https://kartheekbvs.github.io/openbenchml/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kartheekbvs/openbenchml.git",
+    "directory": "packages/openbenchml-cli"
+  },
+  "bugs": {
+    "url": "https://github.com/kartheekbvs/openbenchml/issues"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "files": [
+    "src/",
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "form-data": "^4.0.0",
+    "node-fetch": "^2.7.0"
+  }
+}

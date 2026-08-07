@@ -188,10 +188,22 @@ async def get_current_user_from_cookie(
     request: Request,
     db: Session = Depends(get_db),
 ) -> Optional[User]:
-    """FastAPI dependency that reads the access_token cookie and returns
-    the current User, or None if the cookie is missing / invalid.
+    """FastAPI dependency that returns the current User from either:
+
+    1. The ``access_token`` cookie (set by the HTML login flow), OR
+    2. An ``Authorization: Bearer <token>`` header (used by the CLI and
+       other API clients).
+
+    Returns ``None`` if no valid credential is provided.
     """
     token = request.cookies.get("access_token")
+
+    # ── Fall back to Authorization: Bearer <token> ────────────────────────
+    if not token:
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.lower().startswith("bearer "):
+            token = auth_header.split(" ", 1)[1].strip()
+
     if not token:
         return None
 
@@ -201,7 +213,7 @@ async def get_current_user_from_cookie(
         if user_id is None:
             return None
     except JWTError:
-        logger.debug("Invalid JWT in cookie")
+        logger.debug("Invalid JWT in cookie/header")
         return None
 
     try:
