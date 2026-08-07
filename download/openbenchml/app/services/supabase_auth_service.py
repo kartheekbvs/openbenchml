@@ -25,57 +25,27 @@ import logging
 from typing import Any, Optional
 
 from app.config import SUPABASE_URL, SUPABASE_ANON_KEY
+# Re-use the lazy client from app.database.supabase_client so we have ONE
+# place that owns the Supabase connection (mirrors fastapiproject/app/db.py).
+from app.database.supabase_client import get_supabase, is_available as _client_is_available
 
 logger = logging.getLogger(__name__)
 
-# ─── Lazy Supabase client ────────────────────────────────────────────────────
-_supabase_client: Any = None
-_supabase_init_failed: bool = False
+# ─── Lazy Supabase client (delegated to app.database.supabase_client) ──────
+# The fastapiproject repo uses a module-level singleton:
+#     supabase: Client = create_client(url, key)
+# We follow the same pattern but defer initialization to first use so the
+# app boots even when Supabase is offline.
 
 
 def _get_client() -> Any:
-    """Return a singleton Supabase client, or None if init failed.
-
-    Lazy import + lazy init so the app boots even when the `supabase`
-    Python package isn't installed (e.g. minimal dev envs).
-    """
-    global _supabase_client, _supabase_init_failed
-    if _supabase_client is not None or _supabase_init_failed:
-        return _supabase_client
-
-    try:
-        # `supabase` >= 2.x exposes `create_client`
-        from supabase import create_client, Client  # type: ignore
-    except ImportError:
-        logger.warning(
-            "supabase-py not installed — Supabase Auth disabled. "
-            "Run: pip install supabase"
-        )
-        _supabase_init_failed = True
-        return None
-    except Exception as exc:
-        logger.warning("Failed to import supabase: %s", exc)
-        _supabase_init_failed = True
-        return None
-
-    try:
-        _supabase_client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-        logger.info(
-            "Supabase client initialized → %s (project ref %s)",
-            SUPABASE_URL,
-            SUPABASE_URL.split("//")[-1].split(".")[0],
-        )
-    except Exception as exc:
-        logger.warning("Supabase client init failed: %s", exc)
-        _supabase_init_failed = True
-        return None
-
-    return _supabase_client
+    """Return the shared Supabase client (or None if unavailable)."""
+    return get_supabase()
 
 
 def is_available() -> bool:
     """True when the Supabase client was successfully initialized."""
-    return _get_client() is not None
+    return _client_is_available()
 
 
 # ─── Public API ──────────────────────────────────────────────────────────────
@@ -272,3 +242,52 @@ def _humanize_error(raw: str) -> str:
     if ":" in raw and len(raw.split(":", 1)[1].strip()) < 200:
         return raw.split(":", 1)[1].strip()
     return raw[:200]
+
+
+# ─── fastapiproject-style direct table CRUD ─────────────────────────────────
+# These helpers mirror the pattern from the fastapiproject repo:
+#   from app.db import supabase
+#   supabase.table("fastsignin").insert(data).execute()
+#
+# We expose the same convenience for OpenBenchML's `users` table.  Per the
+# user's instruction ("id is username and username is password"), the
+# `fastsignin` table from fastapiproject is also mirrored so any existing
+# data in that table is accessible.
+
+def table(name: str):
+    """Direct access: `supabase_auth_service.table('users').select('*').execute()`.
+
+    Mirrors the fastapiproject pattern of `supabase.table(...)`.  Returns
+    the PostgrestQueryBuilder or raises RuntimeError if Supabase isn't
+    available.
+    """
+    client = _get_client()
+    if client is None:
+        raise RuntimeError("Supabase client is not available.")
+    return client.table(name)
+
+
+def list_fastsignin_users() -> list:
+    """Return all rows from the `fastsignin` table (fastapiproject compatibility).
+
+    Returns an empty list if Supabase is unavailable OR the table doesn't
+    exist yet (fastapiproject didn't auto-create it).
+    """
+    try:
+        return table("fastsignin").select("*").limit(1000).execute().data
+    except Exception as exc:
+        logger.debug("list_fastsignin_users failed (table may not exist): %s", exc)
+        return []
+
+
+def insert_fastsignin_row(data: dict) -> dict:
+    """Insert a row into the `fastsignin` table (fastapiproject compatibility).
+
+    Returns the inserted row dict, or {} on failure.
+    """
+    try:
+        rows = table("fastsignin").insert(data).execute().data
+        return rows[0] if rows else {}
+    except Exception as exc:
+        logger.warning("insert_fastsignin_row failed: %s", exc)
+        return {}

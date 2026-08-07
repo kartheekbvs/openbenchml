@@ -64,6 +64,22 @@ _BLOCKED_MODULE_PREFIXES = (
     "smtplib",
     "shutil",
     "pathlib",  # blocks Path-based file ops too
+    # ⚠ Blocking `importlib` is critical: `importlib.import_module("subprocess")`
+    # bypasses our custom __import__ hook (which only catches `import subprocess`
+    # statements). Without this, a student could trivially escape the sandbox.
+    "importlib",
+    # Same for `runpy` (runpy.run_module / run_path) — another way to load
+    # arbitrary code without going through __import__.
+    "runpy",
+    # `pickle` / `marshal` allow loading arbitrary pickled objects which can
+    # trigger __reduce__ exploits. We need them internally for pickling the
+    # trained model, but user code shouldn't use them directly.
+    "pickle",
+    "marshal",
+    "code",
+    "codeop",
+    "pdb",
+    "pydoc",
 )
 
 
