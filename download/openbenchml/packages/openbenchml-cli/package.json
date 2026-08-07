@@ -1,7 +1,7 @@
 {
   "name": "openbenchml-cli",
-  "version": "3.0.0",
-  "description": "Command-line client for OpenBenchML — upload models, run benchmarks, and submit to competitions from your terminal.",
+  "version": "4.0.0",
+  "description": "Command-line client for OpenBenchML — convert code → pickled model, run benchmarks, submit to competitions, and stream real-time updates from your terminal.",
   "main": "src/index.js",
   "bin": {
     "openbenchml": "bin/openbenchml.js",
@@ -24,7 +24,13 @@
     "tensorflow",
     "xgboost",
     "lightgbm",
-    "cli"
+    "cli",
+    "notebook",
+    "convert-code",
+    "realtime",
+    "websocket",
+    "student",
+    "education"
   ],
   "author": "OpenBenchML <kartheekbvs@users.noreply.github.com>",
   "license": "MIT",

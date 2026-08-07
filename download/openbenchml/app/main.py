@@ -236,6 +236,7 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 # ─── Include Routers ─────────────────────────────────────────────────────────
 from app.routes import auth, dashboard, models, datasets, benchmark, leaderboard  # noqa: E402
 from app.routes import competitions, comments  # noqa: E402
+from app.routes import convert  # noqa: E402
 
 app.include_router(auth.router)
 app.include_router(dashboard.router)
@@ -245,6 +246,7 @@ app.include_router(benchmark.router)
 app.include_router(leaderboard.router)
 app.include_router(competitions.router)
 app.include_router(comments.router)
+app.include_router(convert.router)
 
 
 # ─── Landing Page ────────────────────────────────────────────────────────────
@@ -253,6 +255,33 @@ async def landing_page(request: Request):
     """Render the landing page."""
     return templates.TemplateResponse("landing.html", {
         "request": request,
+        "app_name": APP_NAME,
+        "app_version": APP_VERSION,
+    })
+
+
+# ─── Real-time snippets page (auth-gated; useful from any browser) ───────────
+@app.get("/realtime", response_class=HTMLResponse)
+async def realtime_page(request: Request):
+    """Render the real-time WebSocket snippets page.
+
+    The page is intentionally accessible without login so that students
+    can browse the snippets before signing up.  The embedded live preview
+    will simply show "disconnected" events until login; once logged in
+    on another tab, the WS endpoints accept the connection anyway.
+    """
+    # Try to extract the user (for the navbar), but don't redirect.
+    from app.routes.auth import get_current_user_from_cookie
+    from app.database.db import SessionLocal
+    db = SessionLocal()
+    try:
+        user = await get_current_user_from_cookie(request, db)
+    finally:
+        db.close()
+
+    return templates.TemplateResponse("realtime.html", {
+        "request": request,
+        "user": user,
         "app_name": APP_NAME,
         "app_version": APP_VERSION,
     })

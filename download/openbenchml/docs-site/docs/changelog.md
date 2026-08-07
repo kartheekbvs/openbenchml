@@ -2,6 +2,62 @@
 
 All notable changes to OpenBenchML are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.0.0] — 2026-08-07
+
+The "code → pickle → benchmark, all in the browser" release. Adds an in-browser Python notebook, a `/convert` flow that turns Python code into a benchmarkable MLModel without requiring a local Python install, expands the built-in dataset catalogue from 6 to 17, and adds real-time WebSocket snippets with basic syntax but powerful behaviour.
+
+### Added
+
+- **`/convert` flow (HTML + JSON API)** — paste Python code that trains a model, the platform executes it in a sandboxed namespace, pickles the resulting `model` variable, and registers it as an `MLModel`. No local Python or `.pkl` upload needed.
+- **`/notebook` page (HTML + JSON API)** — single-cell in-browser Python playground with 6 one-click presets (Iris explore, train RF, confusion matrix, regression comparison, 5-fold CV, dataset survey). `np`, `pd`, `sklearn`, `scipy`, `joblib` + 12 `sklearn_*` shortcuts pre-imported.
+- **`app/services/code_runner_service.py`** — unified sandboxed code execution service backing both `/convert` and `/notebook`. Custom `__import__` blocks `subprocess`, `socket`, `http`, `urllib`, `ctypes`, `shutil`, `pathlib`, `multiprocessing`, `ftplib`, `telnetlib`, `smtplib`. Strips `open`, `exec`, `eval`, `compile`, `globals`, `breakpoint`, `input` from builtins. SIGALRM-enforced timeout (30s notebook / 60s convert).
+- **11 new built-in datasets** (catalogue grew from 6 to 17):
+  - **OlivettiFaces** (face recognition, 400 samples × 4096 features)
+  - **Linnerud** (multi-output regression, 20 samples × 3 features)
+  - **MakeClassification** (synthetic, 1000×20, 3 classes)
+  - **MakeMoons** (non-linear binary, 800×2)
+  - **MakeCircles** (concentric circles, 800×2)
+  - **MakeBlobs** (Gaussian clusters, 900×8, 4 centers)
+  - **MakeHastie** (Hastie et al. binary, 2000×10)
+  - **MakeRegression** (synthetic linear, 1000×15)
+  - **MakeFriedman1** / **MakeFriedman2** / **MakeFriedman3** (non-linear regression)
+- **2 new default competitions** seeded on first run: "Moons Non-Linear Showdown" (accuracy, 21 days) and "Friedman #1 Grand Prix" (RMSE, 30 days).
+- **`/realtime` page** with copy-paste-ready WebSocket snippets for all 3 channels (benchmark, leaderboard, notifications) + a live preview that streams events as you browse.
+- **CLI `init` command** — one-shot setup: prints `npm install -g openbenchml-cli`, walks through register/login, and shows a minimum-viable Python training example.
+- **CLI `convert` command** — `openbenchml convert --file train.py --name "My RF"` turns a local Python file into a server-side MLModel with no Python install on the client needed.
+- **CLI `notebook` command** — `openbenchml notebook --code "print(1+1)"` runs Python in the sandbox from the terminal.
+- **CLI `watch` command** — `openbenchml watch --channel leaderboard --dataset-id 1` streams real-time WebSocket events to stdout.
+- **CLI `datasets --more` flag** — verbose listing with full dataset descriptions.
+- **`help` / `--help` / `-h` command** — full command catalogue with examples.
+- **Framework auto-detection** in `/convert` from `type(model).__module__` (torch → pytorch, tensorflow/keras → tensorflow, xgboost → xgboost, lightgbm → lightgbm, onnx → onnx, fallback → scikit-learn).
+- **Metric alias capture** — if your code leaves `acc` (not `accuracy`), `f1` (not `f1_score`), or `r2` (not `r2_score`) in scope, the platform still captures it as model metadata.
+- **Docs pages**: `user-guide/convert.md`, `user-guide/notebook.md`, `user-guide/realtime.md`, `api/convert.md`, `api/notebook.md`, `architecture/sandbox.md`.
+- **`scripts/smoke_test_v4.py`** — 29 unit tests covering all new functionality (all pass).
+
+### Changed
+
+- **App version** bumped to 4.0.0 (was 2.0.0 in the constant; the changelog below covers 3.0.0).
+- **Navbar** now includes Convert, Notebook, and Real-time links.
+- **CLI version** bumped to 4.0.0. `package.json` keywords expanded with `notebook`, `convert-code`, `realtime`, `websocket`, `student`, `education`.
+- **`_BUILTIN_DATASETS` registry** in `loader.py` now supports synthetic generators (return `(X, y)` tuples) via a `params` dict, in addition to classic Bunch-returning loaders and fetchers.
+- **`list_builtin_datasets()`** new public function in `loader.py` for enumerating the catalogue.
+- **`seed.py`** mirrors the new 17-dataset catalogue and seeds 4 default competitions (was 2).
+
+### Fixed
+
+- **`fetch_olivetti_faces()` and `fetch_california_housing()`** were not in the loader registry — now properly registered with `max_samples` caps for fast benchmarks.
+- **CLI bin script** could crash on sync commands (e.g. `help`) because `main()` returned an int but the bin expected a Promise. Normalised via `Promise.resolve(result)`.
+- **`TimeoutError`** was being caught by the inner `except Exception` block in `run_code`, preventing `timed_out=True` from being set. Now re-raised explicitly.
+- **Sandbox `__import__`** now blocks modules that are already cached in `sys.modules` — previously, `subprocess` could be imported if anything else in the process had imported it first.
+
+### Migration notes
+
+If you're upgrading from v3.0.0:
+
+1. **Delete your existing SQLite database** (`rm openbenchml.db`) — the seed now inserts 17 datasets and 4 competitions instead of 6 and 2. The schema itself is unchanged.
+2. **Reinstall the CLI** — `npm install -g openbenchml-cli@4.0.0` to get the new `init`, `convert`, `notebook`, `watch` commands.
+3. **Try the new flow** — visit `/notebook` for a no-setup Python playground, or `/convert` to turn code into a benchmarkable model without uploading a file.
+
 ## [3.0.0] — 2025-01-15
 
 The "we actually fixed the core engine" release. This is a complete rewrite of the benchmark engine, the addition of Kaggle-style competitions, real-time WebSocket updates, a Node.js CLI, and a separate documentation site.

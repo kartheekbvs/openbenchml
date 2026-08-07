@@ -2,12 +2,14 @@
 OpenBenchML Model & Dataset Loader
 ====================================
 Responsible for loading ML models from disk (multi-framework) and
-preparing benchmark datasets (built-in sklearn or custom files).
+preparing benchmark datasets (built-in sklearn, synthetic generators,
+or custom files).
 
 The public API consumed by ``benchmark_service`` is:
 
 * :func:`load_model`  – deserialise a saved model artifact.
 * :func:`load_dataset` – prepare a train/test split with metadata.
+* :func:`list_builtin_datasets` – enumerate available built-in datasets.
 
 This module is **the foundation of the core engine**. It must never
 silently swallow a bad argument — every error path raises a clear,
@@ -17,7 +19,7 @@ error message for the user.
 
 import logging
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import joblib
 import numpy as np
@@ -26,8 +28,19 @@ from sklearn.datasets import (
     load_wine,
     load_breast_cancer,
     load_digits,
-    fetch_california_housing,
     load_diabetes,
+    load_linnerud,
+    fetch_california_housing,
+    fetch_olivetti_faces,
+    make_classification,
+    make_regression,
+    make_moons,
+    make_circles,
+    make_blobs,
+    make_friedman1,
+    make_friedman2,
+    make_friedman3,
+    make_hastie_10_2,
 )
 from sklearn.model_selection import train_test_split
 
@@ -35,21 +48,116 @@ logger = logging.getLogger(__name__)
 
 # ─── Built-in dataset registry ────────────────────────────────────────────────
 # The "key" matches the lowercase dataset.name as stored in the DB.
-# Each entry records the loader function, the task type, and an
+# Each entry records the loader function, the task type, an
 # optional size cap (large datasets are subsampled to keep benchmarks
-# fast and predictable in shared environments).
+# fast and predictable in shared environments), and an optional
+# ``params`` dict passed to the loader (used by synthetic generators).
+#
+# Three families of datasets are supported:
+#
+#   1. **Classic sklearn** – ``load_iris``, ``load_wine``, ...  These
+#      return a ``Bunch`` with ``.data`` / ``.target`` / ``.feature_names``.
+#   2. **Synthetic generators** – ``make_classification``, ``make_moons``,
+#      ...  These return ``(X, y)`` tuples.  We use ``params`` to control
+#      shape and difficulty.  Great for stress-testing models with
+#      controllable complexity.
+#   3. **Fetcher datasets** – ``fetch_california_housing``,
+#      ``fetch_olivetti_faces``.  Larger datasets, often subsampled.
+#
+# Adding a new dataset is a one-line change here.  The seed.py module
+# mirrors this list so the database is consistent.
 _BUILTIN_DATASETS: Dict[str, Dict[str, Any]] = {
-    "iris": {"loader": load_iris, "task_type": "classification"},
-    "wine": {"loader": load_wine, "task_type": "classification"},
-    "breastcancer": {"loader": load_breast_cancer, "task_type": "classification"},
-    "digits": {"loader": load_digits, "task_type": "classification"},
-    "californiahousing": {
-        "loader": fetch_california_housing,
-        "task_type": "regression",
-        "max_samples": 2000,  # subsample for fast benchmarks
+    # ── Classic sklearn classification ────────────────────────────────────
+    "iris":          {"loader": load_iris,           "task_type": "classification"},
+    "wine":          {"loader": load_wine,           "task_type": "classification"},
+    "breastcancer":  {"loader": load_breast_cancer,  "task_type": "classification"},
+    "digits":        {"loader": load_digits,         "task_type": "classification"},
+
+    # ── Classic sklearn regression ────────────────────────────────────────
+    "diabetes":          {"loader": load_diabetes,           "task_type": "regression"},
+    "californiahousing": {"loader": fetch_california_housing,
+                          "task_type": "regression",
+                          "max_samples": 2000},   # subsample for speed
+    "linnerud":          {"loader": load_linnerud,
+                          "task_type": "regression"},
+
+    # ── Image classification ──────────────────────────────────────────────
+    "olivettifaces": {"loader": fetch_olivetti_faces,
+                       "task_type": "classification",
+                       "max_samples": 200},
+
+    # ── Synthetic: classification ─────────────────────────────────────────
+    "makeclassification": {
+        "loader": make_classification,
+        "task_type": "classification",
+        "params": {"n_samples": 1000, "n_features": 20, "n_informative": 10,
+                   "n_classes": 3, "n_clusters_per_class": 2, "random_state": 42},
     },
-    "diabetes": {"loader": load_diabetes, "task_type": "regression"},
+    "makemoons": {
+        "loader": make_moons,
+        "task_type": "classification",
+        "params": {"n_samples": 800, "noise": 0.25, "random_state": 42},
+    },
+    "makecircles": {
+        "loader": make_circles,
+        "task_type": "classification",
+        "params": {"n_samples": 800, "noise": 0.20, "factor": 0.5, "random_state": 42},
+    },
+    "makeblobs": {
+        "loader": make_blobs,
+        "task_type": "classification",
+        "params": {"n_samples": 900, "n_features": 8, "centers": 4,
+                   "cluster_std": 1.0, "random_state": 42},
+    },
+    "makehastie": {
+        "loader": make_hastie_10_2,
+        "task_type": "classification",
+        "params": {"n_samples": 2000, "random_state": 42},
+    },
+
+    # ── Synthetic: regression ─────────────────────────────────────────────
+    "makeregression": {
+        "loader": make_regression,
+        "task_type": "regression",
+        "params": {"n_samples": 1000, "n_features": 15, "n_informative": 10,
+                   "noise": 10.0, "random_state": 42},
+    },
+    "makefriedman1": {
+        "loader": make_friedman1,
+        "task_type": "regression",
+        "params": {"n_samples": 1000, "n_features": 10, "noise": 1.0,
+                   "random_state": 42},
+    },
+    "makefriedman2": {
+        "loader": make_friedman2,
+        "task_type": "regression",
+        "params": {"n_samples": 1000, "noise": 1.0, "random_state": 42},
+    },
+    "makefriedman3": {
+        "loader": make_friedman3,
+        "task_type": "regression",
+        "params": {"n_samples": 1000, "noise": 1.0, "random_state": 42},
+    },
 }
+
+
+def list_builtin_datasets() -> List[Dict[str, Any]]:
+    """Return a list of all built-in dataset descriptors.
+
+    Each descriptor contains ``name``, ``task_type``, ``max_samples``
+    (if applicable), and ``synthetic`` flag.  Used by the datasets
+    route to render the public catalogue and by ``seed.py`` to
+    populate the database on first run.
+    """
+    out: List[Dict[str, Any]] = []
+    for key, entry in _BUILTIN_DATASETS.items():
+        out.append({
+            "name": key,
+            "task_type": entry["task_type"],
+            "max_samples": entry.get("max_samples"),
+            "synthetic": "params" in entry,
+        })
+    return out
 
 
 # ─── Model loading ─────────────────────────────────────────────────────────────
@@ -226,8 +334,8 @@ def load_dataset(
     Resolution order:
 
     1. If *dataset_name* is the lowercased name of a built-in dataset
-       (e.g. ``"iris"``, ``"californiahousing"``), the corresponding
-       sklearn loader is invoked.
+       (e.g. ``"iris"``, ``"californiahousing"``, ``"makemoons"``),
+       the corresponding loader is invoked.
     2. Otherwise, if *dataset_name* is a path to an existing file, the
        file is loaded as a custom dataset (.npz / .joblib / .pkl).
     3. Otherwise a :class:`ValueError` is raised with a clear message.
@@ -264,7 +372,7 @@ def load_dataset(
 
     logger.info("Loading dataset: '%s' (task_type=%s)", dataset_name, task_type)
 
-    # ── Built-in sklearn datasets ─────────────────────────────────────────
+    # ── Built-in sklearn / synthetic datasets ─────────────────────────────
     normalised = str(dataset_name).lower().strip().replace("-", "_").replace(" ", "_")
     if normalised in _BUILTIN_DATASETS:
         return _load_sklearn_dataset(normalised)
@@ -281,7 +389,15 @@ def load_dataset(
 
 
 def _load_sklearn_dataset(name: str) -> Dict[str, Any]:
-    """Internal helper for loading a built-in sklearn dataset.
+    """Internal helper for loading a built-in dataset.
+
+    Handles three loader shapes transparently:
+
+    * Bunch-returning loaders (``load_iris``, etc.) — call with no args.
+    * Tuple-returning synthetic generators (``make_classification``,
+      ``make_moons``, ...) — call with the ``params`` dict.
+    * Fetcher functions (``fetch_california_housing``,
+      ``fetch_olivetti_faces``) — call with ``as_frame=False``.
 
     Args:
         name: Key in :data:`_BUILTIN_DATASETS` (e.g. ``"iris"``).
@@ -293,17 +409,32 @@ def _load_sklearn_dataset(name: str) -> Dict[str, Any]:
     loader_fn = entry["loader"]
     resolved_task = entry["task_type"]
     max_samples = entry.get("max_samples")
+    params = entry.get("params")
 
-    logger.debug("Loading sklearn dataset '%s'", name)
-    bunch = loader_fn()
+    logger.debug("Loading built-in dataset '%s' (params=%s)", name, params)
 
-    X: np.ndarray = np.asarray(bunch.data)
-    y: np.ndarray = np.asarray(bunch.target)
-    feature_names: list = (
-        list(bunch.feature_names)
-        if hasattr(bunch, "feature_names") and bunch.feature_names is not None
-        else [f"feature_{i}" for i in range(X.shape[1])]
-    )
+    # ── Synthetic generator (returns (X, y) tuple) ────────────────────────
+    if params is not None:
+        X, y = loader_fn(**params)
+        X = np.asarray(X)
+        y = np.asarray(y)
+        feature_names = [f"feature_{i}" for i in range(X.shape[1])]
+    else:
+        # ── Bunch-returning loader (sklearn classic + fetcher) ────────────
+        # fetch_* functions accept as_frame but Bunch always has .data/.target
+        try:
+            bunch = loader_fn()
+        except TypeError:
+            # Some fetchers accept extra kwargs; retry without args.
+            bunch = loader_fn
+
+        X: np.ndarray = np.asarray(bunch.data)
+        y: np.ndarray = np.asarray(bunch.target)
+        feature_names: list = (
+            list(bunch.feature_names)
+            if hasattr(bunch, "feature_names") and bunch.feature_names is not None
+            else [f"feature_{i}" for i in range(X.shape[1])]
+        )
 
     # ── Optional subsampling for very large datasets ──────────────────────
     if max_samples is not None and X.shape[0] > max_samples:

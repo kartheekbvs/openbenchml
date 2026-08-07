@@ -68,10 +68,13 @@ nav:
       - Concepts: getting-started/concepts.md
   - User Guide:
       - Models: user-guide/models.md
+      - Convert Code → Model: user-guide/convert.md
+      - Notebook: user-guide/notebook.md
       - Datasets: user-guide/datasets.md
       - Benchmarks: user-guide/benchmarks.md
       - Leaderboard: user-guide/leaderboard.md
       - Competitions: user-guide/competitions.md
+      - Real-time Snippets: user-guide/realtime.md
       - Discussions: user-guide/discussions.md
   - CLI Reference:
       - Overview: cli/index.md
@@ -80,6 +83,8 @@ nav:
       - Overview: api/index.md
       - Auth: api/auth.md
       - Models: api/models.md
+      - Convert: api/convert.md
+      - Notebook: api/notebook.md
       - Benchmarks: api/benchmarks.md
       - Leaderboard: api/leaderboard.md
       - Competitions: api/competitions.md
@@ -88,6 +93,7 @@ nav:
       - Overview: architecture/overview.md
       - Database Schema: architecture/database.md
       - Benchmark Engine: architecture/engine.md
+      - Code Sandbox: architecture/sandbox.md
       - Real-time (WebSocket): architecture/websocket.md
   - Deployment:
       - Local: deployment/local.md

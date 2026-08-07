@@ -22,10 +22,13 @@
             {% if user %}
                 <a href="/dashboard">Dashboard</a>
                 <a href="/my-models">My Models</a>
+                <a href="/convert" title="Paste Python code → auto-pickled model">Convert</a>
+                <a href="/notebook" title="In-browser Python playground">Notebook</a>
                 <a href="/datasets">Datasets</a>
                 <a href="/benchmark">Benchmark</a>
                 <a href="/leaderboard">Leaderboard</a>
                 <a href="/competitions">Competitions</a>
+                <a href="/realtime" title="Copy-paste real-time WebSocket snippets">Real-time</a>
                 <a href="/jobs">Jobs</a>
                 <a href="/logout" class="btn btn-secondary btn-sm">Logout</a>
             {% else %}
@@ -57,7 +60,7 @@
 
     <footer class="footer">
         <div class="container">
-            <p>&copy; 2024 OpenBenchML v1.0.0 &mdash; Open Source ML Model Benchmarking Platform</p>
+            <p>&copy; 2024-2026 OpenBenchML v4.0.0 &mdash; Open Source ML Model Benchmarking Platform</p>
             <div class="footer-links">
                 <a href="/about">About</a>
                 <a href="/docs">Documentation</a>

@@ -1,0 +1,387 @@
+{% extends "base.html" %}
+
+{% block title %}Notebook — OpenBenchML{% endblock %}
+
+{% block extra_css %}
+<style>
+  .notebook-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  @media (max-width: 1024px) {
+    .notebook-grid { grid-template-columns: 1fr; }
+  }
+  .code-editor {
+    width: 100%;
+    min-height: 360px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #0d1117;
+    color: #e6edf3;
+    resize: vertical;
+    tab-size: 4;
+  }
+  .code-editor:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  }
+  .output-pane {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    min-height: 360px;
+    max-height: 480px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .output-stderr { color: #ff7b72; }
+  .output-stdout { color: #e6edf3; }
+  .output-meta {
+    font-size: 0.8rem;
+    color: #8b949e;
+    border-top: 1px solid #21262d;
+    margin-top: 8px;
+    padding-top: 8px;
+  }
+  .run-btn-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-top: 0.75rem;
+  }
+  .status-pill {
+    font-size: 0.78rem;
+    padding: 0.2rem 0.7rem;
+    border-radius: 999px;
+    font-weight: 600;
+    background: rgba(99, 102, 241, 0.12);
+    color: var(--accent);
+  }
+  .status-pill.ok      { background: rgba(34, 197, 94, 0.15);  color: #22c55e; }
+  .status-pill.error   { background: rgba(239, 68, 68, 0.15);  color: #ef4444; }
+  .status-pill.running { background: rgba(234, 179, 8, 0.15);  color: #eab308; }
+  .preset-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  .preset-btn {
+    padding: 0.6rem 0.7rem;
+    background: rgba(99, 102, 241, 0.06);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    transition: all 0.15s;
+    text-align: left;
+  }
+  .preset-btn:hover {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: var(--accent);
+  }
+  .preset-btn .preset-name { font-weight: 600; display: block; }
+  .preset-btn .preset-desc { font-size: 0.78rem; color: var(--text-secondary); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 1.25rem;">
+    <h1>&#128221; Python Notebook</h1>
+    <p class="text-muted">
+        Run Python code in your browser — no install needed. <code>np</code>, <code>pd</code>,
+        <code>sklearn</code> are pre-imported. Outputs (stdout/stderr) appear instantly on the right.
+    </p>
+</div>
+
+<div class="notebook-grid">
+    <!-- ── Editor + Run button ──────────────────────────────────────── -->
+    <div class="card">
+        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <h3 style="margin: 0;">Code cell</h3>
+            <span id="status-pill" class="status-pill">idle</span>
+        </div>
+        <form id="notebook-form" onsubmit="return runNotebook(event);">
+            <div class="form-group" style="margin-top: 1rem;">
+                <textarea id="code" class="code-editor" spellcheck="false"
+                          autocomplete="off" autocorrect="off" autocapitalize="off">{{ sample_code }}</textarea>
+            </div>
+            <div class="run-btn-row">
+                <button type="submit" class="btn btn-primary" id="run-btn">&#9654; Run</button>
+                <button type="button" class="btn btn-secondary" onclick="clearOutput()">Clear output</button>
+                <label style="font-size: 0.85rem; color: var(--text-secondary); margin-left: auto;">
+                    Timeout:
+                    <select id="timeout" style="padding: 0.25rem;">
+                        <option value="10">10s</option>
+                        <option value="30" selected>30s</option>
+                        <option value="60">60s</option>
+                        <option value="120">120s</option>
+                    </select>
+                </label>
+            </div>
+        </form>
+    </div>
+
+    <!-- ── Output pane ──────────────────────────────────────────────── -->
+    <div class="card">
+        <div class="card-header"><h3>Output</h3></div>
+        <div id="output" class="output-pane" style="margin: 1rem;">
+<span style="color: #8b949e;">// Run some code to see the output here.</span>
+        </div>
+    </div>
+</div>
+
+<!-- ── Preset snippets ──────────────────────────────────────────────── -->
+<div class="card" style="margin-top: 1.5rem;">
+    <div class="card-header"><h3>&#128218; Try these presets</h3></div>
+    <div class="card-body">
+        <p style="color: var(--text-secondary); margin-top: 0;">
+            Click any preset to load it into the editor. Each one is a complete, runnable example.
+        </p>
+        <div class="preset-grid">
+            <button class="preset-btn" onclick="loadPreset('iris-explore')">
+                <span class="preset-name">Iris: explore the dataset</span>
+                <span class="preset-desc">Load Iris, print shapes &amp; classes</span>
+            </button>
+            <button class="preset-btn" onclick="loadPreset('train-rf')">
+                <span class="preset-name">Train a RandomForest</span>
+                <span class="preset-desc">Train + score on Iris test split</span>
+            </button>
+            <button class="preset-btn" onclick="loadPreset('confusion-matrix')">
+                <span class="preset-name">Confusion matrix</span>
+                <span class="preset-desc">Visualize classifier errors</span>
+            </button>
+            <button class="preset-btn" onclick="loadPreset('regression')">
+                <span class="preset-name">Diabetes regression</span>
+                <span class="preset-desc">Linear vs Ridge on Diabetes</span>
+            </button>
+            <button class="preset-btn" onclick="loadPreset('cross-val')">
+                <span class="preset-name">5-fold cross-validation</span>
+                <span class="preset-desc">Compare 3 classifiers on Wine</span>
+            </button>
+            <button class="preset-btn" onclick="loadPreset('compare-datasets')">
+                <span class="preset-name">Survey all datasets</span>
+                <span class="preset-desc">Print shapes of every built-in</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ─── Preset code snippets ───────────────────────────────────────────
+const PRESETS = {
+  'iris-explore': `from sklearn.datasets import load_iris
+
+X, y = load_iris(return_X_y=True)
+print(f"Samples: {X.shape[0]}")
+print(f"Features: {X.shape[1]}")
+print(f"Classes: {sorted(set(y))}")
+print()
+print("First 5 rows:")
+print(X[:5])
+print()
+print("First 5 labels:")
+print(y[:5])
+`,
+
+  'train-rf': `from sklearn.datasets import load_iris
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, classification_report
+
+X, y = load_iris(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+model = RandomForestClassifier(n_estimators=50, random_state=42)
+model.fit(X_train, y_train)
+
+y_pred = model.predict(X_test)
+acc = accuracy_score(y_test, y_pred)
+print(f"Test accuracy: {acc:.4f}")
+print()
+print(classification_report(y_test, y_pred, target_names=['setosa','versicolor','virginica']))
+`,
+
+  'confusion-matrix': `from sklearn.datasets import load_breast_cancer
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix
+
+X, y = load_breast_cancer(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
+)
+
+model = GradientBoostingClassifier(random_state=42)
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+
+cm = confusion_matrix(y_test, y_pred)
+print("Confusion matrix (rows=true, cols=pred):")
+print(cm)
+print()
+tn, fp, fn, tp = cm.ravel()
+print(f"True Negatives:  {tn}")
+print(f"False Positives: {fp}")
+print(f"False Negatives: {fn}")
+print(f"True Positives:  {tp}")
+print(f"Sensitivity:     {tp / (tp + fn):.4f}")
+print(f"Specificity:     {tn / (tn + fp):.4f}")
+`,
+
+  'regression': `from sklearn.datasets import load_diabetes
+from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, r2_score
+import numpy as np
+
+X, y = load_diabetes(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+for name, model in [
+    ("LinearRegression", LinearRegression()),
+    ("Ridge(alpha=1.0)", Ridge(alpha=1.0)),
+    ("Ridge(alpha=10)",  Ridge(alpha=10.0)),
+]:
+    model.fit(X_train, y_train)
+    y_pred = model.predict(X_test)
+    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+    r2 = r2_score(y_test, y_pred)
+    print(f"{name:25s}  RMSE={rmse:.2f}  R2={r2:.4f}")
+`,
+
+  'cross-val': `from sklearn.datasets import load_wine
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import SVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.model_selection import cross_val_score
+
+X, y = load_wine(return_X_y=True)
+
+models = {
+    "RandomForest": RandomForestClassifier(n_estimators=50, random_state=42),
+    "SVC(rbf)":    SVC(kernel="rbf", random_state=42),
+    "KNN(5)":      KNeighborsClassifier(n_neighbors=5),
+}
+
+for name, model in models.items():
+    scores = cross_val_score(model, X, y, cv=5, scoring="accuracy")
+    print(f"{name:15s}  acc = {scores.mean():.4f} ± {scores.std():.4f}")
+`,
+
+  'compare-datasets': `from sklearn.datasets import (
+    load_iris, load_wine, load_breast_cancer, load_digits,
+    load_diabetes, load_linnerud,
+)
+
+loaders = [
+    ("Iris",          load_iris),
+    ("Wine",          load_wine),
+    ("BreastCancer",  load_breast_cancer),
+    ("Digits",        load_digits),
+    ("Diabetes",      load_diabetes),
+    ("Linnerud",      load_linnerud),
+]
+
+print(f"{'Name':15s}  {'Samples':>7s}  {'Features':>8s}  {'Classes':>7s}")
+print("-" * 50)
+for name, fn in loaders:
+    b = fn()
+    n_samples, n_features = b.data.shape
+    n_classes = len(set(b.target))
+    print(f"{name:15s}  {n_samples:>7d}  {n_features:>8d}  {n_classes:>7d}")
+`,
+};
+
+function loadPreset(key) {
+  const code = PRESETS[key];
+  if (!code) return;
+  document.getElementById('code').value = code;
+  document.getElementById('code').focus();
+}
+
+function setStatus(label, kind) {
+  const pill = document.getElementById('status-pill');
+  pill.textContent = label;
+  pill.className = 'status-pill ' + (kind || '');
+}
+
+function clearOutput() {
+  document.getElementById('output').innerHTML =
+    '<span style="color: #8b949e;">// Output cleared.</span>';
+}
+
+async function runNotebook(event) {
+  event.preventDefault();
+  const code = document.getElementById('code').value;
+  const timeout = parseInt(document.getElementById('timeout').value, 10);
+  const runBtn = document.getElementById('run-btn');
+  const output = document.getElementById('output');
+
+  setStatus('running…', 'running');
+  runBtn.disabled = true;
+  output.innerHTML = '<span style="color: #8b949e;">// running…</span>';
+
+  try {
+    const res = await fetch('/api/notebook/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, timeout_seconds: timeout }),
+    });
+    const data = await res.json();
+
+    let html = '';
+    if (data.stdout) {
+      html += `<span class="output-stdout">${escapeHtml(data.stdout)}</span>`;
+    }
+    if (data.stderr) {
+      html += `<span class="output-stderr">${escapeHtml(data.stderr)}</span>`;
+    }
+    if (!data.stdout && !data.stderr) {
+      html += '<span style="color: #8b949e;">// (no output)</span>';
+    }
+    html += `<div class="output-meta">exit: ${data.ok ? 'OK' : 'ERROR'}${data.timed_out ? ' (TIMEOUT)' : ''}${data.error ? ' — ' + escapeHtml(data.error) : ''}</div>`;
+    output.innerHTML = html;
+
+    if (data.ok) {
+      setStatus('done', 'ok');
+    } else {
+      setStatus('error', 'error');
+    }
+  } catch (e) {
+    output.innerHTML = `<span class="output-stderr">Fetch error: ${escapeHtml(e.message)}</span>`;
+    setStatus('error', 'error');
+  } finally {
+    runBtn.disabled = false;
+  }
+  return false;
+}
+
+function escapeHtml(s) {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+</script>
+{% endblock %}

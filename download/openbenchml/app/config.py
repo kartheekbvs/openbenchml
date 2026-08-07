@@ -23,8 +23,12 @@ DATASET_DIR.mkdir(exist_ok=True)
 
 # ─── Application Settings ────────────────────────────────────────────────────
 APP_NAME = "OpenBenchML"
-APP_VERSION = "2.0.0"
-APP_DESCRIPTION = "Open Source ML Model Benchmarking Platform - Production Ready"
+APP_VERSION = "4.0.0"
+APP_DESCRIPTION = (
+    "Open Source ML Model Benchmarking Platform — code → pickle → benchmark, "
+    "with Kaggle-style real-time leaderboards, competitions, and a built-in "
+    "Python notebook. Student-friendly syntax, production-grade engine."
+)
 APP_URL = os.getenv("APP_URL", "http://localhost:8000")
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 SECRET_KEY = os.getenv("SECRET_KEY", "openbenchml-super-secret-key-change-in-production-2024")

@@ -100,12 +100,19 @@ ISSUES
 }
 
 if (require.main === module) {
-  main(process.argv)
-    .then((code) => process.exit(code || 0))
-    .catch((err) => {
-      console.error(err);
-      process.exit(1);
-    });
+  try {
+    const result = main(process.argv);
+    // Some commands are async (return a Promise), others return an int.
+    Promise.resolve(result)
+      .then((code) => process.exit(code || 0))
+      .catch((err) => {
+        console.error(err);
+        process.exit(1);
+      });
+  } catch (err) {
+    console.error(err);
+    process.exit(1);
+  }
 }
 
 module.exports = { main };

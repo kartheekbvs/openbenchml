@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+
+{% block title %}Real-time Snippets — OpenBenchML{% endblock %}
+
+{% block extra_css %}
+<style>
+  .rt-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-top: 1rem;
+  }
+  @media (max-width: 1024px) {
+    .rt-grid { grid-template-columns: 1fr; }
+  }
+  .snippet-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .snippet-card .head {
+    padding: 0.85rem 1.1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    background: rgba(99, 102, 241, 0.04);
+  }
+  .snippet-card .head h3 { margin: 0; font-size: 1rem; }
+  .snippet-card .head .badge {
+    font-size: 0.72rem; padding: 0.18rem 0.55rem;
+    background: rgba(34, 197, 94, 0.12);
+    color: #22c55e;
+    border-radius: 999px; font-weight: 600;
+  }
+  .snippet-card pre {
+    margin: 0;
+    padding: 1rem 1.1rem;
+    background: #0d1117;
+    color: #e6edf3;
+    overflow-x: auto;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+    flex-grow: 1;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+  .snippet-card .actions {
+    padding: 0.5rem 1.1rem;
+    border-top: 1px solid var(--border);
+    background: rgba(99, 102, 241, 0.04);
+    display: flex; gap: 0.5rem; align-items: center;
+  }
+  .copy-btn {
+    background: var(--accent); color: white; border: 0;
+    padding: 0.4rem 0.85rem; border-radius: 6px;
+    font-size: 0.82rem; font-weight: 600; cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .copy-btn:hover { opacity: 0.85; }
+  .copy-btn.copied { background: #22c55e; }
+  .live-preview {
+    background: #0d1117; color: #e6edf3;
+    padding: 1rem 1.1rem; border-radius: 8px;
+    font-family: monospace; font-size: 12px;
+    min-height: 120px; max-height: 200px; overflow: auto;
+    border: 1px solid var(--border);
+  }
+  .live-preview .evt {
+    padding: 0.15rem 0;
+    border-bottom: 1px dashed #21262d;
+  }
+  .live-preview .evt-time { color: #8b949e; }
+  .live-preview .evt-type { color: #79c0ff; }
+  .live-preview .evt-data { color: #7ee78b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 0.5rem;">
+    <h1>&#128246; Real-time Snippets</h1>
+    <p class="text-muted">
+        OpenBenchML streams live updates over three WebSocket channels:
+        <strong>benchmark progress</strong>, <strong>leaderboard changes</strong>, and
+        <strong>in-app notifications</strong>. Below are copy-paste-ready snippets — basic syntax,
+        powerful results. Run them in any browser console or Node.js script.
+    </p>
+</div>
+
+<div class="card" style="margin-top: 1rem;">
+    <div class="card-header"><h3>&#128064; Live preview (open this page → events stream in below)</h3></div>
+    <div class="card-body">
+        <div id="live-preview" class="live-preview">
+<span style="color: #8b949e;">// Connecting to ws://&lt;host&gt;/ws/leaderboard …</span>
+        </div>
+        <p style="margin: 0.6rem 0 0; font-size: 0.85rem; color: var(--text-secondary);">
+            Open a benchmark in another tab — you'll see leaderboard events arrive here in real time.
+        </p>
+    </div>
+</div>
+
+<div class="rt-grid">
+
+    <!-- ── Snippet 1: Benchmark progress ──────────────────────────── -->
+    <div class="snippet-card">
+        <div class="head">
+            <h3>1. Benchmark progress</h3>
+            <span class="badge">ws /ws/benchmark</span>
+        </div>
+<pre><code id="code1">// Track a running benchmark by job_id.
+// Basic syntax — works in browser console, Node, or any JS runtime.
+
+const ws = new WebSocket(`${location.origin.replace('http','ws')}/ws/benchmark`);
+ws.onopen = () => {
+  ws.send(JSON.stringify({ type: 'subscribe', job_id: 42 }));
+};
+ws.onmessage = (e) => {
+  const msg = JSON.parse(e.data);
+  if (msg.type === 'progress') {
+    console.log(`Job ${msg.job_id}: ${msg.progress}% (${msg.status})`);
+  }
+};</code></pre>
+        <div class="actions">
+            <button class="copy-btn" onclick="copyCode('code1', this)">Copy</button>
+            <span style="font-size: 0.82rem; color: var(--text-secondary);">Browser JS</span>
+        </div>
+    </div>
+
+    <!-- ── Snippet 2: Leaderboard updates ─────────────────────────── -->
+    <div class="snippet-card">
+        <div class="head">
+            <h3>2. Leaderboard live updates</h3>
+            <span class="badge">ws /ws/leaderboard</span>
+        </div>
+<pre><code id="code2">// Get notified every time a benchmark finishes and the leaderboard moves.
+// Use this to build Kaggle-style "jumped 3 spots!" alerts.
+
+const ws = new WebSocket(`${location.origin.replace('http','ws')}/ws/leaderboard`);
+ws.onopen = () => ws.send(JSON.stringify({ type: 'subscribe', dataset_id: 1 }));
+ws.onmessage = (e) => {
+  const msg = JSON.parse(e.data);
+  if (msg.type === 'leaderboard_update') {
+    console.log(`#${msg.rank} ${msg.model_name} — score ${msg.score}`);
+    console.log(`  prev rank: ${msg.previous_rank} → new rank: ${msg.rank}`);
+  }
+};</code></pre>
+        <div class="actions">
+            <button class="copy-btn" onclick="copyCode('code2', this)">Copy</button>
+            <span style="font-size: 0.82rem; color: var(--text-secondary);">Browser JS</span>
+        </div>
+    </div>
+
+    <!-- ── Snippet 3: Notifications ───────────────────────────────── -->
+    <div class="snippet-card">
+        <div class="head">
+            <h3>3. In-app notifications</h3>
+            <span class="badge">ws /ws/notifications</span>
+        </div>
+<pre><code id="code3">// Receive in-app notifications in real time: benchmark completed,
+// leaderboard rank changed, competition started, comment reply.
+
+const ws = new WebSocket(`${location.origin.replace('http','ws')}/ws/notifications`);
+ws.onmessage = (e) => {
+  const n = JSON.parse(e.data);
+  if (n.type === 'notification') {
+    showToast(n.title, n.body);
+    // e.g. "Leaderboard moved" — "Your model X jumped from #5 to #2!"
+  }
+};
+ws.onclose = () => console.log('Reconnect with exponential backoff…');</code></pre>
+        <div class="actions">
+            <button class="copy-btn" onclick="copyCode('code3', this)">Copy</button>
+            <span style="font-size: 0.82rem; color: var(--text-secondary);">Browser JS</span>
+        </div>
+    </div>
+
+    <!-- ── Snippet 4: Python (CLI / node) variant ─────────────────── -->
+    <div class="snippet-card">
+        <div class="head">
+            <h3>4. Python (websockets lib)</h3>
+            <span class="badge">client lib</span>
+        </div>
+<pre><code id="code4"># pip install websockets
+import asyncio, json, websockets
+
+async def main():
+    async with websockets.connect("ws://localhost:8000/ws/leaderboard") as ws:
+        await ws.send(json.dumps({"type": "subscribe", "dataset_id": 1}))
+        async for raw in ws:
+            msg = json.loads(raw)
+            if msg.get("type") == "leaderboard_update":
+                print(f"#{msg['rank']}  {msg['model_name']}  "
+                      f"score={msg['score']:.4f}")
+
+asyncio.run(main())</code></pre>
+        <div class="actions">
+            <button class="copy-btn" onclick="copyCode('code4', this)">Copy</button>
+            <span style="font-size: 0.82rem; color: var(--text-secondary);">Python ≥3.7</span>
+        </div>
+    </div>
+
+    <!-- ── Snippet 5: CLI subscription ────────────────────────────── -->
+    <div class="snippet-card">
+        <div class="head">
+            <h3>5. CLI one-liner</h3>
+            <span class="badge">openbenchml-cli</span>
+        </div>
+<pre><code id="code5"># Stream leaderboard events from the terminal:
+npx openbenchml watch --channel leaderboard --dataset-id 1
+
+# Or benchmark progress:
+npx openbenchml watch --channel benchmark --job-id 42
+
+# Or notifications:
+npx openbenchml watch --channel notifications</code></pre>
+        <div class="actions">
+            <button class="copy-btn" onclick="copyCode('code5', this)">Copy</button>
+            <span style="font-size: 0.82rem; color: var(--text-secondary);">Shell (npm 4.0.0+)</span>
+        </div>
+    </div>
+
+    <!-- ── Snippet 6: curl + wsstat fallback ──────────────────────── -->
+    <div class="snippet-card">
+        <div class="head">
+            <h3>6. Quick health check</h3>
+            <span class="badge">http /health</span>
+        </div>
+<pre><code id="code6"># See how many WS clients are connected right now:
+curl -s http://localhost:8000/health | jq .websocket_connections
+
+# Sample response:
+# {
+#   "status": "healthy",
+#   "version": "4.0.0",
+#   "websocket_connections": 12,
+#   "database_status": "connected",
+#   ...
+# }</code></pre>
+        <div class="actions">
+            <button class="copy-btn" onclick="copyCode('code6', this)">Copy</button>
+            <span style="font-size: 0.82rem; color: var(--text-secondary);">Shell + jq</span>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ─── Live preview: connect to /ws/leaderboard and render events ────
+(function () {
+  const preview = document.getElementById('live-preview');
+  if (!preview) return;
+
+  let ws;
+  function connect() {
+    const url = `${location.origin.replace('http', 'ws')}/ws/leaderboard`;
+    try {
+      ws = new WebSocket(url);
+    } catch (e) {
+      preview.innerHTML += `<div class="evt"><span class="evt-time">${now()}</span> <span class="evt-type">error</span> <span class="evt-data">${e.message}</span></div>`;
+      return;
+    }
+
+    ws.onopen = () => {
+      preview.innerHTML = '';
+      addEvent('system', 'connected — waiting for events…');
+      ws.send(JSON.stringify({ type: 'subscribe', dataset_id: 1 }));
+    };
+
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        addEvent(msg.type || 'message', JSON.stringify(msg));
+      } catch (_) {
+        addEvent('raw', e.data);
+      }
+    };
+
+    ws.onclose = () => addEvent('system', 'disconnected — will retry in 3s');
+    ws.onerror = () => addEvent('error', 'socket error');
+  }
+
+  function addEvent(type, data) {
+    const line = document.createElement('div');
+    line.className = 'evt';
+    line.innerHTML = `<span class="evt-time">${now()}</span> <span class="evt-type">${type}</span> <span class="evt-data">${escapeHtml(data)}</span>`;
+    preview.appendChild(line);
+    preview.scrollTop = preview.scrollHeight;
+  }
+
+  function now() {
+    return new Date().toLocaleTimeString([], { hour12: false });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  connect();
+  // auto-reconnect
+  setInterval(() => {
+    if (!ws || ws.readyState === WebSocket.CLOSED) connect();
+  }, 3000);
+})();
+
+// ─── Copy-to-clipboard for snippet cards ───────────────────────────
+function copyCode(id, btn) {
+  const code = document.getElementById(id).innerText;
+  navigator.clipboard.writeText(code).then(() => {
+    const old = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = old;
+      btn.classList.remove('copied');
+    }, 1200);
+  });
+}
+</script>
+{% endblock %}

@@ -1,16 +1,54 @@
 # OpenBenchML
 
-**Open-source ML model benchmarking platform with Kaggle-style competitions, real per-sample latency percentiles, and a CLI.**
+**Open-source ML model benchmarking platform with code→pickle→benchmark workflow, Kaggle-style competitions, an in-browser Python notebook, real per-sample latency percentiles, and 17 built-in datasets.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green.svg)](https://fastapi.tiangolo.com)
-[![npm](https://img.shields.io/badge/npm-openbenchml--cli-red.svg)](https://www.npmjs.com/package/openbenchml-cli)
+[![npm](https://img.shields.io/badge/npm-openbenchml--cli_v4.0.0-red.svg)](https://www.npmjs.com/package/openbenchml-cli)
 [![Docs](https://img.shields.io/badge/docs-mkdocs-material-blue.svg)](https://kartheekbvs.github.io/openbenchml/)
 
-OpenBenchML lets you upload ML models, benchmark them against standard datasets with **real per-sample latency percentiles** (no fake `mean × 1.5` approximations), and compete in **Kaggle-style competitions** with live leaderboards, threaded discussions, and in-app notifications.
+OpenBenchML lets you **paste Python code** that trains a model, **pickle it server-side**, and **benchmark it** against standard datasets — all without a local Python install. Plus Kaggle-style competitions, live leaderboards, real-time WebSocket updates, and an in-browser Python notebook.
 
 Built with FastAPI + SQLAlchemy + WebSocket + Jinja2. SQLite for dev, PostgreSQL for prod. Optional Celery + Redis for async jobs. CLI in Node.js.
+
+---
+
+## What's new in v4.0
+
+The "code → pickle → benchmark, all in the browser" release.
+
+### `/convert` — code becomes a model
+
+Paste Python code that trains a model and assigns it to a variable named `model`. The platform executes your code in a sandboxed namespace (`np`, `pd`, `sklearn`, `scipy` + 12 `sklearn_*` shortcuts pre-imported), pickles the result, and registers it as an `MLModel` ready to benchmark. No local Python, no `.pkl` upload — just code.
+
+### `/notebook` — Python in the browser
+
+A single-cell Python playground with 6 one-click presets (Iris explore, train RF, confusion matrix, regression comparison, 5-fold CV, dataset survey). 30-second timeout, full stdout/stderr capture, sandbox-secured.
+
+### 17 built-in datasets (was 6)
+
+Added OlivettiFaces, Linnerud, MakeClassification, MakeMoons, MakeCircles, MakeBlobs, MakeHastie, MakeRegression, MakeFriedman1/2/3. The registry now supports synthetic generators (return `(X, y)` tuples via `params`) in addition to classic sklearn Bunch loaders and fetchers.
+
+### 2 new default competitions
+
+"Moons Non-Linear Showdown" (accuracy, 21 days) and "Friedman #1 Grand Prix" (RMSE, 30 days) — both seeded on first run.
+
+### `/realtime` — copy-paste WebSocket snippets
+
+A page of ready-to-use snippets for all 3 WebSocket channels (benchmark, leaderboard, notifications) in JavaScript, Python, CLI, and curl. Each snippet has a one-click copy button and a live preview that streams events as you browse.
+
+### CLI v4.0.0 — 5 new commands
+
+- `openbenchml init` — one-shot setup
+- `openbenchml convert --file train.py --name "My RF"` — code → model
+- `openbenchml notebook --code "print(1+1)"` — run Python from terminal
+- `openbenchml watch --channel leaderboard --dataset-id 1` — live WebSocket stream
+- `openbenchml datasets --more` — verbose listing
+
+### Security & framework auto-detection
+
+The sandbox blocks `subprocess`, `socket`, `http`, `urllib`, `ctypes`, `shutil`, `pathlib` at import time (custom `__import__`), and strips `open`, `exec`, `eval`, `compile`, `globals`, `breakpoint`, `input` from builtins. SIGALRM-enforced timeout. Framework is auto-detected from `type(model).__module__` (torch → pytorch, tensorflow/keras → tensorflow, xgboost → xgboost, lightgbm → lightgbm, onnx → onnx, fallback → scikit-learn).
 
 ---
 
@@ -62,14 +100,17 @@ Documentation moved to a separate mkdocs-material site at `docs-site/`. 20+ page
 
 ## Features
 
+- **Code → pickle → benchmark**: paste Python code at `/convert`, get a benchmarkable MLModel — no local Python install needed
+- **In-browser Python notebook**: `/notebook` with 6 one-click presets and pre-imported `np`, `pd`, `sklearn`, `scipy`, `joblib`
 - **Multi-framework**: scikit-learn, PyTorch, ONNX, TensorFlow, XGBoost, LightGBM
 - **Real metrics**: accuracy, precision, recall, F1, AUC-ROC, log-loss, confusion matrix, classification report (classification) · MAE, RMSE, R², MSE, explained variance, max error (regression)
 - **Real performance**: latency mean / P50 / P95 / P99 / std / min / max · throughput · memory · CPU · model size — all measured per-sample
-- **6 built-in datasets**: Iris, Wine, BreastCancer, Digits, CaliforniaHousing (subsampled to 2k), Diabetes
+- **17 built-in datasets**: Iris, Wine, BreastCancer, Digits, OlivettiFaces, Diabetes, CaliforniaHousing, Linnerud, MakeClassification, MakeMoons, MakeCircles, MakeBlobs, MakeHastie, MakeRegression, MakeFriedman1/2/3
 - **Kaggle-style competitions** with deadlines, custom metrics, per-user submission limits, best-submission tracking
-- **Real-time**: WebSocket streams for benchmark progress, leaderboard updates, and notifications
-- **CLI**: full-featured npm package for terminal-driven workflows
+- **Real-time**: WebSocket streams for benchmark progress, leaderboard updates, and notifications — plus copy-paste snippets at `/realtime`
+- **CLI**: full-featured npm package (`openbenchml-cli` v4.0.0) for terminal-driven workflows — `init`, `convert`, `notebook`, `watch`, `upload`, `benchmark`, `submit`, etc.
 - **REST API**: JWT auth (cookie OR Bearer), 30+ endpoints
+- **Sandboxed code execution**: custom `__import__` blocks dangerous modules; SIGALRM-enforced timeout; builtins stripped
 - **Production-ready**: CORS, GZip, rate limiting, security headers, health checks, connection pooling
 - **Self-hostable**: SQLite for dev, PostgreSQL for prod · Docker, Railway, Render, Fly.io configs included
 
@@ -94,28 +135,56 @@ Server starts on `http://localhost:8000`. Open in browser or visit `/docs` for i
 
 ```bash
 npm install -g openbenchml-cli
+openbenchml init     # one-shot setup guide
 ```
 
-### 3. Register, upload, benchmark
+### 3a. The new way — `/convert` (no local Python needed)
+
+Visit `http://localhost:8000/convert` in your browser. Paste this code:
+
+```python
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+
+X, y = load_iris(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y,
+)
+
+model = RandomForestClassifier(n_estimators=50, random_state=42)
+model.fit(X_train, y_train)
+acc = model.score(X_test, y_test)
+print(f"acc = {acc:.4f}")
+```
+
+Click **Convert & Save Model**. The platform pickles your model, registers it as an MLModel, and shows you the captured `acc` metric. Then visit `/benchmark` to run it against any of the 17 datasets.
+
+### 3b. The CLI way — same flow from the terminal
 
 ```bash
 # Register
 openbenchml register --username alice --email alice@example.com --password 'supersecret'
 
-# Train a quick model
-python -c "
-import joblib
-from sklearn.datasets import load_iris
+# Convert a Python file into a server-side model (no .pkl upload!)
+cat > train.py <<'EOF'
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
 X, y = load_iris(return_X_y=True)
-clf = RandomForestClassifier(n_estimators=50, random_state=42).fit(X, y)
-joblib.dump(clf, 'rf.joblib')
-"
+Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+model = RandomForestClassifier(n_estimators=50, random_state=42).fit(Xtr, ytr)
+acc = model.score(Xte, yte)
+print(f"acc = {acc:.4f}")
+EOF
 
-# Upload and benchmark
-openbenchml upload --model ./rf.joblib --name "RF Iris" --framework scikit-learn
-openbenchml datasets
+openbenchml convert --file train.py --name "RF Iris"
+# → ✓ Converted code → model  id: 1  framework: scikit-learn  ...
+
+# Benchmark it
+openbenchml datasets                          # pick a dataset id
 openbenchml benchmark --model-id 1 --dataset-id 1
+openbenchml results 1
 ```
 
 Output:

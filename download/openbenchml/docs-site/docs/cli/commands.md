@@ -1,6 +1,6 @@
 # CLI Commands
 
-Full reference for every `openbenchml` command.
+Full reference for every `openbenchml` command (v4.0.0).
 
 ## Global flags
 
@@ -10,6 +10,24 @@ Available on every command:
 |------|---------|---------|-------------|
 | `--host <url>` | `OPENBENCHML_HOST` | `http://localhost:8000` | Server URL |
 | `--token <token>` | `OPENBENCHML_TOKEN` | (none) | Auth token (alternative to `login`) |
+
+---
+
+## `init`
+
+One-shot setup: prints `npm install -g openbenchml-cli`, walks through register/login, and shows a minimum-viable Python training example.
+
+```bash
+openbenchml init
+# Or with everything pre-filled:
+openbenchml init --username alice --email alice@example.com --password '***'
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--username` | no | If set with `--email` and `--password`, runs `register` in step 3 |
+| `--email`    | no | Same as above |
+| `--password` | no | Same as above |
 
 ---
 
@@ -66,7 +84,7 @@ openbenchml logout
 
 ## `upload`
 
-Upload a model file.
+Upload a model file from disk.
 
 ```bash
 openbenchml upload \
@@ -82,6 +100,31 @@ openbenchml upload \
 | `--name` | yes | Display name |
 | `--framework` | yes | One of: `scikit-learn`, `pytorch`, `onnx`, `tensorflow`, `xgboost`, `lightgbm` |
 | `--description` | no | Optional description |
+
+---
+
+## `convert`
+
+**New in v4.0.** Convert Python code into a server-side MLModel — no local Python install needed. The code must train a model and assign it to a variable named `model`.
+
+```bash
+# From a file:
+openbenchml convert --file train.py --name "My RF on Iris"
+
+# Inline:
+openbenchml convert --code "$(cat train.py)" --name "My RF on Iris" --description "50 trees"
+
+# Override auto-detected framework:
+openbenchml convert --file train.py --name "My XGB" --framework xgboost
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--file` | one of `--file` / `--code` | Path to a `.py` file |
+| `--code` | one of `--file` / `--code` | Inline Python source |
+| `--name` | yes | Display name for the new MLModel |
+| `--description` | no | Optional description |
+| `--framework` | no | Override auto-detection |
 
 ---
 
@@ -112,10 +155,11 @@ openbenchml model 42
 
 ## `datasets`
 
-List available benchmark datasets.
+List available benchmark datasets (17 built-in).
 
 ```bash
 openbenchml datasets
+openbenchml datasets --more                       # verbose with descriptions
 openbenchml datasets --task-type regression
 openbenchml datasets --difficulty beginner
 ```
@@ -124,6 +168,30 @@ openbenchml datasets --difficulty beginner
 |------|----------|-------------|
 | `--task-type` | no | Filter by task type (`classification` / `regression` / `clustering`) |
 | `--difficulty` | no | Filter by difficulty (`beginner` / `intermediate` / `advanced`) |
+| `--more` | no | Verbose listing with full descriptions |
+
+---
+
+## `notebook`
+
+**New in v4.0.** Run Python code in the platform sandbox from the terminal.
+
+```bash
+# Inline code:
+openbenchml notebook --code "print('hello')"
+
+# From a file:
+openbenchml notebook --file my_script.py
+
+# With a longer timeout (max 120s):
+openbenchml notebook --file heavy_script.py --timeout 120
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--file` | one of `--file` / `--code` | Path to a `.py` file |
+| `--code` | one of `--file` / `--code` | Inline Python source |
+| `--timeout` | no | Wall-clock limit in seconds (default 30, max 120) |
 
 ---
 
@@ -179,6 +247,31 @@ openbenchml leaderboard --limit 10
 | `--dataset-id` | no | Filter to a single dataset |
 | `--sort-by` | no | `score` (default) / `latency` / `size` |
 | `--limit` | no | Max rows (default 50, max 200) |
+
+---
+
+## `watch`
+
+**New in v4.0.** Live-stream WebSocket events to stdout.
+
+```bash
+# Leaderboard updates for a specific dataset:
+openbenchml watch --channel leaderboard --dataset-id 1
+
+# Benchmark progress for a specific job:
+openbenchml watch --channel benchmark --job-id 42
+
+# In-app notifications:
+openbenchml watch --channel notifications
+```
+
+| Flag | Required | Description |
+|------|----------|-------------|
+| `--channel` | yes | `leaderboard` / `benchmark` / `notifications` |
+| `--dataset-id` | only for `--channel leaderboard` | Filter to a single dataset |
+| `--job-id` | only for `--channel benchmark` | Filter to a single job |
+
+Press `Ctrl+C` to stop streaming.
 
 ---
 
@@ -238,3 +331,15 @@ openbenchml notifications --unread-only
 | Flag | Required | Description |
 |------|----------|-------------|
 | `--unread-only` | no | Only show unread notifications |
+
+---
+
+## `help`
+
+Print the full command catalogue with examples.
+
+```bash
+openbenchml help
+openbenchml --help
+openbenchml -h
+```

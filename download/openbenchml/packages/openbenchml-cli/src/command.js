@@ -22,6 +22,11 @@ const FORMATS = {
   },
 };
 
+// Indent every line of a multi-line string — used for nested output.
+function indent(str, prefix) {
+  return String(str).split('\n').map(l => prefix + l).join('\n');
+}
+
 function parseFlags(args) {
   const flags = {};
   const positional = [];
@@ -61,18 +66,22 @@ class Command {
       case 'register': return this.register(flags);
       case 'whoami': return this.whoami();
       case 'logout': return this.logout();
+      case 'init': return this.init(flags);
 
       case 'upload': return this.upload(flags);
+      case 'convert': return this.convert(flags);
       case 'models': return this.models(flags);
       case 'model': return this.model(positional[0]);
 
       case 'datasets': return this.datasets(flags);
+      case 'notebook': return this.notebook(flags);
 
       case 'benchmark': return this.benchmark(flags);
       case 'job': return this.job(positional[0]);
       case 'results': return this.results(positional[0]);
 
       case 'leaderboard': return this.leaderboard(flags);
+      case 'watch': return this.watch(flags);
 
       case 'competitions': return this.competitions(flags);
       case 'competition': return this.competition(positional[0]);
@@ -80,11 +89,232 @@ class Command {
 
       case 'notifications': return this.notifications(flags);
 
+      case 'help': case '--help': case '-h': return this.help();
+
       default:
         console.error(`Unknown command: ${cmd}`);
-        console.error('Run "openbenchml --help" for usage.');
+        console.error('Run "openbenchml help" for usage.');
         return 1;
     }
+  }
+
+  help() {
+    console.log(`openbenchml v4.0.0 — Command-line client for OpenBenchML
+
+USAGE
+  openbenchml <command> [--flags]
+
+SETUP
+  init        One-shot setup: prints npm install cmd + interactive register
+  login       Login with email + password
+  register    Create a new account
+  whoami      Show current user
+  logout      Clear saved credentials
+
+MODELS
+  upload      Upload a .pkl/.joblib/.onnx/.pt model file
+  convert     Convert Python code → pickled model (no Python install needed)
+  models      List public models
+  model       Show details for one model
+
+DATASETS & NOTEBOOK
+  datasets    List built-in datasets (--more for full descriptions)
+  notebook    Run a Python snippet in the sandbox (--file or --code)
+
+BENCHMARKS
+  benchmark   Run a benchmark on (model, dataset)
+  job         Show one job's status
+  results     Show full results for a job
+
+LEADERBOARD & REAL-TIME
+  leaderboard Show ranked entries
+  watch       Live-stream WebSocket events (channel=leaderboard|benchmark|notifications)
+
+COMPETITIONS
+  competitions List all competitions
+  competition  Show one competition + its leaderboard
+  submit       Submit a model to a competition
+
+NOTIFICATIONS
+  notifications List in-app notifications (--unread-only)
+
+GLOBAL FLAGS
+  --host <url>     Override OPENBENCHML_HOST (default http://localhost:8000)
+  --token <tok>    Override saved auth token
+
+EXAMPLES
+  openbenchml init
+  openbenchml convert --file train.py --name "RF on Iris"
+  openbenchml notebook --code "print('hello')"
+  openbenchml watch --channel leaderboard --dataset-id 1
+`);
+    return 0;
+  }
+
+  // ─── init: npm install + register in one shot ─────────────────────────────
+
+  async init(flags) {
+    console.log('╔════════════════════════════════════════════════════════════╗');
+    console.log('║  OpenBenchML — one-shot setup                              ║');
+    console.log('╚════════════════════════════════════════════════════════════╝');
+    console.log();
+    console.log('Step 1 — install the CLI globally:');
+    console.log('  npm install -g openbenchml-cli');
+    console.log();
+    console.log('  (Already installed? Skip to step 2.)');
+    console.log();
+    console.log('Step 2 — point the CLI at a server (default http://localhost:8000):');
+    if (!flags.host) {
+      console.log('  export OPENBENCHML_HOST=https://your-server.example.com');
+      console.log('  — or pass --host on every command');
+    } else {
+      console.log(`  using host: ${flags.host}`);
+    }
+    console.log();
+    console.log('Step 3 — register an account:');
+    if (flags.username && flags.email && flags.password) {
+      return this.register(flags);
+    }
+    console.log('  openbenchml register --username <name> --email <email> --password <pwd>');
+    console.log();
+    console.log('Step 4 — verify with whoami:');
+    console.log('  openbenchml whoami');
+    console.log();
+    console.log('Step 5 — your first benchmark, the easy way:');
+    console.log('  openbenchml convert --file train.py --name "My First Model"');
+    console.log('  openbenchml datasets            # pick a dataset id');
+    console.log('  openbenchml benchmark --model-id <id> --dataset-id <id>');
+    console.log('  openbenchml results <job-id>');
+    console.log();
+    console.log('Need the Python training file? Visit /notebook in the web UI for');
+    console.log('a ready-to-use template, or copy this minimum viable example:');
+    console.log();
+    console.log('  from sklearn.ensemble import RandomForestClassifier');
+    console.log('  from sklearn.datasets import load_iris');
+    console.log('  from sklearn.model_selection import train_test_split');
+    console.log('  X, y = load_iris(return_X_y=True)');
+    console.log('  Xtr, Xte, ytr, yte = train_test_split(X, y, random_state=42)');
+    console.log('  model = RandomForestClassifier(random_state=42).fit(Xtr, ytr)');
+    console.log();
+    return 0;
+  }
+
+  // ─── convert: code → pickled model ────────────────────────────────────────
+
+  async convert(flags) {
+    if (!flags.name) {
+      console.error('Usage: openbenchml convert --file <path.py> --name <model-name> [--description <text>] [--framework <fw>]');
+      console.error('   or: openbenchml convert --code <inline-python> --name <model-name>');
+      return 1;
+    }
+    let code;
+    if (flags.file) {
+      try { code = require('fs').readFileSync(flags.file, 'utf8'); }
+      catch (e) { console.error(`✗ Could not read ${flags.file}: ${e.message}`); return 1; }
+    } else if (flags.code) {
+      code = flags.code;
+    } else {
+      console.error('Provide either --file <path.py> or --code <inline-python>');
+      return 1;
+    }
+    try {
+      const r = await this.client.convertCode({
+        code,
+        modelName: flags.name,
+        description: flags.description || '',
+        framework: flags.framework || 'scikit-learn',
+      });
+      console.log(`✓ Converted code → model`);
+      console.log(`  id:         ${r.id}`);
+      console.log(`  name:       ${r.model_name}`);
+      console.log(`  framework:  ${r.framework} (detected: ${r.detected_framework}, class: ${r.model_class})`);
+      console.log(`  size:       ${FORMATS.size(r.size_kb)}`);
+      if (r.stdout) console.log(`  stdout:`), console.log(indent(r.stdout, '    '));
+      const m = r.metrics_in_code || {};
+      const metricKeys = Object.keys(m);
+      if (metricKeys.length) {
+        console.log('  metrics from code:');
+        for (const k of metricKeys) console.log(`    ${k} = ${m[k]}`);
+      }
+      console.log();
+      console.log('  Next:');
+      console.log(`    openbenchml datasets`);
+      console.log(`    openbenchml benchmark --model-id ${r.id} --dataset-id <id>`);
+    } catch (e) {
+      console.error(`✗ Convert failed: ${e.message}`);
+      if (e.data && e.data.detail) console.error(`  detail: ${e.data.detail}`);
+      return 1;
+    }
+  }
+
+  // ─── notebook: run Python in the sandbox ──────────────────────────────────
+
+  async notebook(flags) {
+    let code;
+    if (flags.file) {
+      try { code = require('fs').readFileSync(flags.file, 'utf8'); }
+      catch (e) { console.error(`✗ Could not read ${flags.file}: ${e.message}`); return 1; }
+    } else if (flags.code) {
+      code = flags.code;
+    } else {
+      console.error('Usage: openbenchml notebook --code <python> [--timeout <sec>]');
+      console.error('   or: openbenchml notebook --file <path.py>');
+      return 1;
+    }
+    try {
+      const r = await this.client.runCode({
+        code,
+        timeoutSeconds: parseInt(flags.timeout || '30', 10),
+      });
+      if (r.stdout) process.stdout.write(r.stdout);
+      if (r.stderr) process.stderr.write(r.stderr);
+      if (!r.ok) {
+        console.error(`\n✗ Execution ${r.timed_out ? 'timed out' : 'failed'}: ${r.error || ''}`);
+        return 1;
+      }
+    } catch (e) {
+      console.error(`✗ ${e.message}`);
+      return 1;
+    }
+  }
+
+  // ─── watch: stream real-time WebSocket events ─────────────────────────────
+
+  async watch(flags) {
+    const channel = flags.channel || 'leaderboard';
+    let ws;
+    try {
+      if (channel === 'leaderboard') {
+        ws = this.client.streamLeaderboard(
+          { datasetId: flags['dataset-id'] ? parseInt(flags['dataset-id'], 10) : undefined },
+          (msg) => this._printWatchEvent(msg),
+        );
+      } else if (channel === 'benchmark') {
+        if (!flags['job-id']) {
+          console.error('Usage: openbenchml watch --channel benchmark --job-id <id>');
+          return 1;
+        }
+        ws = this.client.streamBenchmark(
+          { jobId: parseInt(flags['job-id'], 10) },
+          (msg) => this._printWatchEvent(msg),
+        );
+      } else if (channel === 'notifications') {
+        ws = this.client.streamNotifications((msg) => this._printWatchEvent(msg));
+      } else {
+        console.error(`Unknown channel '${channel}'. Use leaderboard | benchmark | notifications`);
+        return 1;
+      }
+    } catch (e) {
+      console.error(`✗ ${e.message}`);
+      return 1;
+    }
+    console.log(`# streaming ${channel} from ${this.client.host} — Ctrl+C to stop`);
+    process.on('SIGINT', () => { try { ws.close(); } catch (_) {} process.exit(0); });
+  }
+
+  _printWatchEvent(msg) {
+    const ts = new Date().toLocaleTimeString([], { hour12: false });
+    console.log(`[${ts}] ${msg.type || 'event'}  ${JSON.stringify(msg).slice(0, 200)}`);
   }
 
   // ─── Auth ──────────────────────────────────────────────────────────────────
@@ -203,12 +433,24 @@ class Command {
         taskType: flags['task-type'],
         difficulty: flags.difficulty,
       });
-      console.log('ID  Name                  Task            Samples   Features  Difficulty');
-      console.log('--  --------------------  --------------  --------  --------  -----------');
-      for (const d of list) {
-        console.log(
-          `${String(d.id).padEnd(3)} ${d.name.padEnd(20)}  ${d.task_type.padEnd(14)}  ${String(d.samples).padEnd(8)}  ${String(d.features).padEnd(8)}  ${d.difficulty}`
-        );
+      if (flags.more) {
+        // Verbose listing with descriptions — useful when picking a dataset
+        console.log(`${list.length} datasets available\n`);
+        for (const d of list) {
+          console.log(`── #${d.id}  ${d.name}  (${d.task_type}, ${d.difficulty}) ──`);
+          console.log(`  samples: ${d.samples}, features: ${d.features}`);
+          if (d.description) console.log(`  ${d.description.slice(0, 240)}${d.description.length > 240 ? '…' : ''}`);
+          console.log();
+        }
+      } else {
+        console.log('ID  Name                  Task            Samples   Features  Difficulty');
+        console.log('--  --------------------  --------------  --------  --------  -----------');
+        for (const d of list) {
+          console.log(
+            `${String(d.id).padEnd(3)} ${d.name.padEnd(20)}  ${d.task_type.padEnd(14)}  ${String(d.samples).padEnd(8)}  ${String(d.features).padEnd(8)}  ${d.difficulty}`
+          );
+        }
+        console.log('\nTip: pass --more for full descriptions.');
       }
     } catch (e) {
       console.error(`✗ ${e.message}`); return 1;
@@ -417,4 +659,4 @@ class Command {
   }
 }
 
-module.exports = { Command, FORMATS };
+module.exports = { Command, FORMATS, indent };

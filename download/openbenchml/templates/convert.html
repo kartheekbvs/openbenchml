@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Convert Code → Model — OpenBenchML{% endblock %}
+
+{% block extra_css %}
+<style>
+  .convert-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  @media (max-width: 1024px) {
+    .convert-grid { grid-template-columns: 1fr; }
+  }
+  .code-editor {
+    width: 100%;
+    min-height: 420px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #0d1117;
+    color: #e6edf3;
+    resize: vertical;
+    tab-size: 4;
+    -moz-tab-size: 4;
+  }
+  .code-editor:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  }
+  .hint-card {
+    background: rgba(99, 102, 241, 0.06);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+  }
+  .hint-card h4 { margin: 0 0 0.4rem 0; color: var(--accent); }
+  .hint-card p  { margin: 0; font-size: 0.9rem; color: var(--text-secondary); }
+  .step-list { counter-reset: step; list-style: none; padding: 0; margin: 0; }
+  .step-list li {
+    counter-increment: step;
+    padding: 0.6rem 0 0.6rem 2.4rem;
+    position: relative;
+    color: var(--text-secondary);
+    font-size: 0.92rem;
+  }
+  .step-list li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 0.55rem;
+    width: 1.7rem; height: 1.7rem;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    font-weight: 600;
+    font-size: 0.8rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .step-list li code {
+    background: rgba(99, 102, 241, 0.12);
+    color: var(--accent);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 1.5rem;">
+    <h1>&#9889; Convert Code → Model</h1>
+    <p class="text-muted">
+        Paste Python code that <strong>trains a model</strong> and assigns it to a variable named
+        <code style="background: rgba(99,102,241,0.12); color: var(--accent); padding: 0.1rem 0.4rem; border-radius: 4px;">model</code>.
+        OpenBenchML will execute it, pickle the model, and register it — ready to benchmark.
+        No local Python or git needed.
+    </p>
+</div>
+
+<div class="convert-grid">
+    <!-- ── Code + form ──────────────────────────────────────────────── -->
+    <div class="card">
+        <div class="card-header">
+            <h3>Your Python code</h3>
+        </div>
+        <form method="POST" action="/convert" id="convert-form">
+            <div class="form-group">
+                <label for="model_name">Model Name</label>
+                <input type="text" id="model_name" name="model_name"
+                       placeholder="e.g. RandomForest on Iris" required autofocus
+                       style="width: 100%;">
+            </div>
+
+            <div class="form-group">
+                <label for="framework">Framework</label>
+                <select id="framework" name="framework" style="width: 100%;">
+                    <option value="scikit-learn" selected>scikit-learn (auto-detected)</option>
+                    {% for fw in frameworks %}
+                    {% if fw != "scikit-learn" %}
+                    <option value="{{ fw }}">{{ fw }}</option>
+                    {% endif %}
+                    {% endfor %}
+                </select>
+                <span class="form-hint">
+                    Auto-detected from your code — override only if detection is wrong.
+                </span>
+            </div>
+
+            <div class="form-group">
+                <label for="description">Description (optional)</label>
+                <input type="text" id="description" name="description"
+                       placeholder="What does this model do? What hyper-parameters?"
+                       style="width: 100%;">
+            </div>
+
+            <div class="form-group">
+                <label for="code">Python code</label>
+                <textarea id="code" name="code" class="code-editor" required
+                          spellcheck="false" autocomplete="off"
+                          autocorrect="off" autocapitalize="off">{{ sample_code }}</textarea>
+                <span class="form-hint">
+                    Your code <strong>must</strong> assign the trained model to a variable named
+                    <code>model</code>. Other variables (e.g. <code>accuracy</code>) are captured and shown.
+                </span>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">&#9889; Convert &amp; Save Model</button>
+                <a href="/my-models" class="btn btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </div>
+
+    <!-- ── Sidebar: how it works + tips ─────────────────────────────── -->
+    <div>
+        <div class="hint-card">
+            <h4>&#128218; How /convert works</h4>
+            <p>Three steps. Basic syntax, powerful engine.</p>
+        </div>
+
+        <div class="card" style="margin-bottom: 1rem;">
+            <div class="card-header"><h3>The 3 steps</h3></div>
+            <div class="card-body">
+                <ol class="step-list">
+                    <li>You write Python that <strong>trains</strong> a model and assigns it to <code>model</code>.</li>
+                    <li>OpenBenchML executes your code in a sandboxed namespace — <code>np</code>, <code>pd</code>, <code>sklearn</code> are pre-imported.</li>
+                    <li>The model is <strong>pickled</strong> and saved as an <code>MLModel</code>. You can benchmark it instantly.</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 1rem;">
+            <div class="card-header"><h3>What's pre-imported</h3></div>
+            <div class="card-body">
+                <p style="margin-top: 0; color: var(--text-secondary); font-size: 0.9rem;">
+                    These names are available in your code with no import needed:
+                </p>
+                <ul style="list-style: none; padding: 0; font-family: monospace; font-size: 0.85rem;">
+                    <li style="padding: 0.2rem 0;"><code>np</code> &nbsp;→ numpy</li>
+                    <li style="padding: 0.2rem 0;"><code>pd</code> &nbsp;→ pandas</li>
+                    <li style="padding: 0.2rem 0;"><code>sklearn</code> &nbsp;→ scikit-learn</li>
+                    <li style="padding: 0.2rem 0;"><code>scipy</code> &nbsp;→ scipy</li>
+                    <li style="padding: 0.2rem 0;"><code>joblib</code> &nbsp;→ joblib</li>
+                    <li style="padding: 0.2rem 0;"><code>sklearn_datasets</code></li>
+                    <li style="padding: 0.2rem 0;"><code>sklearn_linear_model</code></li>
+                    <li style="padding: 0.2rem 0;"><code>sklearn_ensemble</code></li>
+                    <li style="padding: 0.2rem 0;"><code>sklearn_svm</code></li>
+                    <li style="padding: 0.2rem 0;"><code>sklearn_neighbors</code></li>
+                    <li style="padding: 0.2rem 0;"><code>sklearn_neural_network</code></li>
+                    <li style="padding: 0.2rem 0;"><code>sklearn_tree</code></li>
+                    <li style="padding: 0.2rem 0;"><code>sklearn_metrics</code></li>
+                    <li style="padding: 0.2rem 0;"><code>sklearn_model_selection</code></li>
+                    <li style="padding: 0.2rem 0;"><code>sklearn_preprocessing</code></li>
+                    <li style="padding: 0.2rem 0;"><code>sklearn_pipeline</code></li>
+                    <li style="padding: 0.2rem 0;"><code>sklearn_decomposition</code></li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header"><h3>Security</h3></div>
+            <div class="card-body">
+                <p style="margin-top: 0; color: var(--text-secondary); font-size: 0.9rem;">
+                    For your safety, the sandbox blocks:
+                </p>
+                <ul style="margin: 0; padding-left: 1.2rem; color: var(--text-secondary); font-size: 0.88rem;">
+                    <li><code>open()</code>, file I/O</li>
+                    <li><code>os.system</code>, <code>subprocess</code></li>
+                    <li><code>socket</code>, <code>http</code>, <code>urllib</code></li>
+                    <li><code>ctypes</code>, <code>shutil</code></li>
+                </ul>
+                <p style="margin-bottom: 0; color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.8rem;">
+                    Execution has a 60-second timeout.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

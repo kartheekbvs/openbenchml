@@ -299,6 +299,82 @@ class ApiClient {
     params.set('limit', String(limit));
     return this._json('GET', `/api/notifications?${params.toString()}`);
   }
+
+  // ─── Convert API (code → pickled MLModel) ─────────────────────────────────
+
+  async convertCode({ code, modelName, description = '', framework = 'scikit-learn' }) {
+    return this._json('POST', '/api/convert', {
+      model_name: modelName,
+      description,
+      framework,
+      code,
+    });
+  }
+
+  // ─── Notebook API (run Python code, return stdout/stderr) ─────────────────
+
+  async runCode({ code, timeoutSeconds = 30 }) {
+    return this._json('POST', '/api/notebook/run', {
+      code,
+      timeout_seconds: timeoutSeconds,
+    });
+  }
+
+  // ─── Real-time WebSocket streams ──────────────────────────────────────────
+  //
+  // Returns an open WebSocket. Caller attaches `.onmessage`.
+  // We use the native WebSocket global (Node 22+ ships it; Node 18-21
+  // need the `ws` package which the CLI tries to load as a fallback).
+
+  _resolveWsUrl(pathStr) {
+    return this.host.replace(/^http/, 'ws') + pathStr;
+  }
+
+  _openWebSocket(pathStr) {
+    let WS;
+    try { WS = WebSocket; } catch (_) { /* not defined globally */ }
+    if (typeof WS === 'undefined') {
+      try { WS = require('ws'); } catch (e) {
+        throw new Error(
+          'WebSocket support not found. On Node < 22 run: npm install -g ws'
+        );
+      }
+    }
+    return new WS(this._resolveWsUrl(pathStr));
+  }
+
+  streamLeaderboard({ datasetId } = {}, onMessage) {
+    const ws = this._openWebSocket('/ws/leaderboard');
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'subscribe', dataset_id: datasetId }));
+    };
+    ws.onmessage = (e) => {
+      try { onMessage(JSON.parse(typeof e.data === 'string' ? e.data : e.data.toString())); }
+      catch (err) { onMessage({ type: 'raw', data: e.data }); }
+    };
+    return ws;
+  }
+
+  streamBenchmark({ jobId } = {}, onMessage) {
+    const ws = this._openWebSocket('/ws/benchmark');
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ type: 'subscribe', job_id: jobId }));
+    };
+    ws.onmessage = (e) => {
+      try { onMessage(JSON.parse(typeof e.data === 'string' ? e.data : e.data.toString())); }
+      catch (err) { onMessage({ type: 'raw', data: e.data }); }
+    };
+    return ws;
+  }
+
+  streamNotifications(onMessage) {
+    const ws = this._openWebSocket('/ws/notifications');
+    ws.onmessage = (e) => {
+      try { onMessage(JSON.parse(typeof e.data === 'string' ? e.data : e.data.toString())); }
+      catch (err) { onMessage({ type: 'raw', data: e.data }); }
+    };
+    return ws;
+  }
 }
 
 module.exports = { ApiClient };
