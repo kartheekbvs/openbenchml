@@ -97,6 +97,7 @@ nav:
       - Real-time (WebSocket): architecture/websocket.md
   - Deployment:
       - Local: deployment/local.md
+      - Render (Supabase): deployment/render.md
       - Docker: deployment/docker.md
       - Cloud: deployment/cloud.md
   - Contributing: contributing.md

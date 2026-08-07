@@ -1,26 +1,39 @@
 /* ========================================================================
-   OpenBenchML — Professional Dark Dashboard Stylesheet
+   OpenBenchML — Olive / Teal / Charcoal Dashboard Stylesheet
+   Palette derived from uploaded brand image:
+     charcoal #202020  (bg primary)
+     slate    #2a2a2a  (bg secondary / cards)
+     muted teal #608080 (accent-secondary)
+     olive    #a0c000  (accent primary)
+     deep teal #406060  (surfaces)
+     light grey #e0e0e0 (text primary)
+     mid grey  #a0a0a0  (text secondary)
    ======================================================================== */
 
-/* --- CSS Custom Properties (Dark Theme with Blue Accents) --- */
+/* --- CSS Custom Properties (Image-derived palette) --- */
 :root {
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-card: #1e293b;
-  --text-primary: #f1f5f9;
-  --text-secondary: #94a3b8;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --success: #22c55e;
-  --warning: #eab308;
-  --danger: #ef4444;
-  --info: #06b6d4;
-  --border: #334155;
+  --bg-primary: #202020;
+  --bg-secondary: #2a2a2a;
+  --bg-card: #2d2d2d;
+  --bg-elevated: #353535;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --text-muted: #808080;
+  --accent: #a0c000;        /* olive / lime */
+  --accent-hover: #80a000;  /* darker olive */
+  --accent-secondary: #608080; /* muted teal */
+  --accent-secondary-hover: #406060;
+  --success: #a0c000;        /* olive doubles as success */
+  --warning: #c0a000;        /* golden olive */
+  --danger: #c04040;         /* muted brick red */
+  --info: #608080;           /* teal doubles as info */
+  --border: #404040;
+  --border-light: #505050;
   --radius: 8px;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 16px rgba(59, 130, 246, 0.3);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 16px rgba(160, 192, 0, 0.35);
   --transition-fast: 0.15s ease;
   --transition-base: 0.25s ease;
   --transition-slow: 0.4s ease;
@@ -122,7 +135,7 @@ pre {
   justify-content: space-between;
   padding: 0 2rem;
   height: 64px;
-  background: rgba(15, 23, 42, 0.85);
+  background: rgba(32, 32, 32, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border);
@@ -131,7 +144,7 @@ pre {
 .navbar-brand a {
   font-size: 1.5rem;
   font-weight: 800;
-  background: linear-gradient(135deg, #3b82f6, #8b5cf6, #06b6d4);
+  background: linear-gradient(135deg, #a0c000, #608080, #c0a000);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -174,7 +187,7 @@ pre {
 
 .navbar-links a:hover {
   color: var(--text-primary);
-  background: rgba(59, 130, 246, 0.08);
+  background: rgba(160, 192, 0, 0.10);
 }
 
 .navbar-links a:hover::after {
@@ -211,13 +224,13 @@ pre {
 .hero {
   text-align: center;
   padding: 5rem 1.5rem 4rem;
-  background: radial-gradient(ellipse at top, rgba(59, 130, 246, 0.12) 0%, transparent 60%);
+  background: radial-gradient(ellipse at top, rgba(160, 192, 0, 0.12) 0%, transparent 60%);
 }
 
 .hero h1 {
   font-size: 3.25rem;
   font-weight: 800;
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #06b6d4 100%);
+  background: linear-gradient(135deg, #a0c000 0%, #608080 50%, #c0a000 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -325,13 +338,13 @@ pre {
 .btn-primary {
   background: linear-gradient(135deg, var(--accent), var(--accent-hover));
   color: #fff;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.35);
+  box-shadow: 0 2px 8px rgba(160, 192, 0, 0.35);
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, var(--accent-hover), #1d4ed8);
+  background: linear-gradient(135deg, var(--accent-hover), #608000);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.45);
+  box-shadow: 0 4px 16px rgba(160, 192, 0, 0.45);
   color: #fff;
 }
 
@@ -376,13 +389,13 @@ pre {
 .btn-info {
   background: linear-gradient(135deg, var(--info), #0891b2);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.3);
+  box-shadow: 0 2px 8px rgba(96, 128, 128, 0.3);
 }
 
 .btn-info:hover {
   background: linear-gradient(135deg, #0891b2, #0e7490);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(6, 182, 212, 0.4);
+  box-shadow: 0 4px 16px rgba(96, 128, 128, 0.4);
   color: #fff;
 }
 
@@ -405,7 +418,7 @@ pre {
 }
 
 .btn-outline:hover {
-  background: rgba(59, 130, 246, 0.1);
+  background: rgba(160, 192, 0, 0.1);
   transform: translateY(-1px);
   color: var(--accent);
 }
@@ -451,7 +464,7 @@ input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2), var(--shadow-glow);
+  box-shadow: 0 0 0 3px rgba(160, 192, 0, 0.2), var(--shadow-glow);
 }
 
 .form-control::placeholder {
@@ -550,11 +563,11 @@ tbody td {
 }
 
 tbody tr:nth-child(even) {
-  background: rgba(30, 41, 59, 0.5);
+  background: rgba(45, 45, 45, 0.5);
 }
 
 tbody tr:hover {
-  background: rgba(59, 130, 246, 0.06);
+  background: rgba(160, 192, 0, 0.06);
 }
 
 tbody tr:last-child td {
@@ -599,7 +612,7 @@ tbody tr:last-child td {
 }
 
 .stat-icon.icon-blue {
-  background: rgba(59, 130, 246, 0.15);
+  background: rgba(160, 192, 0, 0.15);
   color: var(--accent);
 }
 
@@ -619,7 +632,7 @@ tbody tr:last-child td {
 }
 
 .stat-icon.icon-cyan {
-  background: rgba(6, 182, 212, 0.15);
+  background: rgba(96, 128, 128, 0.15);
   color: var(--info);
 }
 
@@ -672,7 +685,7 @@ tbody tr:last-child td {
 }
 
 .badge-running {
-  background: rgba(59, 130, 246, 0.12);
+  background: rgba(160, 192, 0, 0.12);
   color: var(--accent);
   animation: pulse 2s infinite;
 }
@@ -701,7 +714,7 @@ tbody tr:last-child td {
 }
 
 .badge-info {
-  background: rgba(6, 182, 212, 0.12);
+  background: rgba(96, 128, 128, 0.12);
   color: var(--info);
 }
 
@@ -717,7 +730,7 @@ tbody tr:last-child td {
 }
 
 .leaderboard-table tr.current-user {
-  background: rgba(59, 130, 246, 0.08) !important;
+  background: rgba(160, 192, 0, 0.08) !important;
   border-left: 3px solid var(--accent);
 }
 
@@ -832,7 +845,7 @@ tbody tr:last-child td {
   justify-content: space-between;
   align-items: center;
   padding: 0.6rem 0;
-  border-bottom: 1px solid rgba(51, 65, 85, 0.5);
+  border-bottom: 1px solid rgba(64, 64, 64, 0.5);
 }
 
 .comparison-metric:last-child {
@@ -920,8 +933,8 @@ tbody tr:last-child td {
 }
 
 .alert-info {
-  background: rgba(6, 182, 212, 0.12);
-  border: 1px solid rgba(6, 182, 212, 0.3);
+  background: rgba(96, 128, 128, 0.12);
+  border: 1px solid rgba(96, 128, 128, 0.3);
   color: var(--info);
 }
 
@@ -1336,7 +1349,7 @@ tbody tr:last-child td {
    SELECTION
    ======================================================================== */
 ::selection {
-  background: rgba(59, 130, 246, 0.3);
+  background: rgba(160, 192, 0, 0.3);
   color: var(--text-primary);
 }
 

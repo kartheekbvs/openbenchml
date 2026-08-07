@@ -9,10 +9,13 @@ python-multipart==0.0.6
 # Templates
 jinja2==3.1.3
 
-# Database
+# Database (SQLAlchemy + Postgres driver for Supabase)
 sqlalchemy==2.0.25
 psycopg2-binary==2.9.9
 alembic==1.13.1
+# Supabase Python client (used for direct REST calls when needed;
+# the main app uses SQLAlchemy via the Postgres pooler URL).
+supabase==2.5.0
 
 # Authentication
 python-jose[cryptography]==3.3.0

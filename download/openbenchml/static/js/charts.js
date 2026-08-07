@@ -17,18 +17,18 @@ function renderAccuracyChart(canvasId, labels, values) {
                 label: 'Accuracy',
                 data: values,
                 backgroundColor: [
-                    'rgba(59, 130, 246, 0.7)',
-                    'rgba(34, 197, 94, 0.7)',
-                    'rgba(234, 179, 8, 0.7)',
-                    'rgba(239, 68, 68, 0.7)',
-                    'rgba(6, 182, 212, 0.7)',
+                    'rgba(160, 192, 0, 0.7)',
+                    'rgba(128, 160, 0, 0.7)',
+                    'rgba(192, 160, 0, 0.7)',
+                    'rgba(192, 64, 64, 0.7)',
+                    'rgba(96, 128, 128, 0.7)',
                 ],
                 borderColor: [
-                    'rgba(59, 130, 246, 1)',
-                    'rgba(34, 197, 94, 1)',
-                    'rgba(234, 179, 8, 1)',
-                    'rgba(239, 68, 68, 1)',
-                    'rgba(6, 182, 212, 1)',
+                    'rgba(160, 192, 0, 1)',
+                    'rgba(128, 160, 0, 1)',
+                    'rgba(192, 160, 0, 1)',
+                    'rgba(192, 64, 64, 1)',
+                    'rgba(96, 128, 128, 1)',
                 ],
                 borderWidth: 2,
                 borderRadius: 6,
@@ -41,7 +41,7 @@ function renderAccuracyChart(canvasId, labels, values) {
                 title: {
                     display: true,
                     text: 'Model Accuracy Comparison',
-                    color: '#f1f5f9',
+                    color: '#e0e0e0',
                     font: { size: 16, weight: 'bold' }
                 }
             },
@@ -49,12 +49,12 @@ function renderAccuracyChart(canvasId, labels, values) {
                 y: {
                     beginAtZero: true,
                     max: 100,
-                    ticks: { color: '#94a3b8', callback: v => v + '%' },
-                    grid: { color: 'rgba(51, 65, 85, 0.5)' }
+                    ticks: { color: '#a0a0a0', callback: v => v + '%' },
+                    grid: { color: 'rgba(64, 64, 64, 0.5)' }
                 },
                 x: {
-                    ticks: { color: '#94a3b8' },
-                    grid: { color: 'rgba(51, 65, 85, 0.3)' }
+                    ticks: { color: '#a0a0a0' },
+                    grid: { color: 'rgba(64, 64, 64, 0.3)' }
                 }
             }
         }
@@ -73,8 +73,8 @@ function renderLatencyChart(canvasId, labels, values) {
             datasets: [{
                 label: 'Latency (ms)',
                 data: values,
-                backgroundColor: 'rgba(6, 182, 212, 0.7)',
-                borderColor: 'rgba(6, 182, 212, 1)',
+                backgroundColor: 'rgba(96, 128, 128, 0.7)',
+                borderColor: 'rgba(96, 128, 128, 1)',
                 borderWidth: 2,
                 borderRadius: 6,
             }]
@@ -87,19 +87,19 @@ function renderLatencyChart(canvasId, labels, values) {
                 title: {
                     display: true,
                     text: 'Inference Latency',
-                    color: '#f1f5f9',
+                    color: '#e0e0e0',
                     font: { size: 16, weight: 'bold' }
                 }
             },
             scales: {
                 x: {
                     beginAtZero: true,
-                    ticks: { color: '#94a3b8', callback: v => v + ' ms' },
-                    grid: { color: 'rgba(51, 65, 85, 0.5)' }
+                    ticks: { color: '#a0a0a0', callback: v => v + ' ms' },
+                    grid: { color: 'rgba(64, 64, 64, 0.5)' }
                 },
                 y: {
-                    ticks: { color: '#94a3b8' },
-                    grid: { color: 'rgba(51, 65, 85, 0.3)' }
+                    ticks: { color: '#a0a0a0' },
+                    grid: { color: 'rgba(64, 64, 64, 0.3)' }
                 }
             }
         }
@@ -118,13 +118,13 @@ function renderMemoryChart(canvasId, labels, values) {
             datasets: [{
                 data: values,
                 backgroundColor: [
-                    'rgba(59, 130, 246, 0.8)',
-                    'rgba(34, 197, 94, 0.8)',
-                    'rgba(234, 179, 8, 0.8)',
-                    'rgba(239, 68, 68, 0.8)',
-                    'rgba(168, 85, 247, 0.8)',
+                    'rgba(160, 192, 0, 0.8)',
+                    'rgba(128, 160, 0, 0.8)',
+                    'rgba(192, 160, 0, 0.8)',
+                    'rgba(192, 64, 64, 0.8)',
+                    'rgba(64, 96, 96, 0.8)',
                 ],
-                borderColor: '#1e293b',
+                borderColor: '#2a2a2a',
                 borderWidth: 3,
             }]
         },
@@ -134,12 +134,12 @@ function renderMemoryChart(canvasId, labels, values) {
                 title: {
                     display: true,
                     text: 'Memory Usage (MB)',
-                    color: '#f1f5f9',
+                    color: '#e0e0e0',
                     font: { size: 16, weight: 'bold' }
                 },
                 legend: {
                     position: 'bottom',
-                    labels: { color: '#94a3b8', padding: 15 }
+                    labels: { color: '#a0a0a0', padding: 15 }
                 }
             }
         }
@@ -152,9 +152,9 @@ function renderRadarChart(canvasId, modelNames, metricsData) {
     if (!ctx) return;
 
     const colors = [
-        { bg: 'rgba(59, 130, 246, 0.2)', border: 'rgba(59, 130, 246, 1)' },
-        { bg: 'rgba(34, 197, 94, 0.2)', border: 'rgba(34, 197, 94, 1)' },
-        { bg: 'rgba(234, 179, 8, 0.2)', border: 'rgba(234, 179, 8, 1)' },
+        { bg: 'rgba(160, 192, 0, 0.2)', border: 'rgba(160, 192, 0, 1)' },
+        { bg: 'rgba(128, 160, 0, 0.2)', border: 'rgba(128, 160, 0, 1)' },
+        { bg: 'rgba(192, 160, 0, 0.2)', border: 'rgba(192, 160, 0, 1)' },
     ];
 
     const datasets = modelNames.map((name, i) => ({
@@ -178,21 +178,21 @@ function renderRadarChart(canvasId, modelNames, metricsData) {
                 title: {
                     display: true,
                     text: 'Model Comparison Radar',
-                    color: '#f1f5f9',
+                    color: '#e0e0e0',
                     font: { size: 16, weight: 'bold' }
                 },
                 legend: {
-                    labels: { color: '#94a3b8' }
+                    labels: { color: '#a0a0a0' }
                 }
             },
             scales: {
                 r: {
                     beginAtZero: true,
                     max: 100,
-                    ticks: { color: '#94a3b8', backdropColor: 'transparent' },
-                    grid: { color: 'rgba(51, 65, 85, 0.5)' },
-                    angleLines: { color: 'rgba(51, 65, 85, 0.5)' },
-                    pointLabels: { color: '#f1f5f9', font: { size: 12 } }
+                    ticks: { color: '#a0a0a0', backdropColor: 'transparent' },
+                    grid: { color: 'rgba(64, 64, 64, 0.5)' },
+                    angleLines: { color: 'rgba(64, 64, 64, 0.5)' },
+                    pointLabels: { color: '#e0e0e0', font: { size: 12 } }
                 }
             }
         }
@@ -212,8 +212,8 @@ function renderHistoryChart(canvasId, dates, accuracyValues, latencyValues) {
                 {
                     label: 'Accuracy',
                     data: accuracyValues,
-                    borderColor: 'rgba(59, 130, 246, 1)',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderColor: 'rgba(160, 192, 0, 1)',
+                    backgroundColor: 'rgba(160, 192, 0, 0.1)',
                     fill: true,
                     tension: 0.4,
                     yAxisID: 'y',
@@ -221,8 +221,8 @@ function renderHistoryChart(canvasId, dates, accuracyValues, latencyValues) {
                 {
                     label: 'Latency (ms)',
                     data: latencyValues,
-                    borderColor: 'rgba(234, 179, 8, 1)',
-                    backgroundColor: 'rgba(234, 179, 8, 0.1)',
+                    borderColor: 'rgba(192, 160, 0, 1)',
+                    backgroundColor: 'rgba(192, 160, 0, 0.1)',
                     fill: true,
                     tension: 0.4,
                     yAxisID: 'y1',
@@ -236,29 +236,29 @@ function renderHistoryChart(canvasId, dates, accuracyValues, latencyValues) {
                 title: {
                     display: true,
                     text: 'Benchmark History',
-                    color: '#f1f5f9',
+                    color: '#e0e0e0',
                     font: { size: 16, weight: 'bold' }
                 },
-                legend: { labels: { color: '#94a3b8' } }
+                legend: { labels: { color: '#a0a0a0' } }
             },
             scales: {
                 y: {
                     type: 'linear',
                     display: true,
                     position: 'left',
-                    ticks: { color: '#94a3b8', callback: v => v + '%' },
-                    grid: { color: 'rgba(51, 65, 85, 0.5)' }
+                    ticks: { color: '#a0a0a0', callback: v => v + '%' },
+                    grid: { color: 'rgba(64, 64, 64, 0.5)' }
                 },
                 y1: {
                     type: 'linear',
                     display: true,
                     position: 'right',
-                    ticks: { color: '#94a3b8', callback: v => v + ' ms' },
+                    ticks: { color: '#a0a0a0', callback: v => v + ' ms' },
                     grid: { drawOnChartArea: false }
                 },
                 x: {
-                    ticks: { color: '#94a3b8' },
-                    grid: { color: 'rgba(51, 65, 85, 0.3)' }
+                    ticks: { color: '#a0a0a0' },
+                    grid: { color: 'rgba(64, 64, 64, 0.3)' }
                 }
             }
         }

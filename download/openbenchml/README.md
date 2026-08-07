@@ -5,12 +5,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.109-green.svg)](https://fastapi.tiangolo.com)
-[![npm](https://img.shields.io/badge/npm-openbenchml--cli_v4.0.0-red.svg)](https://www.npmjs.com/package/openbenchml-cli)
+[![npm](https://img.shields.io/badge/npm-openbenchml--cli_v4.1.0-red.svg)](https://www.npmjs.com/package/openbenchml-cli)
 [![Docs](https://img.shields.io/badge/docs-mkdocs-material-blue.svg)](https://kartheekbvs.github.io/openbenchml/)
+[![Deploy on Render](https://img.shields.io/badge/Deploy-Render-46E3B7.svg)](https://render.com/deploy)
 
 OpenBenchML lets you **paste Python code** that trains a model, **pickle it server-side**, and **benchmark it** against standard datasets — all without a local Python install. Plus Kaggle-style competitions, live leaderboards, real-time WebSocket updates, and an in-browser Python notebook.
 
-Built with FastAPI + SQLAlchemy + WebSocket + Jinja2. SQLite for dev, PostgreSQL for prod. Optional Celery + Redis for async jobs. CLI in Node.js.
+Built with FastAPI + SQLAlchemy + WebSocket + Jinja2. **Supabase Postgres** for storage (project `fzwvxesrtdilljgrntpw`), Render for deployment, Node.js CLI. Olive/teal UI palette.
 
 ---
 

@@ -1,6 +1,6 @@
 {
   "name": "openbenchml-cli",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "Command-line client for OpenBenchML — convert code → pickled model, run benchmarks, submit to competitions, and stream real-time updates from your terminal.",
   "main": "src/index.js",
   "bin": {

@@ -2,6 +2,47 @@
 
 All notable changes to OpenBenchML are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.1.0] — 2026-08-07
+
+The "Supabase backend + olive/teal UI + Render deploy" release. No new features — this is a deployment/branding release.
+
+### Added
+
+- **Supabase Postgres backend** — the app now uses the Supabase project `fzwvxesrtdilljgrntpw` (from `fastapiproject.git`) as its primary storage backend. Connection is via the Supabase connection pooler (`aws-0-<region>.pooler.supabase.com:5432`).
+- **Auto-assembly of `DATABASE_URL`** — if `DATABASE_URL` env var is empty, the config assembles it from `SUPABASE_PROJECT_REF` + `SUPABASE_DB_PASSWORD` + `SUPABASE_POOLER_REGION` (default `aws-0-us-east-1`). This means on Render you only need to set the DB password — no URL-encoding of special characters.
+- **`start.sh` wrapper script** — Render's `startCommand`. Logs diagnostics (which env vars are set, no secrets), assembles `DATABASE_URL` if missing, then launches `uvicorn` with `--proxy-headers` and `--forwarded-allow-ips='*'` so it correctly trusts Render's load balancer.
+- **`render.yaml` rewrite** — now configures a web service + Redis only (no managed Postgres, since we use Supabase). Health check on `/health`, auto-deploy from `main`, region-override friendly.
+- **Step-by-step Render deploy guide** — `docs-site/docs/deployment/render.md` walks through every step from pushing to GitHub to verifying the live deployment, including troubleshooting, env var reference, and cost estimate.
+- **`supabase` Python package** added to `requirements.txt` for any future direct REST API calls (the main app still uses SQLAlchemy via the pooler URL).
+
+### Changed
+
+- **UI palette swapped from blue/indigo to olive/teal/charcoal** — derived from the uploaded brand image:
+  - Background: `#0f172a` (dark slate blue) → `#202020` (charcoal)
+  - Cards: `#1e293b` (slate-800) → `#2a2a2a` / `#2d2d2d`
+  - Primary accent: `#3b82f6` (blue-500) → `#a0c000` (olive/lime)
+  - Accent hover: `#2563eb` (blue-600) → `#80a000` (darker olive)
+  - Info: `#06b6d4` (cyan-500) → `#608080` (muted teal)
+  - Success: `#22c55e` (green-500) → `#a0c000` (olive — same as primary)
+  - Warning: `#eab308` (yellow-500) → `#c0a000` (golden olive)
+  - Danger: `#ef4444` (red-500) → `#c04040` (muted brick)
+  - Text: `#f1f5f9` (slate-100) → `#e0e0e0` (light grey)
+  - Text secondary: `#94a3b8` (slate-400) → `#a0a0a0` (mid grey)
+  - Border: `#334155` (slate-700) → `#404040` (dark grey)
+  - All `rgba(59, 130, 246, …)` blue references in `style.css`, `charts.js`, `convert.html`, `notebook.html`, `realtime.html`, and `docs-site/landing.html` replaced with `rgba(160, 192, 0, …)` (olive) or `rgba(96, 128, 128, …)` (teal) as appropriate.
+- **App version** bumped to 4.1.0.
+- **CLI version** bumped to 4.1.0 (`package.json` + `help` command output).
+- **`APP_DESCRIPTION`** updated to mention Supabase backend + olive/teal UI.
+- **Footer** year range already shows 2024-2026.
+
+### Migration notes
+
+If you're upgrading from v4.0.0:
+
+1. **No DB migration needed** — the schema is unchanged. If you were running on SQLite locally, you can keep using it (`USE_SQLITE=True` is still the default for dev).
+2. **For production (Render)**: follow the new deploy guide at `docs-site/docs/deployment/render.md`. The old `render.yaml` created a managed Postgres; the new one uses Supabase only.
+3. **CSS overrides**: if you wrote custom CSS that referenced the old blue variables (`--accent` was `#3b82f6`), it will automatically pick up the new olive color (`#a0c000`) — that's the whole point of CSS custom properties. No action needed.
+
 ## [4.0.0] — 2026-08-07
 
 The "code → pickle → benchmark, all in the browser" release. Adds an in-browser Python notebook, a `/convert` flow that turns Python code into a benchmarkable MLModel without requiring a local Python install, expands the built-in dataset catalogue from 6 to 17, and adds real-time WebSocket snippets with basic syntax but powerful behaviour.

@@ -23,11 +23,12 @@ DATASET_DIR.mkdir(exist_ok=True)
 
 # ─── Application Settings ────────────────────────────────────────────────────
 APP_NAME = "OpenBenchML"
-APP_VERSION = "4.0.0"
+APP_VERSION = "4.1.0"
 APP_DESCRIPTION = (
     "Open Source ML Model Benchmarking Platform — code → pickle → benchmark, "
-    "with Kaggle-style real-time leaderboards, competitions, and a built-in "
-    "Python notebook. Student-friendly syntax, production-grade engine."
+    "with Kaggle-style real-time leaderboards, competitions, an in-browser "
+    "Python notebook, Supabase-backed storage, and an olive/teal UI. "
+    "Student-friendly syntax, production-grade engine."
 )
 APP_URL = os.getenv("APP_URL", "http://localhost:8000")
 DEBUG = os.getenv("DEBUG", "True").lower() == "true"
@@ -37,15 +38,74 @@ ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
 # ─── Database Settings ───────────────────────────────────────────────────────
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://openbenchml:openbenchml@localhost:5432/openbenchml"
+# OpenBenchML v4.1 — Supabase Postgres backend.
+#
+# The Supabase project ref is `fzwvxesrtdilljgrntpw` (from the original
+# fastapiproject.git).  We use the **connection pooler** URL so the app
+# can scale without exhausting Postgres connections.
+#
+#   Host      : aws-0-<region>.pooler.supabase.com  (region-aware)
+#   Port      : 5432  (direct) / 6543 (pooler)
+#   Database  : postgres
+#   Username  : postgres.fzwvxesrtdilljgrntpw       (project ref appended)
+#   Password  : <your Supabase project password>
+#
+# Per the user's request: "id is username and username is password" —
+# i.e. the Supabase project *URL ref* doubles as the username and the
+# *anon key* (or any service key) doubles as the password when calling
+# the Supabase REST API directly.  For SQL access via SQLAlchemy we
+# use the standard Postgres connection string with the project password.
+#
+# In production (Render), set DATABASE_URL as a Render environment
+# variable pointing at the full Supabase pooler URL — see
+# `docs-site/docs/deployment/render.md` for the copy-paste instructions.
+
+SUPABASE_PROJECT_REF = "fzwvxesrtdilljgrntpw"
+SUPABASE_URL = os.getenv(
+    "SUPABASE_URL",
+    f"https://{SUPABASE_PROJECT_REF}.supabase.co",
+)
+SUPABASE_ANON_KEY = os.getenv(
+    "SUPABASE_ANON_KEY",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+    "eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6d3Z4ZXNydGRpbGxqZ3JudHB3Iiwicm9sZSI6ImFub24i"
+    "LCJpYXQiOjE3NTA4NzU2NzMsImV4cCI6MjA2NjQ1MTY3M30."
+    "YnxjUtFawuumihyVGuk8e-o6iE9OkDf-MX1aKRTqA5U",
+)
+
+# Default Postgres connection string for Supabase. The pooler host is
+# region-aware — Render will override DATABASE_URL with the correct region.
+#
+# If DATABASE_URL is unset (or empty), we auto-assemble it from
+# SUPABASE_PROJECT_REF + SUPABASE_DB_PASSWORD. This makes Render deploys
+# trivial: just set those two env vars and you're done.
+_default_db_url = os.getenv("DATABASE_URL", "").strip()
+if not _default_db_url:
+    _supabase_pw = os.getenv("SUPABASE_DB_PASSWORD", "").strip()
+    if _supabase_pw:
+        _default_db_url = (
+            f"postgresql://postgres.{SUPABASE_PROJECT_REF}:{_supabase_pw}@"
+            f"aws-0-us-east-1.pooler.supabase.com:5432/postgres"
+        )
+        logger_config = logging.getLogger("openbenchml.config")
+        logger_config.info(
+            "Auto-assembled DATABASE_URL from SUPABASE_PROJECT_REF + "
+            "SUPABASE_DB_PASSWORD (pooler host: aws-0-us-east-1)."
+        )
+
+DATABASE_URL = _default_db_url or (
+    # Last-resort placeholder so the import doesn't crash if nothing is set.
+    # In dev mode USE_SQLITE=True bypasses this entirely.
+    f"postgresql://postgres.{SUPABASE_PROJECT_REF}:<SUPABASE_DB_PASSWORD>@"
+    f"aws-0-us-east-1.pooler.supabase.com:5432/postgres"
 )
 
 # SQLite fallback for development without PostgreSQL
 SQLITE_URL = f"sqlite:///{BASE_DIR / 'openbenchml.db'}"
 
-# Use PostgreSQL in production, SQLite for quick dev
+# Use PostgreSQL in production (Render / Supabase), SQLite for local dev.
+# Toggle via USE_SQLITE env var. Default is True so first-time dev setup
+# doesn't require a live Supabase password.
 USE_SQLITE = os.getenv("USE_SQLITE", "True").lower() == "true"
 SQLALCHEMY_DATABASE_URL = SQLITE_URL if USE_SQLITE else DATABASE_URL
 

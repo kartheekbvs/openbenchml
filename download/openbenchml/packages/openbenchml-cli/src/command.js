@@ -99,7 +99,7 @@ class Command {
   }
 
   help() {
-    console.log(`openbenchml v4.0.0 — Command-line client for OpenBenchML
+    console.log(`openbenchml v4.1.0 — Command-line client for OpenBenchML
 
 USAGE
   openbenchml <command> [--flags]
