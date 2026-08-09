@@ -3,14 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Aggressive cache-control at the HTML level — prevents browser from
+         serving stale HTML which would reference an old cached CSS URL. -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>{% block title %}OpenBenchML{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <!-- Cache-busting: ?v= forces browser to fetch fresh CSS/JS on every release.
-         Without this, users on laptops see the OLD cached blue CSS even after we deploy. -->
-    <link rel="stylesheet" href="/static/css/style.css?v=5.1.0">
+
+    <!-- ────────────────────────────────────────────────────────────────────
+         INLINE CRITICAL CSS — safety net against stale browser cache.
+
+         If the browser serves an OLD cached style.css (e.g. the previous
+         olive/green palette from v4.1), this inline block OVERRIDES the
+         CSS custom properties so the page always shows the violet/cyan
+         v5.x palette regardless of what the external file says.
+
+         The external style.css still wins for everything else (layout,
+         components, animations) — this only sets the design tokens.
+         ──────────────────────────────────────────────────────────────── -->
+    <style id="obml-critical-tokens">
+      :root {
+        --bg-primary: #0a0a0f;
+        --bg-secondary: #11111a;
+        --bg-card: rgba(22, 22, 35, 0.72);
+        --bg-elevated: rgba(30, 30, 48, 0.85);
+        --bg-glass: rgba(20, 20, 32, 0.6);
+        --text-primary: #f5f5fa;
+        --text-secondary: #a5a5b8;
+        --text-muted: #6b6b80;
+        --accent: #8b5cf6;
+        --accent-hover: #7c3aed;
+        --accent-bright: #a855f7;
+        --accent-secondary: #06b6d4;
+        --accent-secondary-hover: #0891b2;
+        --accent-tertiary: #ec4899;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #3b82f6;
+        --gradient-primary: linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%);
+        --gradient-text: linear-gradient(135deg, #a855f7 0%, #06b6d4 50%, #ec4899 100%);
+        --border: rgba(139, 92, 246, 0.18);
+        --border-light: rgba(255, 255, 255, 0.08);
+        --border-bright: rgba(139, 92, 246, 0.4);
+      }
+      /* Force dark background on body immediately — prevents olive flash. */
+      body { background: #0a0a0f; color: #f5f5fa; }
+    </style>
+
+    <!-- Cache-busting: commit-hash query string forces fresh fetch on every
+         deploy. Even if the browser cached the previous ?v=5.1.0 response,
+         a new commit hash means a new URL → guaranteed fresh download. -->
+    <link rel="stylesheet" href="/static/css/style.css?v=338c9e1">
     {% block extra_css %}{% endblock %}
+
+    <script>
+      // ── Stale-CSS detector ───────────────────────────────────────────
+      // After the external style.css loads, check if it actually contains
+      // the violet palette. If it contains the OLD olive/green tokens
+      // (meaning the browser served a stale cached file despite the
+      // cache-busting query), force a reload with a fresh nonce.
+      (function() {
+        function checkCssFreshness() {
+          // Read the resolved CSS variable value from the external stylesheet.
+          // If the external CSS is the OLD olive palette, --accent will
+          // resolve to a green/olive color instead of violet #8b5cf6.
+          var styles = getComputedStyle(document.documentElement);
+          var accent = styles.getPropertyValue('--accent').trim();
+          // The inline <style id="obml-critical-tokens"> above sets --accent
+          // to #8b5cf6. The external style.css also sets it to #8b5cf6.
+          // Either way, the resolved value should be violet. If the external
+          // CSS overrides with an olive/green value, we detect it here.
+          var VIOLET = '#8b5cf6';
+          // Compare loosely (trim + lowercase + strip whitespace).
+          var normalized = accent.toLowerCase().replace(/\s+/g, '');
+          if (normalized && normalized !== VIOLET.toLowerCase().replace('#', 'rgb(') && normalized !== VIOLET) {
+            // Could be rgb(139, 92, 246) or #8b5cf6 — both valid.
+            // If it's something completely different (olive/green), reload.
+            // We accept either the hex or the rgb form.
+            var isViolet = (normalized === VIOLET.toLowerCase()) ||
+                           (normalized === 'rgb(139,92,246)') ||
+                           (normalized === 'rgb(139,92,246)') ||
+                           (accent.indexOf('139') !== -1 && accent.indexOf('92') !== -1 && accent.indexOf('246') !== -1);
+            if (!isViolet) {
+              console.warn('[obml] Detected stale CSS (accent=' + accent + '). Forcing reload with cache-bust nonce.');
+              // Append a unique nonce to force a completely fresh fetch.
+              if (!location.search.match(/[?&]cssnonce=/)) {
+                var sep = location.search.indexOf('?') === -1 ? '?' : '&';
+                location.href = location.pathname + location.search + sep + 'cssnonce=' + Date.now();
+              }
+            }
+          }
+        }
+        if (document.readyState === 'complete') checkCssFreshness();
+        else window.addEventListener('load', checkCssFreshness);
+      })();
+    </script>
 </head>
 <body>
     <nav class="navbar">
@@ -62,16 +153,16 @@
 
     <footer class="footer">
         <div class="container">
-            <p>&copy; 2024-2026 OpenBenchML v5.1.0 &mdash; Open Source ML Model Benchmarking Platform</p>
+            <p>&copy; 2024-2026 OpenBenchML <span id="obml-version">v5.1.1</span> &mdash; Open Source ML Model Benchmarking Platform</p>
             <div class="footer-links">
                 <a href="/about">About</a>
                 <a href="/docs">Documentation</a>
-                <a href="https://github.com/openbenchml" target="_blank" rel="noopener">GitHub</a>
+                <a href="https://github.com/kartheekbvs/openbenchml" target="_blank" rel="noopener">GitHub</a>
             </div>
         </div>
     </footer>
 
-    <script src="/static/js/main.js?v=5.1.0"></script>
+    <script src="/static/js/main.js?v=338c9e1"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

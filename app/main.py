@@ -231,15 +231,17 @@ async def rate_limit_handler(request: Request, exc):
 
 
 # ─── Mount Static Files ──────────────────────────────────────────────────────
-# Custom StaticFiles subclass that sends `Cache-Control: no-cache` so browsers
-# always revalidate with the server. Combined with the ?v=5.1.0 query string on
-# every <link>/<script> reference, this guarantees users on laptops never see
-# stale (blue) CSS after a deploy.
+# Custom StaticFiles subclass that sends aggressive no-cache headers.
+# `no-store` tells the browser NEVER to cache the response — every request
+# goes to the server. Combined with the ?v=<commit-hash> query string on
+# every <link>/<script> reference, this guarantees users on laptops never
+# see stale (olive/green/blue) CSS after a deploy.
 class NoCacheStaticFiles(StaticFiles):
     async def get_response(self, path: str, scope: Scope) -> Response:
         resp = await super().get_response(path, scope)
-        # Let the browser store the file but always revalidate (304 if unchanged).
-        resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+        # no-store = browser MUST NOT cache. no-cache = browser may store but
+        # must revalidate. We use BOTH to cover all browser quirks.
+        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         resp.headers.setdefault("Pragma", "no-cache")
         resp.headers.setdefault("Expires", "0")
         return resp

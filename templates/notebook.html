@@ -247,13 +247,56 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<!-- Pyodide CDN with multi-CDN fallback — if jsdelivr is blocked (corporate
+     firewall / slow network), the loader below tries unpkg, then staticfile,
+     then falls back to the Server sandbox automatically. -->
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
-//  OpenBenchML Notebook — multi-cell Pyodide / server-sandbox engine
+//  Multi-CDN Pyodide loader
 // ─────────────────────────────────────────────────────────────────────────────
-
 const PYODIDE_VERSION = "v0.26.4";
+const PYODIDE_CDN_URLS = [
+    `https://cdn.jsdelivr.net/pyodide/${PYODIDE_VERSION}/full/pyodide.js`,
+    `https://unpkg.com/pyodide@${PYODIDE_VERSION.slice(1)}/full/pyodide.js`,
+    `https://cdn.staticfile.org/pyodide/${PYODIDE_VERSION.slice(1)}/full/pyodide.js`,
+    `https://cdnjs.cloudflare.com/ajax/libs/pyodide/${PYODIDE_VERSION.slice(1)}/full/pyodide.js`,
+];
+
+function loadScript(url) {
+    return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = url;
+        s.onload = () => resolve(url);
+        s.onerror = () => { s.remove(); reject(new Error('Failed: ' + url)); };
+        // 15s per-CDN timeout — if the CDN is slow/unreachable, move to next.
+        const to = setTimeout(() => { s.remove(); reject(new Error('Timeout: ' + url)); }, 15000);
+        s.onload = () => { clearTimeout(to); resolve(url); };
+        document.head.appendChild(s);
+    });
+}
+
+async function loadPyodideScriptMultiCDN() {
+    // If pyodide is already exposed (e.g. a previous load succeeded), skip.
+    if (typeof window.loadPyodide === 'function') return 'already-loaded';
+    let lastErr = null;
+    for (const url of PYODIDE_CDN_URLS) {
+        try {
+            console.log('[nb] Trying Pyodide CDN:', url);
+            await loadScript(url);
+            if (typeof window.loadPyodide === 'function') {
+                console.log('[nb] Pyodide loaded from:', url);
+                return url;
+            }
+            throw new Error('Script loaded but window.loadPyodide not defined');
+        } catch (err) {
+            console.warn('[nb]', err.message);
+            lastErr = err;
+        }
+    }
+    throw new Error('All Pyodide CDNs failed. Last error: ' + (lastErr && lastErr.message));
+}
+</script>
+<script>
 
 // Packages that must be loaded into Pyodide before any user code runs.
 // pandas, scikit-learn, matplotlib, scipy all ship in the Pyodide distribution
@@ -356,7 +399,11 @@ async function initPyodide() {
 
     try {
         setKernelStatus('kernel: loading Pyodide…', 'starting');
-        setStatusBar('Loading Pyodide runtime from CDN (≈10 MB)…', 'loading');
+        setStatusBar('Loading Pyodide runtime (trying multiple CDNs)…', 'loading');
+        // Use the multi-CDN loader — falls back across jsdelivr → unpkg →
+        // staticfile → cdnjs if any single CDN is blocked or slow.
+        await loadPyodideScriptMultiCDN();
+        setStatusBar('Pyodide script loaded — initializing WASM runtime…', 'loading');
         pyodide = await loadPyodide();
 
         setKernelStatus('kernel: loading packages (np, pd, sklearn, matplotlib)…', 'starting');
