@@ -7,7 +7,9 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/style.css">
+    <!-- Cache-busting: ?v= forces browser to fetch fresh CSS/JS on every release.
+         Without this, users on laptops see the OLD cached blue CSS even after we deploy. -->
+    <link rel="stylesheet" href="/static/css/style.css?v=5.1.0">
     {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -60,7 +62,7 @@
 
     <footer class="footer">
         <div class="container">
-            <p>&copy; 2024-2026 OpenBenchML v4.0.0 &mdash; Open Source ML Model Benchmarking Platform</p>
+            <p>&copy; 2024-2026 OpenBenchML v5.1.0 &mdash; Open Source ML Model Benchmarking Platform</p>
             <div class="footer-links">
                 <a href="/about">About</a>
                 <a href="/docs">Documentation</a>
@@ -69,7 +71,7 @@
         </div>
     </footer>
 
-    <script src="/static/js/main.js"></script>
+    <script src="/static/js/main.js?v=5.1.0"></script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

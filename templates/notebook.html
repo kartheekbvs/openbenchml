@@ -50,7 +50,7 @@
   }
   .kernel-status.starting  { background: rgba(245, 158, 11, 0.12);  color: var(--warning-bright); border-color: rgba(245, 158, 11, 0.35); }
   .kernel-status.ready     { background: rgba(16, 185, 129, 0.12);  color: var(--success-bright); border-color: rgba(16, 185, 129, 0.35); }
-  .kernel-status.running   { background: rgba(59, 130, 246, 0.15); color: var(--info-bright); border-color: rgba(59, 130, 246, 0.35); }
+  .kernel-status.running   { background: rgba(168, 85, 247, 0.15); color: var(--accent-bright); border-color: rgba(168, 85, 247, 0.35); }
   .kernel-status.error     { background: rgba(239, 68, 68, 0.15);   color: var(--danger-bright); border-color: rgba(239, 68, 68, 0.35); }
   .kernel-status.dead      { background: rgba(120, 120, 120, 0.15); color: #aaa; border-color: rgba(120, 120, 120, 0.3); }
 
@@ -70,7 +70,7 @@
     transition: border-color 0.15s;
   }
   .nb-cell:focus-within { border-color: var(--accent); }
-  .nb-cell.running { border-color: #60a5fa; box-shadow: 0 0 0 2px rgba(96,165,250,0.15); }
+  .nb-cell.running { border-color: #a855f7; box-shadow: 0 0 0 2px rgba(168,85,247,0.18); }
   .nb-cell.error   { border-color: rgba(239,68,68,0.5); }
 
   .nb-cell-header {
@@ -145,6 +145,37 @@
     font-size: 1.05rem; font-weight: 700; margin: 1.5rem 0 0.6rem 0;
     color: var(--text-primary);
   }
+
+  /* ── Loading spinner + retry UI ─────────────────────────────────── */
+  .nb-status-bar {
+    display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;
+    margin-top: 0.4rem; min-height: 24px;
+    font-size: 0.82rem; color: var(--text-secondary);
+  }
+  .nb-spinner {
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid rgba(139, 92, 246, 0.25);
+    border-top-color: var(--accent-bright);
+    animation: nb-spin 0.8s linear infinite;
+    display: inline-block; vertical-align: middle;
+  }
+  @keyframes nb-spin { to { transform: rotate(360deg); } }
+  .nb-status-bar.error { color: var(--danger-bright); }
+  .nb-status-bar.error .nb-spinner { display: none; }
+  .nb-retry-btn {
+    margin-left: 0.4rem; padding: 0.25rem 0.7rem; border-radius: 6px;
+    border: 1px solid var(--accent); background: rgba(139, 92, 246, 0.15);
+    color: var(--accent-bright); cursor: pointer; font-weight: 600;
+    font-size: 0.78rem; font-family: inherit; transition: all 0.15s;
+  }
+  .nb-retry-btn:hover { background: rgba(139, 92, 246, 0.25); box-shadow: var(--shadow-sm); }
+  .nb-switch-engine-btn {
+    margin-left: 0.4rem; padding: 0.25rem 0.7rem; border-radius: 6px;
+    border: 1px solid var(--accent-secondary); background: rgba(6, 182, 212, 0.12);
+    color: var(--accent-secondary); cursor: pointer; font-weight: 600;
+    font-size: 0.78rem; font-family: inherit; transition: all 0.15s;
+  }
+  .nb-switch-engine-btn:hover { background: rgba(6, 182, 212, 0.22); }
 </style>
 {% endblock %}
 
@@ -168,6 +199,12 @@
     </div>
     <span id="kernel-status" class="kernel-status starting">kernel: starting…</span>
     <button id="btn-run-all" class="btn-run-all" onclick="runAllCells()" disabled>&#9654;&#9654; Run all</button>
+</div>
+
+<!-- Loading / error status bar with retry button -->
+<div id="nb-status-bar" class="nb-status-bar">
+    <span class="nb-spinner"></span>
+    <span id="nb-status-text">Loading Pyodide kernel from CDN…</span>
 </div>
 
 <div id="notebook-cells"></div>
@@ -232,6 +269,7 @@ let pyodideReady = false;    // true once packages + auto-imports are done
 let pyodideFailed = false;
 let cellCounter = 0;         // increments on every cell execution (Jupyter-style In [N])
 let cells = [];              // [{id, code, outputEl, editorEl, promptEl}]
+let pyodideLoadTimer = null; // timeout handle for stalled Pyodide load
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Kernel status pill
@@ -240,6 +278,34 @@ function setKernelStatus(label, kind) {
     const el = document.getElementById('kernel-status');
     el.textContent = label;
     el.className = 'kernel-status ' + (kind || '');
+}
+
+// Status bar (loading spinner + retry button) — visible below the toolbar.
+function setStatusBar(text, kind) {
+    const bar = document.getElementById('nb-status-bar');
+    const txt = document.getElementById('nb-status-text');
+    txt.textContent = text;
+    bar.classList.toggle('error', kind === 'error');
+    // Toggle spinner visibility — show spinner unless we're in 'error' or 'hidden' state.
+    const spinner = bar.querySelector('.nb-spinner');
+    spinner.style.display = (kind === 'error' || kind === 'hidden' || kind === 'ready') ? 'none' : 'inline-block';
+    // Inject / remove retry + switch-engine buttons on error.
+    const existingRetry = bar.querySelector('.nb-retry-btn');
+    const existingSwitch = bar.querySelector('.nb-switch-engine-btn');
+    if (existingRetry) existingRetry.remove();
+    if (existingSwitch) existingSwitch.remove();
+    if (kind === 'error') {
+        const retry = document.createElement('button');
+        retry.className = 'nb-retry-btn';
+        retry.textContent = '↻ Retry Pyodide';
+        retry.onclick = () => { pyodideFailed = false; pyodideReady = false; pyodide = null; initPyodide(); };
+        bar.appendChild(retry);
+        const sw = document.createElement('button');
+        sw.className = 'nb-switch-engine-btn';
+        sw.textContent = '⇄ Switch to Server sandbox';
+        sw.onclick = () => setEngine('server');
+        bar.appendChild(sw);
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -252,15 +318,21 @@ function setEngine(eng) {
     if (eng === 'pyodide') {
         if (pyodideFailed) {
             setKernelStatus('kernel: pyodide failed', 'error');
+            setStatusBar('Pyodide failed to load. Try again or use the Server sandbox.', 'error');
         } else if (pyodideReady) {
             setKernelStatus('kernel: ready', 'ready');
+            setStatusBar('Pyodide kernel ready — np, pd, sklearn, matplotlib auto-imported.', 'ready');
         } else {
             setKernelStatus('kernel: starting…', 'starting');
+            setStatusBar('Loading Pyodide kernel from CDN…', 'loading');
             initPyodide();
         }
         document.getElementById('btn-run-all').disabled = false;
     } else {
+        // Clear any pending Pyodide timeout when switching to server.
+        if (pyodideLoadTimer) { clearTimeout(pyodideLoadTimer); pyodideLoadTimer = null; }
         setKernelStatus('kernel: server sandbox', 'ready');
+        setStatusBar('Using server sandbox — code runs on the OpenBenchML server.', 'ready');
         document.getElementById('btn-run-all').disabled = false;
     }
 }
@@ -270,17 +342,32 @@ function setEngine(eng) {
 // ─────────────────────────────────────────────────────────────────────────────
 async function initPyodide() {
     if (pyodideReady || pyodideFailed) return;
+    // Clear any stale timer.
+    if (pyodideLoadTimer) { clearTimeout(pyodideLoadTimer); pyodideLoadTimer = null; }
+    // Safety timeout — if Pyodide + packages don't load within 90s (slow networks,
+    // blocked CDNs, etc.), mark as failed and prompt the user to switch engine.
+    pyodideLoadTimer = setTimeout(() => {
+        if (!pyodideReady && !pyodideFailed) {
+            pyodideFailed = true;
+            setKernelStatus('kernel: pyodide timeout', 'error');
+            setStatusBar('Pyodide took too long to load (CDN may be blocked on your network). Use the Server sandbox instead, or click Retry.', 'error');
+        }
+    }, 90000);
+
     try {
         setKernelStatus('kernel: loading Pyodide…', 'starting');
+        setStatusBar('Loading Pyodide runtime from CDN (≈10 MB)…', 'loading');
         pyodide = await loadPyodide();
 
         setKernelStatus('kernel: loading packages (np, pd, sklearn, matplotlib)…', 'starting');
+        setStatusBar('Loading NumPy, pandas, scikit-learn, matplotlib, scipy (≈40 MB)…', 'loading');
         // This is the critical fix — loadPackage MUST be called before user code,
         // otherwise pandas/sklearn/matplotlib raise ModuleNotFoundError even though
         // they're listed as available in the Pyodide distribution.
         await pyodide.loadPackage(PYODIDE_PACKAGES, { messageCallback: () => {} });
 
         setKernelStatus('kernel: auto-importing…', 'starting');
+        setStatusBar('Auto-importing np / pd / sklearn / matplotlib + patching dataset fetcher…', 'loading');
         // Auto-import the four canonical aliases so user code can use np, pd, etc.
         await pyodide.runPythonAsync(`
 import numpy as np
@@ -376,12 +463,17 @@ def __obml_repr_html__(obj):
 `);
 
         pyodideReady = true;
+        if (pyodideLoadTimer) { clearTimeout(pyodideLoadTimer); pyodideLoadTimer = null; }
         setKernelStatus('kernel: ready', 'ready');
+        setStatusBar('Pyodide kernel ready — np, pd, sklearn, matplotlib auto-imported.', 'ready');
         console.log("[nb] Pyodide ready:", PYODIDE_VERSION, "packages:", PYODIDE_PACKAGES.join(", "));
     } catch (err) {
         console.error("[nb] Pyodide init failed:", err);
+        if (pyodideLoadTimer) { clearTimeout(pyodideLoadTimer); pyodideLoadTimer = null; }
         pyodideFailed = true;
         setKernelStatus('kernel: pyodide failed', 'error');
+        const errMsg = (err && err.message) ? err.message : String(err);
+        setStatusBar('Pyodide failed to load: ' + errMsg + '. Click Retry or switch to the Server sandbox.', 'error');
     }
 }
 
@@ -593,7 +685,7 @@ async function runCellServer(cellObj) {
         const res = await fetch('/api/notebook/run', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code, timeout_seconds: 30 }),
+            body: JSON.stringify({ code, timeout_seconds: 300 }),
         });
         if (res.status === 401) {
             renderOutput(cellObj, { error: "Authentication required — please log in." });
@@ -629,7 +721,7 @@ async function runCell(id) {
             if (!pyodideReady) {
                 renderOutput(cellObj, {
                     error: pyodideFailed
-                        ? "Pyodide failed to load. Switch to Server sandbox above, or refresh the page."
+                        ? "Pyodide failed to load. Click '⇄ Switch to Server sandbox' below, or refresh the page."
                         : "Pyodide is still loading — please wait a moment and try again."
                 });
                 markCellError(cellObj, true);

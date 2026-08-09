@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
+from starlette.types import Scope
 
 from app.config import (
     APP_NAME, APP_VERSION, APP_DESCRIPTION, STATIC_DIR, TEMPLATE_DIR,
@@ -230,7 +231,21 @@ async def rate_limit_handler(request: Request, exc):
 
 
 # ─── Mount Static Files ──────────────────────────────────────────────────────
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+# Custom StaticFiles subclass that sends `Cache-Control: no-cache` so browsers
+# always revalidate with the server. Combined with the ?v=5.1.0 query string on
+# every <link>/<script> reference, this guarantees users on laptops never see
+# stale (blue) CSS after a deploy.
+class NoCacheStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        resp = await super().get_response(path, scope)
+        # Let the browser store the file but always revalidate (304 if unchanged).
+        resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+        resp.headers.setdefault("Pragma", "no-cache")
+        resp.headers.setdefault("Expires", "0")
+        return resp
+
+
+app.mount("/static", NoCacheStaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 # ─── Include Routers ─────────────────────────────────────────────────────────
