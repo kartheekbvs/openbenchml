@@ -6,17 +6,19 @@
 <style>
   /* ── Notebook page layout ───────────────────────────────────────── */
   .nb-hero {
-    background: linear-gradient(135deg, rgba(160,192,0,0.08), rgba(96,128,128,0.08));
+    background: var(--gradient-card);
     border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.1rem 1.4rem;
+    border-radius: var(--radius-lg);
+    padding: 1.25rem 1.5rem;
     margin-bottom: 1.25rem;
+    backdrop-filter: blur(12px);
   }
   .nb-hero h1 { margin: 0 0 0.4rem 0; font-size: 1.45rem; }
   .nb-hero p  { margin: 0; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.55; }
   .nb-hero code {
-    background: rgba(160,192,0,0.12); color: var(--accent);
-    padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.85rem;
+    background: rgba(139, 92, 246, 0.15); color: var(--accent-bright);
+    padding: 0.15rem 0.5rem; border-radius: 6px; font-size: 0.85rem;
+    border: 1px solid var(--border-light);
   }
 
   /* ── Engine toggle (Pyodide / Server) ──────────────────────────── */
@@ -35,29 +37,30 @@
     font-family: inherit;
   }
   .engine-toggle button.active {
-    background: var(--accent); color: #1a1a1a;
+    background: var(--gradient-primary); color: #ffffff;
+    box-shadow: 0 2px 8px rgba(139, 92, 246, 0.4);
   }
   .engine-toggle button:not(.active):hover {
     color: var(--text-primary); background: var(--bg-elevated);
   }
   .kernel-status {
     font-size: 0.78rem; padding: 0.3rem 0.75rem; border-radius: 999px;
-    font-weight: 600; background: rgba(160,192,0,0.1); color: var(--accent);
-    border: 1px solid rgba(160,192,0,0.25);
+    font-weight: 600; background: rgba(139, 92, 246, 0.12); color: var(--accent-bright);
+    border: 1px solid var(--border-bright);
   }
-  .kernel-status.starting  { background: rgba(234,179,8,0.12);  color: #eab308; border-color: rgba(234,179,8,0.3); }
-  .kernel-status.ready     { background: rgba(160,192,0,0.15);  color: #a0c000; border-color: rgba(160,192,0,0.35); }
-  .kernel-status.running   { background: rgba(96,165,250,0.15); color: #60a5fa; border-color: rgba(96,165,250,0.35); }
-  .kernel-status.error     { background: rgba(239,68,68,0.15);  color: #ef4444; border-color: rgba(239,68,68,0.35); }
-  .kernel-status.dead      { background: rgba(120,120,120,0.15); color: #aaa;    border-color: rgba(120,120,120,0.3); }
+  .kernel-status.starting  { background: rgba(245, 158, 11, 0.12);  color: var(--warning-bright); border-color: rgba(245, 158, 11, 0.35); }
+  .kernel-status.ready     { background: rgba(16, 185, 129, 0.12);  color: var(--success-bright); border-color: rgba(16, 185, 129, 0.35); }
+  .kernel-status.running   { background: rgba(59, 130, 246, 0.15); color: var(--info-bright); border-color: rgba(59, 130, 246, 0.35); }
+  .kernel-status.error     { background: rgba(239, 68, 68, 0.15);   color: var(--danger-bright); border-color: rgba(239, 68, 68, 0.35); }
+  .kernel-status.dead      { background: rgba(120, 120, 120, 0.15); color: #aaa; border-color: rgba(120, 120, 120, 0.3); }
 
   .btn-run-all {
-    margin-left: auto; padding: 0.5rem 1rem; border-radius: 8px;
-    border: 1px solid var(--accent); background: rgba(160,192,0,0.12);
-    color: var(--accent); cursor: pointer; font-weight: 600; font-size: 0.85rem;
-    font-family: inherit; transition: all 0.15s;
+    margin-left: auto; padding: 0.5rem 1.1rem; border-radius: var(--radius-sm);
+    border: 1px solid var(--accent); background: rgba(139, 92, 246, 0.15);
+    color: var(--accent-bright); cursor: pointer; font-weight: 600; font-size: 0.85rem;
+    font-family: inherit; transition: all var(--transition-base);
   }
-  .btn-run-all:hover { background: rgba(160,192,0,0.22); }
+  .btn-run-all:hover { background: rgba(139, 92, 246, 0.25); box-shadow: var(--shadow-glow); }
   .btn-run-all:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* ── Notebook cells ─────────────────────────────────────────────── */
@@ -77,7 +80,7 @@
   }
   .nb-cell-prompt {
     font-family: 'SFMono-Regular', Consolas, monospace;
-    color: var(--accent); font-weight: 600; min-width: 60px;
+    color: var(--accent-bright); font-weight: 600; min-width: 60px;
   }
   .nb-cell-prompt.empty { color: var(--text-muted); }
   .nb-cell-actions { display: flex; gap: 0.25rem; margin-left: auto; }
@@ -88,9 +91,9 @@
     font-size: 0.8rem; line-height: 1; transition: all 0.12s;
     font-family: inherit; display: inline-flex; align-items: center; justify-content: center;
   }
-  .nb-cell-actions button:hover { color: var(--text-primary); border-color: var(--accent); background: rgba(160,192,0,0.08); }
-  .nb-cell-actions button.run-btn { color: var(--accent); border-color: rgba(160,192,0,0.4); }
-  .nb-cell-actions button.run-btn:hover { background: var(--accent); color: #1a1a1a; }
+  .nb-cell-actions button:hover { color: var(--text-primary); border-color: var(--accent-bright); background: rgba(139, 92, 246, 0.1); }
+  .nb-cell-actions button.run-btn { color: var(--accent-bright); border-color: var(--border-bright); }
+  .nb-cell-actions button.run-btn:hover { background: var(--gradient-primary); color: #ffffff; border-color: transparent; }
   .nb-cell-actions button.danger:hover { color: #ef4444; border-color: #ef4444; background: rgba(239,68,68,0.08); }
 
   .nb-cell-editor {
@@ -129,12 +132,12 @@
     gap: 0.6rem;
   }
   .preset-btn {
-    padding: 0.65rem 0.8rem; background: rgba(160,192,0,0.06);
-    border: 1px solid rgba(160,192,0,0.2); border-radius: 8px;
+    padding: 0.7rem 0.9rem; background: rgba(139, 92, 246, 0.06);
+    border: 1px solid var(--border-light); border-radius: var(--radius-sm);
     cursor: pointer; font-size: 0.85rem; color: var(--text-primary);
-    transition: all 0.15s; text-align: left; font-family: inherit;
+    transition: all var(--transition-base); text-align: left; font-family: inherit;
   }
-  .preset-btn:hover { background: rgba(160,192,0,0.15); border-color: var(--accent); }
+  .preset-btn:hover { background: rgba(139, 92, 246, 0.15); border-color: var(--accent-bright); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
   .preset-btn .preset-name { font-weight: 600; display: block; margin-bottom: 2px; }
   .preset-btn .preset-desc { font-size: 0.78rem; color: var(--text-secondary); }
 
@@ -723,7 +726,7 @@ summary`,
 import matplotlib.pyplot as plt
 
 fig, ax = plt.subplots(figsize=(8, 4))
-summary['mean_acc'].plot(kind='barh', ax=ax, color='#a0c000')
+summary['mean_acc'].plot(kind='barh', ax=ax, color='#8b5cf6')
 ax.set_xlabel('Mean accuracy')
 ax.set_title('Model × Dataset — mean accuracy')
 plt.tight_layout()

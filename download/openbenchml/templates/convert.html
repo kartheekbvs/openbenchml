@@ -31,7 +31,7 @@
   .code-editor:focus {
     outline: none;
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(160, 192, 0, 0.15);
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2), 0 0 16px rgba(139, 92, 246, 0.15);
   }
 
   /* ── Engine toggle (matches the notebook page) ─────────────────── */
@@ -53,11 +53,11 @@
   }
   .kernel-status {
     font-size: 0.78rem; padding: 0.3rem 0.75rem; border-radius: 999px;
-    font-weight: 600; background: rgba(160,192,0,0.1); color: var(--accent);
-    border: 1px solid rgba(160,192,0,0.25);
+    font-weight: 600; background: rgba(139, 92, 246, 0.12); color: var(--accent-bright);
+    border: 1px solid var(--border-bright);
   }
   .kernel-status.starting { background: rgba(234,179,8,0.12);  color: #eab308; border-color: rgba(234,179,8,0.3); }
-  .kernel-status.ready    { background: rgba(160,192,0,0.15);  color: #a0c000; border-color: rgba(160,192,0,0.35); }
+  .kernel-status.ready    { background: rgba(16, 185, 129, 0.12);  color: var(--success-bright); border-color: rgba(16, 185, 129, 0.35); }
   .kernel-status.running  { background: rgba(96,165,250,0.15); color: #60a5fa; border-color: rgba(96,165,250,0.35); }
   .kernel-status.error    { background: rgba(239,68,68,0.15);  color: #ef4444; border-color: rgba(239,68,68,0.35); }
 
@@ -81,12 +81,12 @@
   .live-output .stream-stdout { color: #e6edf3; }
   .live-output .stream-stderr { color: #ff7b72; }
   .live-output .stream-error  { color: #ff7b72; font-weight: 600; }
-  .live-output .stream-success { color: #a0c000; font-weight: 600; }
+  .live-output .stream-success { color: var(--success-bright); font-weight: 600; }
 
   /* ── Hint cards ────────────────────────────────────────────────── */
   .hint-card {
-    background: rgba(160, 192, 0, 0.06);
-    border: 1px solid rgba(160, 192, 0, 0.2);
+    background: rgba(139, 92, 246, 0.06);
+    border: 1px solid var(--border-light);
     border-radius: 10px;
     padding: 1rem 1.25rem;
     margin-bottom: 1rem;
@@ -113,8 +113,8 @@
     display: flex; align-items: center; justify-content: center;
   }
   .step-list li code {
-    background: rgba(160, 192, 0, 0.12);
-    color: var(--accent);
+    background: rgba(139, 92, 246, 0.12);
+    color: var(--accent-bright);
     padding: 0.1rem 0.4rem;
     border-radius: 4px;
     font-size: 0.85rem;
@@ -134,9 +134,9 @@
     font-family: 'SFMono-Regular', Consolas, monospace;
   }
   .convert-alert.success {
-    background: rgba(160, 192, 0, 0.08);
-    border-color: rgba(160, 192, 0, 0.4);
-    color: #a0c000;
+    background: rgba(16, 185, 129, 0.08);
+    border-color: rgba(16, 185, 129, 0.4);
+    color: var(--success-bright);
   }
 
   /* ── Preset chips ──────────────────────────────────────────────── */
@@ -146,8 +146,8 @@
   }
   .preset-chip {
     padding: 0.35rem 0.7rem;
-    background: rgba(160, 192, 0, 0.06);
-    border: 1px solid rgba(160, 192, 0, 0.25);
+    background: rgba(139, 92, 246, 0.06);
+    border: 1px solid var(--border-light);
     border-radius: 999px;
     cursor: pointer;
     font-size: 0.78rem;
@@ -156,23 +156,23 @@
     font-family: inherit;
   }
   .preset-chip:hover {
-    background: rgba(160, 192, 0, 0.15);
-    border-color: var(--accent);
+    background: rgba(139, 92, 246, 0.15);
+    border-color: var(--accent-bright);
   }
 
   .btn-train {
     padding: 0.55rem 1.1rem;
     border-radius: 8px;
     border: 1px solid var(--accent);
-    background: rgba(160, 192, 0, 0.12);
-    color: var(--accent);
+    background: rgba(139, 92, 246, 0.12);
+    color: var(--accent-bright);
     cursor: pointer;
     font-weight: 600;
     font-size: 0.9rem;
     font-family: inherit;
     transition: all 0.15s;
   }
-  .btn-train:hover:not(:disabled) { background: rgba(160, 192, 0, 0.22); }
+  .btn-train:hover:not(:disabled) { background: rgba(139, 92, 246, 0.22); box-shadow: var(--shadow-glow); }
   .btn-train:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
 {% endblock %}
@@ -182,7 +182,7 @@
     <h1>&#9889; Convert Code → Model</h1>
     <p class="text-muted">
         Paste Python code that <strong>trains a model</strong> and assigns it to a variable named
-        <code style="background: rgba(160, 192, 0,0.12); color: var(--accent); padding: 0.1rem 0.4rem; border-radius: 4px;">model</code>.
+        <code style="background: rgba(139, 92, 246, 0.15); color: var(--accent-bright); padding: 0.15rem 0.5rem; border-radius: 6px; border: 1px solid var(--border-light);">model</code>.
         OpenBenchML will execute it, pickle the model, and register it — ready to benchmark.
         No local Python or git needed.
     </p>
