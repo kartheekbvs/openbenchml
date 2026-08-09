@@ -308,14 +308,14 @@ async def get_current_user_from_cookie(
 class RegisterRequest(BaseModel):
     """Pydantic model for JSON registration requests."""
     username: str
-    email: str
+    email: EmailStr
     password: str
     confirm_password: str | None = None
 
 
 class LoginRequest(BaseModel):
     """Pydantic model for JSON login requests."""
-    email: str
+    email: EmailStr
     password: str
 
 

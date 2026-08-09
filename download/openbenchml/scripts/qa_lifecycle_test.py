@@ -22,7 +22,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from fastapi.testclient import TestClient
 from app.main import app
 
-client = TestClient(app)
+# Use the context manager so lifespan events fire (init_db + seed).
+# Without this, the SQLite DB file isn't created and every query 500s.
+client = TestClient(app).__enter__()
 
 print("=" * 72)
 print("  Full Benchmark Lifecycle E2E Test")

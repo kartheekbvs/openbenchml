@@ -315,15 +315,24 @@ async def convert_api(
         "size_kb": new_model.size_kb,
         "detected_framework": meta["framework"],
         "model_class": meta["model_class"],
+        "task_type": meta.get("task_type", "unknown"),
+        "is_fitted": meta.get("is_fitted", True),
+        "params": meta.get("params", {}),
         "stdout": meta["stdout"],
         "stderr": meta["stderr"],
         "metrics_in_code": {
             k: v for k, v in {
                 "accuracy": meta.get("accuracy"),
+                "precision": meta.get("precision"),
+                "recall": meta.get("recall"),
                 "f1_score": meta.get("f1_score"),
+                "auc_roc": meta.get("auc_roc"),
+                "log_loss": meta.get("log_loss"),
                 "rmse": meta.get("rmse"),
+                "mse": meta.get("mse"),
                 "r2_score": meta.get("r2_score"),
                 "mae": meta.get("mae"),
+                "mape": meta.get("mape"),
             }.items() if v is not None
         },
     }
@@ -449,6 +458,9 @@ async def convert_upload_pickle_api(
         "size_kb": new_model.size_kb,
         "detected_framework": meta["framework"],
         "model_class": meta.get("model_class") or payload.model_class_hint or "Unknown",
+        "task_type": meta.get("task_type", "unknown"),
+        "is_fitted": meta.get("is_fitted", True),
+        "params": meta.get("params", {}),
         "stdout": payload.stdout,
         "stderr": payload.stderr,
         "metrics_in_code": {

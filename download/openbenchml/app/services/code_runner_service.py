@@ -30,6 +30,7 @@ via the ``docker_runner`` package).
 """
 
 import io
+import json
 import logging
 import os
 import pickle
@@ -462,8 +463,34 @@ def code_to_pickled_model(
     model_obj = ns[expected_var]
     model_class = type(model_obj).__name__
 
+    # ── Validate this is actually a model object ──────────────────────────
+    # The whole point of /convert is to capture a *trained model*. If the
+    # user assigned something like ``model = 42`` or ``model = "hello"``
+    # to the `model` variable, we should fail with a helpful message
+    # rather than pickling garbage and breaking the benchmark engine later.
+    if not _looks_like_a_model(model_obj):
+        raise ValueError(
+            f"The '{expected_var}' variable is a {model_class}, which doesn't "
+            f"look like a trained ML model (it has no predict() / transform() / "
+            f"score() method). Please assign your trained estimator to "
+            f"'{expected_var}'. For example:\n"
+            f"    model = RandomForestClassifier(n_estimators=100)\n"
+            f"    model.fit(X_train, y_train)\n"
+        )
+
     # ── Detect framework from the model class ─────────────────────────────
     framework = _detect_framework(model_obj)
+
+    # ── Auto-detect task type from the model class ────────────────────────
+    # Used by the benchmark form to pre-select the right dataset. Also
+    # surfaces in the API response so CLI users know what to expect.
+    task_type = _detect_task_type(model_obj)
+
+    # ── Introspect key model parameters (for the model detail page) ───────
+    # We grab a small curated set of "interesting" hyperparameters that
+    # vary by model type. This is purely for display — the pickled model
+    # already has all its real params.
+    params = _introspect_model_params(model_obj)
 
     # ── Pickle the model to a temp file, then read the bytes ──────────────
     # Using joblib is more robust for sklearn models with numpy arrays.
@@ -484,6 +511,9 @@ def code_to_pickled_model(
     metadata = {
         "model_class": model_class,
         "framework": framework,
+        "task_type": task_type,
+        "params": params,
+        "is_fitted": _is_fitted(model_obj),
         "namespace_keys": sorted(
             k for k in ns.keys() if not k.startswith("_")
         ),
@@ -495,18 +525,35 @@ def code_to_pickled_model(
     # Try to grab any obvious metric variables the user may have left.
     # We accept both long and short names so the UI shows useful info
     # whether the student wrote ``acc = ...`` or ``accuracy = ...``.
+    # This is a *hint* for display — the authoritative metrics come from
+    # the benchmark engine when the model is later benchmarked on a
+    # known dataset.
     _METRIC_ALIASES = {
-        "accuracy":   ("accuracy", "acc"),
-        "f1_score":   ("f1_score", "f1"),
-        "rmse":       ("rmse",),
-        "r2_score":   ("r2_score", "r2"),
-        "mae":        ("mae",),
+        "accuracy":     ("accuracy", "acc", "test_accuracy", "test_acc"),
+        "precision":    ("precision", "prec"),
+        "recall":       ("recall", "sensitivity"),
+        "f1_score":     ("f1_score", "f1"),
+        "auc_roc":      ("auc_roc", "auc", "roc_auc"),
+        "log_loss":     ("log_loss", "logloss"),
+        "rmse":         ("rmse",),
+        "mse":          ("mse",),
+        "r2_score":     ("r2_score", "r2"),
+        "mae":          ("mae",),
+        "mape":         ("mape",),
     }
     for canonical, aliases in _METRIC_ALIASES.items():
         for alias in aliases:
-            if alias in ns and isinstance(ns[alias], (int, float)):
-                metadata[canonical] = float(ns[alias])
-                break
+            if alias in ns:
+                v = ns[alias]
+                # Accept ints, floats, and 0-d numpy scalars. Reject
+                # anything that can't be losslessly cast to float.
+                try:
+                    fv = float(v)
+                except (TypeError, ValueError):
+                    continue
+                if isinstance(v, (int, float)) or hasattr(v, "item"):
+                    metadata[canonical] = fv
+                    break
 
     return pickled_bytes, metadata
 
@@ -541,6 +588,208 @@ def _detect_framework(model_obj: Any) -> str:
     if "onnx" in mod:
         return "onnx"
     return "scikit-learn"
+
+
+# ─── Model introspection helpers ────────────────────────────────────────────
+# Used by /convert to enrich the API response and to validate that the
+# user actually trained a model (rather than e.g. ``model = 42``).
+#
+# These helpers are deliberately defensive — they must not raise on
+# exotic model objects (Keras, custom classes, etc.).
+
+# A small set of method names that any real ML model should have. We
+# require at least one of these to consider the object a "model".
+_MODEL_METHOD_HINTS = ("predict", "transform", "fit_transform", "score",
+                        "decision_function", "predict_proba", "forward")
+
+
+def _looks_like_a_model(obj: Any) -> bool:
+    """Return True if ``obj`` has at least one method that real ML models have.
+
+    This catches the common mistake of assigning a non-model object
+    (int, str, list, dict, numpy array, etc.) to the ``model`` variable
+    in /convert code. Without this check the platform would happily
+    pickle garbage, save it as an MLModel, and then fail confusingly
+    when the benchmark engine tried to call .predict() on it.
+
+    A trained model will have at least ``predict`` (sklearn, xgboost,
+    lightgbm), ``forward`` (pytorch), or ``predict`` (keras). Pipelines
+    and transformers have ``transform`` or ``fit_transform``.
+    """
+    return any(callable(getattr(obj, m, None)) for m in _MODEL_METHOD_HINTS)
+
+
+def _is_fitted(model_obj: Any) -> bool:
+    """Best-effort check that a sklearn-style estimator has been fitted.
+
+    Uses sklearn's ``check_is_fitted`` if available; falls back to
+    checking for the conventional ``_estimator_type`` + any fitted
+    attribute ending in ``_`` (sklearn's naming convention for learned
+    attributes).
+    """
+    try:
+        from sklearn.utils.validation import check_is_fitted
+        check_is_fitted(model_obj)
+        return True
+    except Exception:
+        pass
+    # Fallback: look for any attribute ending in "_" (sklearn's convention
+    # for fitted attributes like ``coef_``, ``classes_``, ``feature_importances_``).
+    try:
+        return any(k.endswith("_") and not k.startswith("__")
+                   for k in vars(model_obj))
+    except TypeError:
+        # vars() doesn't work on objects without __dict__ (e.g. slots).
+        return False
+
+
+# Maps model-class name fragments → task type. Order matters: more
+# specific patterns (e.g. "RandomForestClassifier") must come before
+# generic ones ("RandomForest").
+_TASK_TYPE_PATTERNS = (
+    ("classifier", "classification",
+     ("classifier", "logisticregression", "svc", "randomforestclassifier",
+      "gradientboostingclassifier", "kneighborsclassifier", "decisiontreeclassifier",
+      "extratreesclassifier", "adaboostclassifier", "gaussiannb", "multinomialnb",
+      "bernoullinb", "mlpclassifier", "perceptron", "ridgeclassifier",
+      "sgdclassifier", "linearsvc", "quadraticdiscriminantanalysis",
+      "lineardiscriminantanalysis")),
+    ("regressor", "regression",
+     ("regressor", "ridge", "lasso", "elasticnet", "linearregression",
+      "svr", "randomforestregressor", "gradientboostingregressor",
+      "kneighborsregressor", "decisiontreeregressor", "extratreesregressor",
+      "adaboostregressor", "mlpregressor", "sgdregressor", "svr",
+      "ardregression", "bayesianridge", "huberregressor", "theilsenregressor",
+      "ransacregressor", "orthogonalmatchingpursuit")),
+    ("clusterer", "clustering",
+     ("kmeans", "dbscan", "meanshift", "spectralclustering", "agglomerativeclustering",
+      "birch", "optics", "affinitypropagation", "minibatchkmeans",
+      "featureagglomeration")),
+)
+
+
+def _detect_task_type(model_obj: Any) -> str:
+    """Infer task_type (classification/regression/clustering) from class name.
+
+    Uses sklearn's ``_estimator_type`` attribute when present (most
+    sklearn estimators set this to ``"classifier"`` / ``"regressor"``
+    / ``"clusterer"``). Falls back to substring matching on the class
+    name for non-sklearn models (XGBoost, LightGBM, custom classes).
+    """
+    # Try sklearn's official attribute first.
+    try:
+        et = getattr(model_obj, "_estimator_type", None)
+        if et:
+            et = et.lower()
+            if "class" in et:
+                return "classification"
+            if "regress" in et:
+                return "regression"
+            if "cluster" in et:
+                return "clustering"
+    except Exception:
+        pass
+
+    # Fallback: substring match on the class name.
+    name = (getattr(type(model_obj), "__name__", "") or "").lower()
+    for _, task, patterns in _TASK_TYPE_PATTERNS:
+        if any(p in name for p in patterns):
+            return task
+
+    # XGBoost / LightGBM / PyTorch / TensorFlow — look at class + attributes.
+    cls_name = name
+    if "xgb" in cls_name or "lgbm" in cls_name:
+        if "regress" in cls_name:
+            return "regression"
+        if "classif" in cls_name or "ranker" not in cls_name:
+            return "classification"
+
+    # Last resort: try to peek at n_classes_ (sklearn classifiers set
+    # this when fitted) vs coef_ shape.
+    try:
+        if hasattr(model_obj, "n_classes_") or hasattr(model_obj, "classes_"):
+            return "classification"
+    except Exception:
+        pass
+
+    return "unknown"
+
+
+# Hyperparameters worth surfacing in the model detail page. We pull
+# only the most informative ones (the ones students actually tweak).
+_PARAM_NAMES_BY_CLASS = {
+    # Tree-based
+    "n_estimators": ("RandomForest", "GradientBoosting", "ExtraTrees",
+                     "AdaBoost", "IsolationForest"),
+    "max_depth": ("RandomForest", "GradientBoosting", "ExtraTrees",
+                  "DecisionTree", "AdaBoost"),
+    "max_features": ("RandomForest", "ExtraTrees", "DecisionTree"),
+    "min_samples_split": ("RandomForest", "ExtraTrees", "DecisionTree"),
+    "learning_rate": ("GradientBoosting", "AdaBoost", "HistGradientBoosting"),
+    # Linear
+    "alpha": ("Ridge", "Lasso", "ElasticNet"),
+    "C": ("LogisticRegression", "SVC", "SVR", "LinearSVC"),
+    "penalty": ("LogisticRegression", "SGDClassifier", "SGDRegressor"),
+    # Neighbors
+    "n_neighbors": ("KNeighbors",),
+    # SVM
+    "kernel": ("SVC", "SVR"),
+    "gamma": ("SVC", "SVR"),
+    # Naive Bayes
+    "var_smoothing": ("GaussianNB",),
+    "alpha_nb": ("MultinomialNB", "BernoulliNB"),
+    # Neural net
+    "hidden_layer_sizes": ("MLPClassifier", "MLPRegressor"),
+    "activation": ("MLPClassifier", "MLPRegressor"),
+    # Clustering
+    "n_clusters": ("KMeans", "MiniBatchKMeans", "MeanShift",
+                   "SpectralClustering", "AgglomerativeClustering"),
+}
+
+
+def _introspect_model_params(model_obj: Any) -> dict:
+    """Pull a small curated set of hyperparameters from the model object.
+
+    Returns a dict of {param_name: value} where value is JSON-serializable
+    (str/int/float/bool/None). Anything that can't be JSON-serialized
+    (numpy arrays, custom objects) is dropped.
+
+    This is purely for display in the model detail page — the pickled
+    model already has all its real params, this is just a quick summary.
+    """
+    out: dict = {}
+    try:
+        get_params = getattr(model_obj, "get_params", None)
+        params_dict = get_params() if callable(get_params) else {}
+    except Exception:
+        params_dict = {}
+
+    cls_name = type(model_obj).__name__
+    # Find which params are relevant for this class.
+    relevant = set()
+    for pname, class_patterns in _PARAM_NAMES_BY_CLASS.items():
+        if any(p in cls_name for p in class_patterns):
+            relevant.add(pname)
+    # Also always include these "common" ones if present.
+    relevant.update({"random_state", "n_jobs"})
+
+    for pname in relevant:
+        if pname in params_dict:
+            v = params_dict[pname]
+            # Try to make it JSON-safe.
+            try:
+                json.dumps(v)
+                out[pname] = v
+            except (TypeError, ValueError):
+                # Convert numpy types / tuples to a str representation.
+                try:
+                    out[pname] = str(v)
+                except Exception:
+                    pass
+    return out
+
+
+
 
 
 def save_pickled_model(
@@ -606,9 +855,15 @@ def inspect_pickled_bytes(pickled_bytes: bytes) -> Dict[str, Any]:
         model_obj = _joblib.load(io.BytesIO(pickled_bytes))
         model_class = type(model_obj).__name__
         framework = _detect_framework(model_obj)
+        task_type = _detect_task_type(model_obj)
+        params = _introspect_model_params(model_obj)
+        is_fitted = _is_fitted(model_obj)
         return {
             "model_class": model_class,
             "framework": framework,
+            "task_type": task_type,
+            "params": params,
+            "is_fitted": is_fitted,
             "size_kb": size_kb,
             "ok": True,
         }
@@ -617,6 +872,9 @@ def inspect_pickled_bytes(pickled_bytes: bytes) -> Dict[str, Any]:
         return {
             "model_class": "Unknown",
             "framework": "scikit-learn",
+            "task_type": "unknown",
+            "params": {},
+            "is_fitted": False,
             "size_kb": size_kb,
             "ok": False,
             "error": str(exc),
