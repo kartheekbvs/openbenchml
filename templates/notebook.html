@@ -201,6 +201,10 @@
         <span class="preset-name">Pandas DataFrame demo</span>
         <span class="preset-desc">Build a DataFrame &amp; render as table</span>
     </button>
+    <button class="preset-btn" onclick="loadPreset('california-housing')">
+        <span class="preset-name">California Housing (remote fetch)</span>
+        <span class="preset-desc">Download + train RandomForestRegressor</span>
+    </button>
 </div>
 
 {% endblock %}
@@ -287,6 +291,66 @@ matplotlib.use("AGG")
 import matplotlib.pyplot as plt
 import scipy
 import io, base64, sys
+
+# ── Patch sklearn's remote dataset fetcher so datasets like ───────────
+# ── fetch_california_housing / fetch_openml work in the browser. ──────
+# Pyodide can't make raw urllib HTTPS calls (no sockets), so we patch
+# sklearn.datasets._base._fetch_remote to use pyodide.http.open_url,
+# which uses the browser's fetch() under the hood synchronously.
+try:
+    from pyodide.http import open_url
+    import sklearn.datasets._base as _sk_base
+    import urllib.request as _urllib_request
+    import os, hashlib
+
+    def _obml_fetch_remote(remote, dirname=None):
+        """Replacement for sklearn.datasets._base._fetch_remote.
+        Downloads via the browser's fetch() (synchronous via open_url)
+        and caches to the Pyodide FS so subsequent loads are instant."""
+        if dirname is None:
+            from sklearn.datasets._base import get_data_home
+            dirname = get_data_home()
+        os.makedirs(dirname, exist_ok=True)
+        filename = os.path.join(dirname, remote.filename)
+        if not os.path.exists(filename):
+            # open_url returns a StringIO-like object backed by the browser
+            # response. Read its bytes and write to the Pyodide FS.
+            print(f"[nb] Fetching dataset: {remote.url}")
+            data = open_url(remote.url).read()
+            # data may be str or bytes depending on pyodide version
+            if isinstance(data, str):
+                data = data.encode("utf-8")
+            with open(filename, "wb") as f:
+                f.write(data)
+        # Validate checksum (sklearn requires it)
+        checksum = remote.checksum
+        if checksum is not None:
+            with open(filename, "rb") as f:
+                file_hash = hashlib.sha1(f.read()).hexdigest()
+            if file_hash != checksum:
+                raise IOError(
+                    f"File {filename} checksum mismatch: "
+                    f"expected {checksum}, got {file_hash}"
+                )
+        return filename
+
+    # Install the patch (this is the function sklearn calls internally)
+    _sk_base._fetch_remote = _obml_fetch_remote
+
+    # Also patch urllib.request.urlretrieve (used by some sklearn paths)
+    def _obml_urlretrieve(url, filename, reporthook=None, data=None):
+        print(f"[nb] Fetching: {url}")
+        content = open_url(url).read()
+        if isinstance(content, str):
+            content = content.encode("utf-8")
+        with open(filename, "wb") as f:
+            f.write(content)
+        return (filename, {})
+    _urllib_request.urlretrieve = _obml_urlretrieve
+
+    print("[nb] Patched sklearn dataset fetcher for Pyodide (HTTPS via browser)")
+except Exception as _e:
+    print(f"[nb] Warning: could not patch sklearn fetcher: {_e}")
 
 # Helper: render the current matplotlib figure(s) as base64 PNG list.
 # Called from JS after each cell run to display plots inline.
@@ -729,6 +793,67 @@ fig, ax = plt.subplots(figsize=(8, 4))
 summary['mean_acc'].plot(kind='barh', ax=ax, color='#8b5cf6')
 ax.set_xlabel('Mean accuracy')
 ax.set_title('Model × Dataset — mean accuracy')
+plt.tight_layout()
+plt.show()`,
+    ],
+
+    'california-housing': [
+`# California Housing — downloads via the browser (Pyodide HTTP shim).
+# The OpenBenchML notebook patches sklearn's fetcher to use fetch()
+# under the hood, so fetch_california_housing() works in-browser.
+import numpy as np
+import pandas as pd
+from sklearn.datasets import fetch_california_housing
+
+print("Loading California Housing dataset (downloading via browser)...")
+housing = fetch_california_housing(as_frame=True)
+df = housing.frame
+print(f"Shape: {df.shape}")
+print("\\nDataset preview:")
+print(df.head())`,
+`# Train a RandomForestRegressor on the California Housing dataset.
+# This is the exact workflow that previously timed out on the server
+# sandbox — but in Pyodide it runs entirely in your browser with no
+# timeout limit.
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, r2_score
+
+X = housing.data
+y = housing.target
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42
+)
+
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
+
+print("Training RandomForestRegressor (n_estimators=100)...")
+model = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
+model.fit(X_train_scaled, y_train)
+
+y_pred = model.predict(X_test_scaled)
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
+r2 = r2_score(y_test, y_pred)
+
+print("\\n--- Model Evaluation ---")
+print(f"RMSE:  {rmse:.4f}  (~${rmse * 100000:,.0f})")
+print(f"R²:    {r2:.4f}")`,
+`# Feature importance visualization.
+import matplotlib.pyplot as plt
+
+importances = pd.Series(
+    model.feature_importances_, index=housing.feature_names
+).sort_values(ascending=True)
+
+fig, ax = plt.subplots(figsize=(8, 5))
+importances.plot(kind='barh', ax=ax, color='#8b5cf6')
+ax.set_xlabel('Importance')
+ax.set_title('RandomForest — Feature Importances (California Housing)')
 plt.tight_layout()
 plt.show()`,
     ],

@@ -207,7 +207,7 @@ async def notebook_page(
 class NotebookRunRequest(BaseModel):
     """JSON schema for the notebook run endpoint."""
     code: str = Field(..., min_length=1, max_length=50_000)
-    timeout_seconds: int = Field(default=30, ge=1, le=120)
+    timeout_seconds: int = Field(default=300, ge=10, le=600)
 
 
 @router.post("/api/notebook/run", response_class=JSONResponse)
