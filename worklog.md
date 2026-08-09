@@ -758,3 +758,62 @@ Stage Summary:
 - ✅ 29/29 core engine tests still pass.
 - ✅ 44/44 notebook template tests still pass.
 - ⏳ Not committed/pushed (files staged as modified in working tree).
+
+---
+Task ID: prod-hardening-v14
+Agent: main
+Task: Production hardening — make OpenBenchML a full-fledged platform
+       (not a prototype). User request: "real time engines for our all
+       features it should be work for every code that a user goes to it
+       and check each and every part not prototype full fledged
+       application like hugging face and kaggle push to github"
+
+Work Log:
+- Audited every route + template by running a new 113-check real-world
+  end-to-end smoke test (smoke_test_realworld_full.py).
+- Found 3 real failures during audit:
+    1. /benchmark returned 200 instead of 303 when model+dataset feature
+       counts mismatched — actually correct behavior (re-renders form
+       with error), test was using wrong dataset.
+    2. /competitions/1 returned 404 — competitions are routed by slug,
+       not id. Fixed test to use the slug.
+    3. qa_meta_test + qa_lifecycle_test failed with "no such table:
+       datasets" because they used TestClient(app) without the context
+       manager — lifespan events (init_db + seed) never fired. Fixed
+       both tests to use TestClient(app).__enter__().
+
+- Improved /convert precision (100% accuracy on model detection):
+    * Added _looks_like_a_model() — rejects non-model objects (e.g.
+      model=42) with a helpful error mentioning predict/transform/score.
+    * Added _detect_task_type() — auto-detects classification/regression/
+      clustering from sklearn's _estimator_type or class name patterns.
+    * Added _introspect_model_params() — surfaces key hyperparameters
+      (n_estimators, alpha, C, kernel, n_neighbors, learning_rate, etc.).
+    * Added _is_fitted() check — warns when user uploads an unfitted
+      estimator (still allows it, but surfaces is_fitted=False).
+    * Expanded metric auto-extraction from 5 to 11 metrics:
+      accuracy, precision, recall, f1_score, auc_roc, log_loss, rmse,
+      mse, r2_score, mae, mape (with alias support).
+
+- Auth hardening: RegisterRequest.email and LoginRequest.email now use
+  Pydantic EmailStr — rejects 'not-an-email' with 422 before hitting DB.
+
+- All 6 model types tested for /convert precision: Ridge, SVC,
+  GradientBoosting, KNeighbors, LogisticRegression, RandomForest —
+  100% accurate framework + model_class + task_type + params detection.
+
+Stage Summary:
+- Commit 5c36cad ready locally on main branch (ahead of origin/main
+  by 2 commits — needs `git push origin main` to publish).
+- All 7 smoke test suites pass:
+    * smoke_test_notebook_v12.py:           ALL CHECKS PASS (44 checks)
+    * smoke_test_convert_realworld_v13.py:  30 passed, 0 failed
+    * smoke_test_security_v13_1.py:         32 passed, 0 failed
+    * smoke_test_core.py:                   ALL CORE ENGINE TESTS PASSED
+    * qa_meta_test.py:                      79 passed, 0 failed
+    * qa_lifecycle_test.py:                 FULL BENCHMARK LIFECYCLE E2E TEST PASSED
+    * smoke_test_realworld_full.py (NEW):   113 passed, 0 failed
+- Total: 298 checks passing, 0 failing across the full test suite.
+- Push to GitHub blocked: no credentials configured in this environment.
+  User must run `git push origin main` from
+  /home/z/my-project/download/openbenchml/ with their GitHub PAT.
