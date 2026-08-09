@@ -37,6 +37,7 @@ from app.services.code_runner_service import (
     run_code,
     code_to_pickled_model,
     save_pickled_model,
+    inspect_pickled_bytes,
 )
 
 logger = logging.getLogger(__name__)
@@ -117,7 +118,7 @@ async def convert_submit(
 
     try:
         pickled_bytes, meta = code_to_pickled_model(
-            code, expected_var="model", timeout_seconds=60,
+            code, expected_var="model", timeout_seconds=300,
         )
     except ValueError as exc:
         logger.warning("Convert failed for user=%s: %s", user.username, exc)
@@ -245,6 +246,7 @@ class ConvertApiRequest(BaseModel):
     description: str = Field(default="", max_length=2000)
     framework: str = Field(default="scikit-learn")
     code: str = Field(..., min_length=1, max_length=50_000)
+    timeout_seconds: int = Field(default=300, ge=10, le=600)
 
 
 @router.post("/api/convert", response_class=JSONResponse)
@@ -257,6 +259,10 @@ async def convert_api(
 
     Returns the new model's id, name, framework, and size so CLI
     clients can immediately benchmark it.
+
+    The default timeout is 300s (5 min) — bumped from the old 60s so
+    that real-world training (RandomForest on California Housing, etc.)
+    succeeds on Render's free tier. CLI clients can request up to 600s.
     """
     user: Optional[User] = await get_current_user_from_cookie(request, db)
     if user is None:
@@ -270,7 +276,9 @@ async def convert_api(
 
     try:
         pickled_bytes, meta = code_to_pickled_model(
-            payload.code, expected_var="model", timeout_seconds=60,
+            payload.code,
+            expected_var="model",
+            timeout_seconds=payload.timeout_seconds,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -319,3 +327,133 @@ async def convert_api(
             }.items() if v is not None
         },
     }
+
+
+# ─── /api/convert/upload-pickle ──────────────────────────────────────────────
+#
+# This endpoint powers the Pyodide (in-browser) convert path. The browser:
+#   1. Loads Pyodide + numpy/pandas/sklearn via loadPackage.
+#   2. Trains the model in-browser (no server timeout — the user's tab
+#      can run as long as needed).
+#   3. Pickles the trained `model` variable in-browser using joblib.
+#   4. Base64-encodes the pickle bytes and POSTs them here.
+# The server inspects the pickle (recovers model_class + framework),
+# saves the bytes to disk, and creates the MLModel DB row.
+#
+# This bypasses the 300s server timeout entirely — useful for heavy
+# training jobs (RandomForestRegressor on California Housing, XGBoost
+# with n_estimators=500, etc.) that the user wants to run on their
+# own machine via the browser.
+
+
+class ConvertUploadPickleRequest(BaseModel):
+    """JSON schema for the upload-pickle endpoint."""
+    model_name: str = Field(..., min_length=1, max_length=120)
+    description: str = Field(default="", max_length=2000)
+    framework: str = Field(default="scikit-learn")
+    pickle_base64: str = Field(..., min_length=1)
+    # Optional metadata from the browser (model_class, framework) — used
+    # as a hint but always re-verified server-side via inspect_pickled_bytes.
+    model_class_hint: str | None = Field(default=None, max_length=200)
+    stdout: str = Field(default="", max_length=20_000)
+    stderr: str = Field(default="", max_length=20_000)
+    metrics: dict = Field(default_factory=dict)
+
+
+@router.post("/api/convert/upload-pickle", response_class=JSONResponse)
+async def convert_upload_pickle_api(
+    payload: ConvertUploadPickleRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """JSON API: save a browser-trained pickled model.
+
+    Used by the Pyodide path on the /convert page. The browser trains
+    the model in Pyodide, pickles it, base64-encodes the bytes, and
+    uploads them here. The server inspects the pickle to recover the
+    framework + model_class, saves the bytes, and creates the MLModel.
+
+    Authentication: Bearer token (cookie or Authorization header).
+
+    Returns the new model's id, name, framework, and size — same
+    shape as /api/convert.
+    """
+    import base64
+
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    if payload.framework not in FRAMEWORKS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid framework '{payload.framework}'. Valid: {', '.join(FRAMEWORKS)}",
+        )
+
+    # Decode the base64 pickle into raw bytes.
+    try:
+        pickled_bytes = base64.b64decode(payload.pickle_base64, validate=True)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid base64 pickle payload: {exc}",
+        )
+
+    if len(pickled_bytes) < 16:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Pickle payload is too small ({len(pickled_bytes)} bytes) — "
+                   f"did the browser-side code actually train a model?",
+        )
+
+    if len(pickled_bytes) > 200 * 1024 * 1024:  # 200 MB cap
+        raise HTTPException(
+            status_code=413,
+            detail=f"Pickle payload too large ({len(pickled_bytes)} bytes > 200 MB).",
+        )
+
+    # Inspect the pickle to recover model_class + framework.
+    meta = inspect_pickled_bytes(pickled_bytes)
+
+    # Save to disk.
+    file_path, size_kb = save_pickled_model(
+        pickled_bytes, user.id, payload.model_name.strip(), UPLOAD_DIR,
+    )
+
+    # If inspect_pickled_bytes succeeded, use the recovered framework.
+    # Otherwise fall back to the user-supplied one.
+    final_framework = meta["framework"] if meta["ok"] else payload.framework
+
+    new_model = MLModel(
+        user_id=user.id,
+        model_name=payload.model_name.strip(),
+        description=payload.description.strip() or None,
+        framework=final_framework,
+        file_path=file_path,
+        size_kb=size_kb,
+    )
+    db.add(new_model)
+    db.commit()
+    db.refresh(new_model)
+
+    logger.info(
+        "API upload-pickle → model '%s' (id=%d, framework=%s, class=%s, %d KB) for user=%s",
+        new_model.model_name, new_model.id, final_framework,
+        meta.get("model_class"), size_kb, user.username,
+    )
+
+    return {
+        "id": new_model.id,
+        "model_name": new_model.model_name,
+        "framework": new_model.framework,
+        "size_kb": new_model.size_kb,
+        "detected_framework": meta["framework"],
+        "model_class": meta.get("model_class") or payload.model_class_hint or "Unknown",
+        "stdout": payload.stdout,
+        "stderr": payload.stderr,
+        "metrics_in_code": {
+            k: v for k, v in payload.metrics.items() if v is not None
+        },
+        "engine": "pyodide-browser",
+    }
+

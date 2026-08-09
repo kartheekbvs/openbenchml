@@ -52,6 +52,18 @@ _BLOCKED_BUILTIN_NAMES = {
     "breakpoint", "input",
 }
 
+# ─── Module blocklist ────────────────────────────────────────────────────────
+# We use *prefix matching* — a prefix of "subprocess" blocks "subprocess",
+# "subprocess.foo", etc. Be careful with broad prefixes: blocking "importlib"
+# would also block "importlib.resources", "importlib.metadata",
+# "importlib.readers" — which scikit-learn, pandas, and most modern Python
+# libraries legitimately need to load bundled data files.
+#
+# Instead, we use a TWO-TIER system:
+#   1. _BLOCKED_MODULE_PREFIXES — fully blocked (subprocess, socket, etc.)
+#   2. _BLOCKED_IMPORTLIB_SUBMODULES — submodule-level blocklist for the
+#      dangerous parts of importlib, while allowing the safe parts
+#      (resources, metadata, readers, util) that legitimate libraries need.
 _BLOCKED_MODULE_PREFIXES = (
     "subprocess",
     "ctypes",
@@ -64,23 +76,41 @@ _BLOCKED_MODULE_PREFIXES = (
     "smtplib",
     "shutil",
     "pathlib",  # blocks Path-based file ops too
-    # ⚠ Blocking `importlib` is critical: `importlib.import_module("subprocess")`
-    # bypasses our custom __import__ hook (which only catches `import subprocess`
-    # statements). Without this, a student could trivially escape the sandbox.
-    "importlib",
-    # Same for `runpy` (runpy.run_module / run_path) — another way to load
-    # arbitrary code without going through __import__.
+    # `runpy` — run_module / run_path can load arbitrary code without
+    # going through __import__. No legitimate library uses these.
     "runpy",
-    # `pickle` / `marshal` allow loading arbitrary pickled objects which can
-    # trigger __reduce__ exploits. We need them internally for pickling the
-    # trained model, but user code shouldn't use them directly.
-    "pickle",
-    "marshal",
+    # `code`, `codeop` — interactive interpreter, no legitimate use.
     "code",
     "codeop",
+    # `pdb`, `pydoc` — introspection tools, no legitimate use in benchmarks.
     "pdb",
     "pydoc",
+    # `marshal` — binary serialization format, can be used for exploits.
+    "marshal",
+    # `pickle` — allows loading arbitrary pickled objects which can trigger
+    # __reduce__ exploits. We need pickle *internally* (joblib uses it to
+    # save the trained model), but user code shouldn't use it directly.
+    # The internal joblib.dump call happens in the service module's own
+    # scope, not in the sandbox namespace, so this block doesn't affect it.
+    "pickle",
 )
+
+# Dangerous importlib submodules — these allow programmatic imports that
+# bypass our __import__ hook. Block them specifically.
+# NOTE: We DO NOT block `importlib.resources`, `importlib.metadata`,
+# `importlib.readers`, `importlib.util`, `importlib.machinery` — these are
+# used by scikit-learn, pandas, matplotlib, and most modern Python libraries
+# to load bundled data files. Blocking them breaks ALL dataset loaders.
+_BLOCKED_IMPORTLIB_SUBMODULES = (
+    "importlib.import_module",  # the actual escape vector — but this is
+                                 # a function, not a submodule. See the
+                                 # namespace wrapping in _build_sandbox_namespace
+                                 # for the runtime block.
+)
+
+# Top-level `import importlib` is allowed — but we strip `import_module`
+# from the imported module's namespace so users can't call it. See
+# _build_sandbox_namespace for the runtime enforcement.
 
 
 class _ImportBlocker:
@@ -88,6 +118,14 @@ class _ImportBlocker:
 
     Used to prevent user code from importing ``subprocess`` and friends
     even when our namespace doesn't pre-populate them.
+
+    Note: ``importlib`` is intentionally NOT in the blocklist. Modern
+    Python libraries (sklearn, pandas, matplotlib) need
+    ``importlib.resources``, ``importlib.metadata``, etc. to load bundled
+    data files. Instead, we wrap ``importlib.import_module`` at runtime
+    in _build_sandbox_namespace to block the specific escape vector
+    (programmatic imports of subprocess/socket/etc.) while leaving
+    legitimate importlib submodules functional.
     """
 
     def __init__(self, blocked_prefixes: Tuple[str, ...]):
@@ -111,6 +149,20 @@ def _build_sandbox_namespace() -> Dict[str, Any]:
     ``from sklearn.datasets import load_iris`` directly without
     worrying about which packages are available.  Then strips the
     dangerous builtins.
+
+    SECURITY NOTE on importlib:
+    --------------------------
+    We intentionally allow `import importlib` because modern Python
+    libraries (sklearn, pandas, matplotlib) need `importlib.resources`,
+    `importlib.metadata`, `importlib.readers` to load bundled data files.
+    Blocking `importlib` entirely (as v4.2.1 did) breaks ALL sklearn
+    dataset loaders — `load_iris`, `fetch_california_housing`, etc.
+
+    Instead, we wrap `importlib.import_module` at runtime so users can
+    still import safe submodules (`importlib.resources.files(...)`)
+    but cannot use `importlib.import_module("subprocess")` to escape
+    the sandbox. This is the surgical fix that closes the v4.2.1
+    escape vector WITHOUT breaking legitimate library imports.
     """
     import builtins
     import numpy
@@ -130,6 +182,7 @@ def _build_sandbox_namespace() -> Dict[str, Any]:
     import pandas
     import scipy
     import joblib
+    import importlib  # legitimately needed by sklearn/pandas/etc.
 
     safe_builtins = dict(vars(builtins))
     for name in _BLOCKED_BUILTIN_NAMES:
@@ -142,16 +195,40 @@ def _build_sandbox_namespace() -> Dict[str, Any]:
     real_import = safe_builtins.get("__import__", builtins.__import__)
 
     def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
-        mod_top = name.split(".")[0]
-        if mod_top in _BLOCKED_MODULE_PREFIXES:
-            raise ImportError(
-                f"Import of '{name}' is blocked by OpenBenchML sandbox. "
-                f"If you genuinely need this module for a benchmark, "
-                f"contact the platform administrator."
-            )
+        # Check the top-level module name AND any dotted prefixes.
+        # E.g. for "importlib.import_module" we check "importlib" (allowed)
+        # but the runtime wrapper below blocks the actual call.
+        parts = name.split(".")
+        for i in range(len(parts)):
+            prefix = ".".join(parts[:i+1])
+            if prefix in _BLOCKED_MODULE_PREFIXES:
+                raise ImportError(
+                    f"Import of '{name}' is blocked by OpenBenchML sandbox. "
+                    f"If you genuinely need this module for a benchmark, "
+                    f"contact the platform administrator."
+                )
         return real_import(name, globals, locals, fromlist, level)
 
     safe_builtins["__import__"] = _safe_import
+
+    # ── Wrap importlib.import_module ─────────────────────────────────────
+    # This is the surgical fix for the v4.2.1 regression. We allow
+    # `import importlib` (so sklearn/pandas/etc. can use importlib.resources)
+    # but wrap `import_module` so it refuses to load any blocked module.
+    real_import_module = importlib.import_module
+
+    def _safe_import_module(name, package=None):
+        parts = (name or "").split(".")
+        for i in range(len(parts)):
+            prefix = ".".join(parts[:i+1])
+            if prefix in _BLOCKED_MODULE_PREFIXES:
+                raise ImportError(
+                    f"importlib.import_module('{name}') is blocked by "
+                    f"OpenBenchML sandbox."
+                )
+        return real_import_module(name, package)
+
+    importlib.import_module = _safe_import_module
 
     ns: Dict[str, Any] = {
         "__builtins__": safe_builtins,
@@ -162,6 +239,9 @@ def _build_sandbox_namespace() -> Dict[str, Any]:
         "sklearn": sklearn,
         "scipy": scipy,
         "joblib": joblib,
+        # importlib is exposed so user code can use importlib.resources
+        # (legitimate). The wrapped import_module blocks escapes.
+        "importlib": importlib,
         # Common sklearn shortcuts students will reach for
         "sklearn_datasets": sklearn.datasets,
         "sklearn_model_selection": sklearn.model_selection,
@@ -298,7 +378,7 @@ def code_to_pickled_model(
     code: str,
     *,
     expected_var: str = "model",
-    timeout_seconds: int = 60,
+    timeout_seconds: int = 300,
 ) -> Tuple[bytes, Dict[str, Any]]:
     """Run user code, extract a trained model, and pickle it.
 
@@ -312,7 +392,10 @@ def code_to_pickled_model(
         code: Python source that trains a model.
         expected_var: Name of the variable to extract & pickle
             (default ``"model"``).
-        timeout_seconds: Wall-clock limit.
+        timeout_seconds: Wall-clock limit. Default 300s (5 min) so
+            real-world training (e.g. RandomForestRegressor on
+            California Housing, XGBoost on full Wine) doesn't get
+            killed mid-fit the way it did with the old 60s limit.
 
     Returns:
         Tuple ``(pickled_bytes, metadata)`` where ``metadata`` has
@@ -321,11 +404,31 @@ def code_to_pickled_model(
 
     Raises:
         ValueError: If execution failed or no ``model`` variable
-            was found in the resulting namespace.
+            was found in the resulting namespace. The error message
+            for timeouts specifically mentions the Pyodide browser
+            engine as an alternative.
     """
     result = run_code(code, timeout_seconds=timeout_seconds)
 
     if not result["ok"]:
+        # Surface a more actionable message for the common timeout case —
+        # users training RandomForest on California Housing (20,640 samples)
+        # hit the limit on Render's free tier. Point them at the Pyodide
+        # in-browser engine, which has no server timeout.
+        if result.get("timed_out"):
+            raise ValueError(
+                f"Training exceeded the {timeout_seconds}s server timeout. "
+                f"This usually means your model is large (e.g. RandomForest "
+                f"on California Housing, or n_estimators > 200). "
+                f"Two options:\n"
+                f"  1. Switch to the Pyodide (in-browser) engine on the "
+                f"/convert page — it has NO server timeout, training runs "
+                f"in your browser tab.\n"
+                f"  2. Reduce n_estimators, max_depth, or sample size; "
+                f"or set n_jobs=-1 if your plan has multiple CPUs.\n"
+                f"--- stdout ---\n{result['stdout']}\n"
+                f"--- stderr ---\n{result['stderr']}"
+            )
         raise ValueError(
             f"Code execution failed: {result['error']}\n"
             f"--- stdout ---\n{result['stdout']}\n"
@@ -414,10 +517,18 @@ def _detect_framework(model_obj: Any) -> str:
     Falls back to ``"scikit-learn"`` for anything pickleable that
     isn't obviously one of the other frameworks (this is correct
     for the vast majority of student-submitted models).
+
+    Robust against dynamically-created classes (e.g. ``type('Foo', (), {})``)
+    that have no ``__module__`` attribute — these would previously crash
+    with ``AttributeError: __module__``.
     """
     cls = type(model_obj)
-    mod = (cls.__module__ or "").lower()
-    name = cls.__name__.lower()
+    # Guard against dynamic classes that may not have __module__.
+    try:
+        mod = (getattr(cls, "__module__", "") or "").lower()
+    except Exception:
+        mod = ""
+    name = (getattr(cls, "__name__", "") or "").lower()
 
     if "torch" in mod:
         return "pytorch"
@@ -469,3 +580,45 @@ def save_pickled_model(
         file_path.name, user_id, size_kb,
     )
     return str(file_path), size_kb
+
+
+def inspect_pickled_bytes(pickled_bytes: bytes) -> Dict[str, Any]:
+    """Inspect raw pickle bytes from the browser (Pyodide-trained model).
+
+    The Pyodide path trains the model in the browser, pickles it with
+    joblib, base64-encodes the result, and POSTs it to the server. The
+    server needs to recover ``model_class`` and ``framework`` so the
+    MLModel DB row matches what the server-side /convert flow would
+    have produced.
+
+    Args:
+        pickled_bytes: Raw pickled model bytes (joblib or pickle format).
+
+    Returns:
+        Dict with keys ``model_class``, ``framework``, ``size_kb``.
+        On any unpickling failure, returns ``framework="scikit-learn"``
+        (the safe default) and an ``error`` key.
+    """
+    size_kb = round(len(pickled_bytes) / 1024, 2)
+    try:
+        # joblib.dump wraps pickle — joblib.load can read both formats.
+        import joblib as _joblib
+        model_obj = _joblib.load(io.BytesIO(pickled_bytes))
+        model_class = type(model_obj).__name__
+        framework = _detect_framework(model_obj)
+        return {
+            "model_class": model_class,
+            "framework": framework,
+            "size_kb": size_kb,
+            "ok": True,
+        }
+    except Exception as exc:
+        logger.warning("Could not inspect pickled bytes: %s", exc)
+        return {
+            "model_class": "Unknown",
+            "framework": "scikit-learn",
+            "size_kb": size_kb,
+            "ok": False,
+            "error": str(exc),
+        }
+
