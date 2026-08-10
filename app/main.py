@@ -23,7 +23,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
-from starlette.types import Scope
 
 from app.config import (
     APP_NAME, APP_VERSION, APP_DESCRIPTION, STATIC_DIR, TEMPLATE_DIR,
@@ -231,23 +230,7 @@ async def rate_limit_handler(request: Request, exc):
 
 
 # ─── Mount Static Files ──────────────────────────────────────────────────────
-# Custom StaticFiles subclass that sends aggressive no-cache headers.
-# `no-store` tells the browser NEVER to cache the response — every request
-# goes to the server. Combined with the ?v=<commit-hash> query string on
-# every <link>/<script> reference, this guarantees users on laptops never
-# see stale (olive/green/blue) CSS after a deploy.
-class NoCacheStaticFiles(StaticFiles):
-    async def get_response(self, path: str, scope: Scope) -> Response:
-        resp = await super().get_response(path, scope)
-        # no-store = browser MUST NOT cache. no-cache = browser may store but
-        # must revalidate. We use BOTH to cover all browser quirks.
-        resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
-        resp.headers.setdefault("Pragma", "no-cache")
-        resp.headers.setdefault("Expires", "0")
-        return resp
-
-
-app.mount("/static", NoCacheStaticFiles(directory=str(STATIC_DIR)), name="static")
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
 # ─── Include Routers ─────────────────────────────────────────────────────────
