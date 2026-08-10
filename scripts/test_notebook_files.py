@@ -62,7 +62,7 @@ print("\n=== Step 2: GET /notebook — verify Files tab HTML ===")
 r = client.get('/notebook')
 assert r.status_code == 200
 for marker in ['tab-files', 'panel-files', 'files-drop-zone', 'refreshFiles',
-               'uploadFiles', 'deleteFile', 'v2.5 files + git clone',
+               'uploadFiles', 'deleteFile', 'v2.6 OOM-hardened',
                '!git clone https://huggingface.co/zai-org/GLM-5.2']:
     assert marker in r.text, f"missing marker in /notebook HTML: {marker!r}"
 print(f"  all {10} HTML markers present")

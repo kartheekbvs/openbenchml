@@ -439,10 +439,27 @@ def run_code(
             except OSError:
                 pass
 
+    # v2.6 OOM protection: cap captured stdout/stderr so a runaway `print`
+    # loop or huge error traceback can't fill server RAM with a multi-MB string.
+    # 1 MB per channel is plenty for normal notebook output.
+    _MAX_CAPTURE_BYTES = 1 * 1024 * 1024
+    _stdout_str = stdout_buf.getvalue()
+    _stderr_str = stderr_buf.getvalue()
+    if len(_stdout_str) > _MAX_CAPTURE_BYTES:
+        _stdout_str = _stdout_str[:_MAX_CAPTURE_BYTES] + (
+            f"\n... [stdout truncated at {_MAX_CAPTURE_BYTES // 1024 // 1024} MB "
+            f"to prevent OOM]"
+        )
+    if len(_stderr_str) > _MAX_CAPTURE_BYTES:
+        _stderr_str = _stderr_str[:_MAX_CAPTURE_BYTES] + (
+            f"\n... [stderr truncated at {_MAX_CAPTURE_BYTES // 1024 // 1024} MB "
+            f"to prevent OOM]"
+        )
+
     return {
         "ok": ok and not timed_out,
-        "stdout": stdout_buf.getvalue(),
-        "stderr": stderr_buf.getvalue(),
+        "stdout": _stdout_str,
+        "stderr": _stderr_str,
         "namespace": namespace,
         "error": error,
         "traceback": tb,

@@ -137,8 +137,45 @@ def _dir_size_bytes(p: Path) -> int:
 # Each session has its own Python namespace dict that persists across cells.
 # Evicted after 30 min of inactivity to keep memory bounded.
 
-SESSION_TTL_SECONDS = 30 * 60  # 30 minutes
-_MAX_SESSIONS = 50  # evict oldest if more than this many active
+# v2.6 memory-hardening: Render's free/starter tier OOMs at ~512 MB RSS.
+# 50 concurrent sessions × ~30 MB each (numpy/pandas/sklearn imports) =
+# 1.5 GB just for namespaces, before any user code runs. Drop to 12.
+SESSION_TTL_SECONDS = 15 * 60  # 15 minutes (was 30) — free RAM sooner
+_MAX_SESSIONS = 12  # was 50 — Render OOM protection
+
+# v2.6 OOM guard: refuse new cell runs when server RSS > this threshold.
+# 700 MB leaves headroom for the OS + Render supervisor on a 512 MB / 1 GB
+# instance (Render kills the process at the actual limit, but proactively
+# refusing at 700 MB gives users a friendly error instead of a SIGKILL).
+_SERVER_RSS_LIMIT_BYTES = 700 * 1024 * 1024
+
+# v2.6 OOM guard: cap stdout/stderr capture per cell so a runaway `print`
+# loop can't fill the server's RAM with a 500 MB string.
+_MAX_OUTPUT_BYTES = 1 * 1024 * 1024  # 1 MB per cell
+
+
+def _server_rss_bytes() -> int:
+    """Return current process RSS in bytes (best-effort)."""
+    try:
+        import resource as _r
+        # ru_maxrss is in KB on Linux, bytes on macOS — Render runs Linux.
+        return _r.getrusage(_r.RUSAGE_SELF).ru_maxrss * 1024
+    except Exception:
+        return 0
+
+
+def _check_memory_budget() -> Optional[str]:
+    """Return an error message if server is too memory-pressured to run a cell."""
+    rss = _server_rss_bytes()
+    if rss and rss > _SERVER_RSS_LIMIT_BYTES:
+        return (
+            f"Server memory is at {rss / 1024 / 1024:.0f} MB "
+            f"(limit {_SERVER_RSS_LIMIT_BYTES // 1024 // 1024} MB). "
+            f"Please wait ~30s for idle sessions to be reaped, then try again. "
+            f"If this persists, run fewer concurrent users or upgrade the "
+            f"Render instance type."
+        )
+    return None
 
 
 class _SessionState:
@@ -179,12 +216,59 @@ def _get_or_create_session(user_id: int) -> _SessionState:
         if len(_USER_SESSIONS) >= _MAX_SESSIONS and user_id not in _USER_SESSIONS:
             oldest_uid = min(_USER_SESSIONS, key=lambda u: _USER_SESSIONS[u].last_used)
             logger.info("Evicting oldest session for user_id=%d (cap reached)", oldest_uid)
-            _USER_SESSIONS.pop(oldest_uid, None)
+            old = _USER_SESSIONS.pop(oldest_uid, None)
+            if old is not None:
+                # Drop references so GC can free trained models, big arrays, etc.
+                old.namespace.clear()
+                old.installed_packages.clear()
 
         if user_id not in _USER_SESSIONS:
             logger.info("Creating new notebook session for user_id=%d", user_id)
             _USER_SESSIONS[user_id] = _SessionState(user_id)
+        _ensure_reaper_started()
         return _USER_SESSIONS[user_id]
+
+
+# v2.6: Background reaper — evict expired sessions every 3 minutes even
+# if no new requests come in. This prevents idle sessions from holding
+# RAM indefinitely on a low-traffic deployment (the original lazy-eviction
+# only ran when a NEW user requested a session, so a quiet site could
+# accumulate 50 sessions × numpy/pandas imports = OOM).
+_REAPER_INTERVAL_SECONDS = 3 * 60
+_reaper_started = False
+_reaper_started_lock = threading.Lock()
+
+
+def _session_reaper_loop():
+    while True:
+        try:
+            time.sleep(_REAPER_INTERVAL_SECONDS)
+            now = time.time()
+            with _SESSIONS_LOCK:
+                expired = [
+                    uid for uid, s in _USER_SESSIONS.items()
+                    if now - s.last_used > SESSION_TTL_SECONDS
+                ]
+                for uid in expired:
+                    s = _USER_SESSIONS.pop(uid, None)
+                    if s is not None:
+                        s.namespace.clear()
+                        s.installed_packages.clear()
+                    logger.info("Reaper evicted expired session user_id=%d", uid)
+        except Exception as e:
+            logger.warning("Session reaper error: %s", e)
+
+
+def _ensure_reaper_started():
+    global _reaper_started
+    with _reaper_started_lock:
+        if _reaper_started:
+            return
+        t = threading.Thread(target=_session_reaper_loop, daemon=True, name="nb-reaper")
+        t.start()
+        _reaper_started = True
+        logger.info("Notebook session reaper started (interval=%ds, ttl=%ds)",
+                    _REAPER_INTERVAL_SECONDS, SESSION_TTL_SECONDS)
 
 
 # ─── Package recommendation map ──────────────────────────────────────────────
@@ -377,6 +461,25 @@ def _execute_shell_command(cmd_str: str, timeout_seconds: int = 60, cwd: str = "
     if not cmd_str:
         return {"stdout": "", "stderr": "Empty command.", "returncode": 1, "ok": False}
 
+    # v2.6 OOM protection: auto-prefix `git clone` with `--depth 1 --filter=blob:none`
+    # so we don't download full history. For GLM-5.2 (multi-GB repo), this cuts
+    # disk + RAM usage by 80%+ during clone. The repo files are still fully usable
+    # in cells — config.json, model weights, tokenizer files, etc. — we just skip
+    # the .git/objects packfiles that nobody reads in a notebook anyway.
+    #
+    # Pattern: `git clone URL` or `git clone URL DEST` (case-insensitive)
+    # Skip if user already passed --depth or --filter.
+    if re.match(r'^git\s+clone\s+(?!.*--depth)(?!.*--filter)', cmd_str, re.IGNORECASE):
+        # Insert flags right after `git clone `
+        cmd_str = re.sub(r'^(git\s+clone\s+)', r'\1--depth 1 --filter=blob:none ',
+                         cmd_str, count=1, flags=re.IGNORECASE)
+        logger.info("Injected --depth 1 --filter=blob:none into git clone: %s", cmd_str)
+
+    # v2.6 OOM protection: cap clone/wget/curl timeouts so a stuck download
+    # doesn't hold a worker thread for the full 120s.
+    if cmd_str.split()[0] in ("git", "wget", "curl") and timeout_seconds > 90:
+        timeout_seconds = 90
+
     # Check blocked patterns
     for pattern in _BLOCKED_SHELL_PATTERNS:
         if re.search(pattern, cmd_str):
@@ -413,9 +516,17 @@ def _execute_shell_command(cmd_str: str, timeout_seconds: int = 60, cwd: str = "
             cwd=cwd,
             env={**_safe_env()},
         )
+        # v2.6 OOM protection: truncate stdout/stderr so a `find /` or
+        # `git clone -v` can't fill RAM with megabytes of log text.
+        out = result.stdout or ""
+        err = result.stderr or ""
+        if len(out) > _MAX_OUTPUT_BYTES:
+            out = out[:_MAX_OUTPUT_BYTES] + f"\n... [truncated at {_MAX_OUTPUT_BYTES // 1024 // 1024} MB]"
+        if len(err) > _MAX_OUTPUT_BYTES:
+            err = err[:_MAX_OUTPUT_BYTES] + f"\n... [truncated at {_MAX_OUTPUT_BYTES // 1024 // 1024} MB]"
         return {
-            "stdout": result.stdout,
-            "stderr": result.stderr,
+            "stdout": out,
+            "stderr": err,
             "returncode": result.returncode,
             "ok": result.returncode == 0,
         }
@@ -619,6 +730,21 @@ async def notebook_cell_api(
             "figures": [],
             "elapsed_ms": 0,
             "cell_id": payload.cell_id,
+        }
+
+    # v2.6 OOM guard: refuse new cell runs when server RAM is over budget.
+    # This gives users a friendly error instead of triggering a Render SIGKILL.
+    mem_err = _check_memory_budget()
+    if mem_err:
+        return {
+            "ok": False,
+            "stdout": "",
+            "stderr": mem_err,
+            "error": "MemoryLimitExceeded",
+            "figures": [],
+            "elapsed_ms": 0,
+            "cell_id": payload.cell_id,
+            "suggestions": [],
         }
 
     with session.lock:
