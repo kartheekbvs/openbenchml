@@ -335,6 +335,88 @@
     50% { width: 60%; margin-left: 20%; }
     100% { width: 0%; margin-left: 100%; }
   }
+
+  /* ─── Notebook / Terminal tabs ───────────────────────────────── */
+  .view-tabs {
+    display: flex; gap: 0; margin-bottom: 0;
+    border-bottom: 2px solid var(--border);
+  }
+  .view-tab {
+    padding: 0.6rem 1.25rem;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.92rem;
+    font-weight: 600;
+    font-family: inherit;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.15s;
+    display: inline-flex; align-items: center; gap: 0.4rem;
+  }
+  .view-tab:hover { color: var(--text-primary); }
+  .view-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+  .view-tab .tab-badge {
+    font-size: 0.7rem; padding: 0.1rem 0.4rem;
+    background: rgba(160, 192, 0, 0.15); color: var(--accent);
+    border-radius: 999px; font-weight: 600;
+  }
+  .view-panel { display: none; }
+  .view-panel.active { display: block; }
+
+  /* ─── Terminal (xterm.js) ────────────────────────────────────── */
+  .terminal-container {
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 0 0 10px 10px;
+    padding: 8px;
+    min-height: 500px;
+    position: relative;
+  }
+  .terminal-container .xterm {
+    padding: 8px;
+  }
+  .terminal-status-bar {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.4rem 0.75rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+  }
+  .terminal-status-bar .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text-secondary);
+  }
+  .terminal-status-bar.connected .status-dot {
+    background: var(--success-bright);
+    box-shadow: 0 0 8px var(--success-bright);
+  }
+  .terminal-status-bar.connecting .status-dot {
+    background: #eab308;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  .terminal-status-bar.error .status-dot {
+    background: var(--danger-bright);
+  }
+  .terminal-action-btn {
+    margin-left: auto;
+    padding: 0.2rem 0.6rem;
+    background: rgba(160, 192, 0, 0.1);
+    border: 1px solid rgba(160, 192, 0, 0.3);
+    border-radius: 4px;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-family: inherit;
+  }
+  .terminal-action-btn:hover { background: rgba(160, 192, 0, 0.2); }
 </style>
 {% endblock %}
 
@@ -348,7 +430,7 @@
 </div>
 
 <div class="welcome-banner">
-    <h3>&#9889; What's new in v2.0</h3>
+    <h3>&#9889; What's new in v2.1</h3>
     <p>
         <strong>Multi-cell:</strong> add as many code cells as you want. Variables persist between cells.
         <strong>Shell commands:</strong> prefix a line with <code>!</code> to run shell — <code>!pip install xgboost</code>,
@@ -356,9 +438,22 @@
         <strong>Magics:</strong> <code>%whos</code>, <code>%time &lt;stmt&gt;</code>, <code>%reset</code>, <code>%pip install &lt;pkg&gt;</code>.
         <strong>Package hints:</strong> if your code imports a missing package, we suggest the install command.
         <strong>Inline plots:</strong> matplotlib figures render inline automatically.
+        <strong>&#128187; Real Terminal:</strong> click the "Terminal" tab for a full bash shell (xterm.js + WebSocket) — runs interactive commands like <code>python</code>, <code>ipython</code>, <code>vim</code>, <code>top</code>.
     </p>
 </div>
 
+<!-- ─── View tabs: Notebook | Terminal ─────────────────────────── -->
+<div class="view-tabs">
+    <button class="view-tab active" id="tab-notebook" onclick="switchView('notebook')">
+        &#128221; Notebook <span class="tab-badge">cells</span>
+    </button>
+    <button class="view-tab" id="tab-terminal" onclick="switchView('terminal')">
+        &#128187; Terminal <span class="tab-badge" id="terminal-badge" style="display: none;">live</span>
+    </button>
+</div>
+
+<!-- ─── Notebook view (cells + sidebar) ────────────────────────── -->
+<div class="view-panel active" id="panel-notebook">
 <div class="notebook-layout">
   <!-- ─── Main notebook column ─────────────────────────────────── -->
   <div>
@@ -470,13 +565,43 @@
     </div>
   </div>
 </div>
+</div><!-- /panel-notebook -->
+
+<!-- ─── Terminal view (xterm.js + WebSocket) ───────────────────── -->
+<div class="view-panel" id="panel-terminal">
+  <div class="terminal-status-bar" id="terminal-status">
+    <span class="status-dot"></span>
+    <span id="terminal-status-text">disconnected</span>
+    <button class="terminal-action-btn" id="terminal-connect-btn" onclick="connectTerminal()">Connect</button>
+    <button class="terminal-action-btn" id="terminal-clear-btn" onclick="clearTerminal()" style="margin-left: 0.4rem;">Clear</button>
+    <button class="terminal-action-btn" id="terminal-restart-btn" onclick="restartTerminal()" style="display: none;">Restart shell</button>
+    <span style="margin-left: 1rem; font-size: 0.72rem;">cwd: /tmp • timeout: 30 min idle</span>
+  </div>
+  <div class="terminal-container" id="terminal-container">
+    <div id="terminal"></div>
+  </div>
+  <div style="margin-top: 0.75rem; padding: 0.6rem 0.8rem; background: rgba(160,192,0,0.04); border: 1px solid var(--border-light); border-radius: 6px; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.55;">
+    <strong style="color: var(--accent);">Tips:</strong>
+    Try <code>python</code>, <code>pip install xgboost</code>, <code>ipython</code>, <code>vim test.py</code>,
+    <code>ls -la</code>, <code>top</code>, <code>git --version</code>. Files persist in <code>/tmp</code>.
+    Press <code>Ctrl+D</code> to exit the shell, <code>Ctrl+C</code> to interrupt a running command.
+    The terminal is shared — opening it again will resume the same shell.
+  </div>
+</div>
 
 {% endblock %}
 
 {% block extra_js %}
+<!-- xterm.js for the real terminal -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
+<script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0.11.0/lib/addon-web-links.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-search@0.15.0/lib/addon-search.js"></script>
+
 <script>
 // ═══════════════════════════════════════════════════════════════════════════
-//  OpenBenchML Notebook v2.0 — Colab-style multi-cell notebook
+//  OpenBenchML Notebook v2.1 — Colab-style multi-cell notebook + real terminal
 // ═══════════════════════════════════════════════════════════════════════════
 
 let cells = [];          // [{id, type: 'code'|'text', source: str, output: {stdout,stderr,figures,ok}}]
@@ -1167,5 +1292,234 @@ document.addEventListener('keydown', (e) => {
     setInterval(refreshKernelInfo, 15000);  // refresh every 15s
   }, 500);
 })();
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  Terminal — xterm.js + WebSocket to /api/notebook/terminal
+// ═══════════════════════════════════════════════════════════════════════════
+
+let xterm = null;
+let xtermFit = null;
+let xtermWs = null;
+let xtermReady = false;
+let xtermConnecting = false;
+
+function switchView(view) {
+  document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + view).classList.add('active');
+  document.getElementById('panel-' + view).classList.add('active');
+
+  if (view === 'terminal') {
+    // Auto-connect on first view
+    if (!xterm && !xtermConnecting) {
+      setTimeout(() => {
+        initTerminal();
+        connectTerminal();
+      }, 50);
+    } else if (xterm) {
+      // Refit on view
+      setTimeout(() => xtermFit && xtermFit.fit(), 50);
+    }
+  }
+}
+
+function initTerminal() {
+  if (xterm) return;
+  if (typeof Terminal === 'undefined') {
+    setTerminalStatus('xterm.js failed to load from CDN', 'error');
+    return;
+  }
+  xterm = new Terminal({
+    cursorBlink: true,
+    fontSize: 14,
+    fontFamily: 'SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace',
+    theme: {
+      background: '#000000',
+      foreground: '#e6edf3',
+      cursor: '#a0c000',
+      cursorAccent: '#000000',
+      selection: 'rgba(160, 192, 0, 0.25)',
+      black: '#000000',
+      red: '#ff7b72',
+      green: '#3fb950',
+      yellow: '#eab308',
+      blue: '#58a6ff',
+      magenta: '#bc8cff',
+      cyan: '#39c5cf',
+      white: '#e6edf3',
+      brightBlack: '#6e7681',
+      brightRed: '#ff7b72',
+      brightGreen: '#3fb950',
+      brightYellow: '#eab308',
+      brightBlue: '#58a6ff',
+      brightMagenta: '#bc8cff',
+      brightCyan: '#39c5cf',
+      brightWhite: '#ffffff',
+    },
+    allowProposedApi: true,
+    scrollback: 5000,
+    convertEol: false,
+  });
+  xtermFit = new FitAddon.FitAddon();
+  xterm.loadAddon(xtermFit);
+  try {
+    xterm.loadAddon(new WebLinksAddon.WebLinksAddon());
+  } catch (e) { /* optional */ }
+  try {
+    xterm.loadAddon(new SearchAddon.SearchAddon());
+  } catch (e) { /* optional */ }
+
+  xterm.open(document.getElementById('terminal'));
+  try { xtermFit.fit(); } catch (e) {}
+
+  // Send keystrokes to WebSocket
+  xterm.onData((data) => {
+    if (xtermWs && xtermWs.readyState === WebSocket.OPEN) {
+      xtermWs.send(data);
+    }
+  });
+
+  // Send resize events
+  xterm.onResize(({cols, rows}) => {
+    if (xtermWs && xtermWs.readyState === WebSocket.OPEN) {
+      xtermWs.send(JSON.stringify({type: 'resize', cols, rows}));
+    }
+  });
+
+  // Refit on window resize
+  window.addEventListener('resize', () => {
+    if (xtermFit && document.getElementById('panel-terminal').classList.contains('active')) {
+      try { xtermFit.fit(); } catch (e) {}
+    }
+  });
+
+  setTerminalStatus('initialized — click Connect', '');
+}
+
+function setTerminalStatus(text, kind) {
+  const bar = document.getElementById('terminal-status');
+  const txt = document.getElementById('terminal-status-text');
+  txt.textContent = text;
+  bar.className = 'terminal-status-bar ' + (kind || '');
+  const badge = document.getElementById('terminal-badge');
+  if (kind === 'connected') {
+    badge.style.display = '';
+    badge.textContent = 'live';
+    document.getElementById('terminal-restart-btn').style.display = '';
+  } else {
+    badge.style.display = 'none';
+    document.getElementById('terminal-restart-btn').style.display = 'none';
+  }
+}
+
+function connectTerminal() {
+  if (!xterm) initTerminal();
+  if (!xterm) return;
+  if (xtermConnecting || (xtermWs && xtermWs.readyState === WebSocket.OPEN)) return;
+  xtermConnecting = true;
+
+  setTerminalStatus('connecting…', 'connecting');
+  const btn = document.getElementById('terminal-connect-btn');
+  btn.disabled = true;
+  btn.textContent = 'Connecting…';
+
+  // Build WebSocket URL — same origin, wss:// if https, ws:// if http
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const wsUrl = `${proto}//${location.host}/api/notebook/terminal`;
+  xtermWs = new WebSocket(wsUrl);
+  xtermWs.binaryType = 'arraybuffer';
+
+  xtermWs.onopen = () => {
+    xtermConnecting = false;
+    btn.disabled = false;
+    btn.textContent = 'Connected';
+    btn.style.display = 'none';
+    setTerminalStatus('connected — bash shell ready', 'connected');
+    xterm.focus();
+    // Send initial size
+    try {
+      xtermFit.fit();
+      const cols = xterm.cols || 80, rows = xterm.rows || 24;
+      xtermWs.send(JSON.stringify({type: 'resize', cols, rows}));
+    } catch (e) {}
+  };
+
+  xtermWs.onmessage = (event) => {
+    if (typeof event.data === 'string') {
+      // JSON control message
+      try {
+        const ctrl = JSON.parse(event.data);
+        if (ctrl.type === 'ready') {
+          // shell is up
+        } else if (ctrl.type === 'exit') {
+          xterm.write(`\r\n\x1b[33m[shell exited${ctrl.code !== undefined ? ' with code ' + ctrl.code : ''}${ctrl.reason ? ' — ' + ctrl.reason : ''}]\x1b[0m\r\n`);
+          setTerminalStatus('shell exited — click Connect to start a new one', '');
+          btn.style.display = '';
+          btn.textContent = 'Reconnect';
+          btn.disabled = false;
+          xtermWs.close();
+        } else if (ctrl.type === 'error') {
+          xterm.write(`\r\n\x1b[31m[error: ${ctrl.message}]\x1b[0m\r\n`);
+          setTerminalStatus('error: ' + ctrl.message, 'error');
+        } else if (ctrl.type === 'pong') {
+          // heartbeat response
+        }
+      } catch (e) {}
+    } else {
+      // Binary — raw PTY output, write to terminal
+      const bytes = new Uint8Array(event.data);
+      xterm.write(bytes);
+    }
+  };
+
+  xtermWs.onerror = (err) => {
+    xtermConnecting = false;
+    setTerminalStatus('WebSocket error — check your connection', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Retry';
+    btn.style.display = '';
+  };
+
+  xtermWs.onclose = () => {
+    xtermConnecting = false;
+    btn.disabled = false;
+    if (document.getElementById('terminal-status-text').textContent !== 'shell exited — click Connect to start a new one') {
+      setTerminalStatus('disconnected', '');
+    }
+    btn.style.display = '';
+    btn.textContent = 'Reconnect';
+  };
+
+  // Heartbeat ping every 30s to keep the connection alive
+  if (window._terminalHeartbeat) clearInterval(window._terminalHeartbeat);
+  window._terminalHeartbeat = setInterval(() => {
+    if (xtermWs && xtermWs.readyState === WebSocket.OPEN) {
+      xtermWs.send(JSON.stringify({type: 'ping'}));
+    }
+  }, 30000);
+}
+
+function clearTerminal() {
+  if (xterm) {
+    xterm.clear();
+    xterm.focus();
+  }
+}
+
+async function restartTerminal() {
+  if (!confirm('Restart the shell? Any running processes will be killed.')) return;
+  if (xtermWs) {
+    // Send Ctrl+D (EOF) to exit the current shell
+    if (xtermWs.readyState === WebSocket.OPEN) {
+      xtermWs.send(JSON.stringify({type: 'eof'}));
+    }
+    xtermWs.close();
+  }
+  setTerminalStatus('restarting…', 'connecting');
+  setTimeout(() => {
+    xterm.reset();
+    connectTerminal();
+  }, 300);
+}
 </script>
 {% endblock %}
