@@ -40,6 +40,7 @@ from __future__ import annotations
 import asyncio
 import fcntl
 import importlib
+import json
 import logging
 import os
 import pty
@@ -1146,6 +1147,370 @@ async def notebook_clear_files_api(
         except OSError:
             pass
     return {"ok": True, "cleared": cleared}
+
+
+# ─── Notebook export (v2.7) ──────────────────────────────────────────────────
+# Download the user's notebook as .ipynb (Jupyter JSON), .py (percent-format
+# script with `# %%` cell separators), or .html (self-contained static page).
+
+class NotebookExportRequest(BaseModel):
+    """Cells are sent from the frontend because the source of truth lives in
+    the browser (the user can edit cells without running them)."""
+    cells: List[Dict[str, Any]] = Field(default_factory=list)
+    format: str = Field(default="ipynb", pattern=r"^(ipynb|py|html)$")
+
+
+def _cells_to_ipynb(cells: List[Dict[str, Any]]) -> str:
+    """Convert cell list to a Jupyter .ipynb JSON string (nbformat 4)."""
+    nb_cells = []
+    for c in cells:
+        ctype = c.get("type", "code")
+        source = c.get("source", "")
+        # Jupyter expects source as a list of lines, each ending with \n
+        # except the last. Splitting on \n keeps it simple.
+        if source:
+            lines = source.split("\n")
+            src_list = [l + "\n" for l in lines[:-1]] + [lines[-1]]
+        else:
+            src_list = []
+        if ctype == "text":
+            nb_cells.append({
+                "cell_type": "markdown",
+                "metadata": {},
+                "source": src_list,
+            })
+        else:
+            nb_cells.append({
+                "cell_type": "code",
+                "execution_count": None,
+                "metadata": {},
+                "outputs": [],
+                "source": src_list,
+            })
+    nb = {
+        "cells": nb_cells,
+        "metadata": {
+            "kernelspec": {
+                "display_name": "OpenBenchML Python",
+                "language": "python",
+                "name": "python3",
+            },
+            "language_info": {
+                "name": "python",
+                "version": sys.version.split()[0],
+                "mimetype": "text/x-python",
+                "file_extension": ".py",
+            },
+        },
+        "nbformat": 4,
+        "nbformat_minor": 5,
+    }
+    return json.dumps(nb, indent=1)
+
+
+def _cells_to_py(cells: List[Dict[str, Any]]) -> str:
+    """Convert cells to a percent-format Python script (`# %%` separators).
+    Compatible with VS Code Jupyter, PyCharm, and `jupytext`."""
+    out_lines = ["#!/usr/bin/env python3",
+                 "# OpenBenchML notebook export",
+                 "# Cells are delimited by `# %%` (VS Code / PyCharm / jupytext).",
+                 ""]
+    for c in cells:
+        ctype = c.get("type", "code")
+        source = c.get("source", "")
+        if ctype == "text":
+            out_lines.append("# %% [markdown]")
+            for line in source.split("\n"):
+                out_lines.append("# " + line if line else "#")
+        else:
+            out_lines.append("# %%")
+            out_lines.extend(source.split("\n"))
+        out_lines.append("")
+    return "\n".join(out_lines)
+
+
+def _cells_to_html(cells: List[Dict[str, Any]]) -> str:
+    """Convert cells to a self-contained static HTML page."""
+    import html as _html
+    parts = [
+        "<!DOCTYPE html>",
+        "<html><head><meta charset='utf-8'>",
+        "<title>OpenBenchML Notebook Export</title>",
+        "<style>",
+        "body { font-family: -apple-system, system-ui, sans-serif; "
+        "max-width: 900px; margin: 2rem auto; padding: 0 1rem; "
+        "color: #1a1a1a; background: #fff; line-height: 1.6; }",
+        ".cell { border: 1px solid #ddd; border-radius: 8px; margin: 1rem 0; "
+        "overflow: hidden; }",
+        ".cell-label { background: #f5f5f5; padding: 4px 10px; font-size: 0.85rem; "
+        "color: #666; border-bottom: 1px solid #ddd; font-family: monospace; }",
+        ".cell-source { padding: 12px 14px; background: #0d1117; color: #e6edf3; "
+        "font-family: 'SFMono-Regular', Consolas, monospace; font-size: 13px; "
+        "white-space: pre-wrap; overflow-x: auto; }",
+        ".cell-md { padding: 12px 14px; }",
+        "h1 { color: #a0c000; }",
+        "</style></head><body>",
+        "<h1>&#128221; OpenBenchML Notebook</h1>",
+        f"<p><em>Exported {datetime.utcnow().isoformat()}Z</em></p>",
+    ]
+    for i, c in enumerate(cells, 1):
+        ctype = c.get("type", "code")
+        source = c.get("source", "")
+        if ctype == "text":
+            parts.append(f"<div class='cell'><div class='cell-label'>Md [{i}]</div>"
+                         f"<div class='cell-md'>{_html.escape(source).replace(chr(10), '<br>')}</div></div>")
+        else:
+            parts.append(f"<div class='cell'><div class='cell-label'>In [{i}]</div>"
+                         f"<div class='cell-source'>{_html.escape(source)}</div></div>")
+    parts.append("</body></html>")
+    return "\n".join(parts)
+
+
+@router.post("/api/notebook/download")
+async def notebook_download_api(
+    payload: NotebookExportRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Export the notebook as .ipynb / .py / .html."""
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    fmt = payload.format
+    cells = payload.cells or []
+    if fmt == "ipynb":
+        content = _cells_to_ipynb(cells)
+        return PlainTextResponse(
+            content,
+            media_type="application/x-ipynb+json",
+            headers={"Content-Disposition": 'attachment; filename="notebook.ipynb"'},
+        )
+    elif fmt == "py":
+        content = _cells_to_py(cells)
+        return PlainTextResponse(
+            content,
+            media_type="text/x-python",
+            headers={"Content-Disposition": 'attachment; filename="notebook.py"'},
+        )
+    elif fmt == "html":
+        content = _cells_to_html(cells)
+        return PlainTextResponse(
+            content,
+            media_type="text/html",
+            headers={"Content-Disposition": 'attachment; filename="notebook.html"'},
+        )
+    raise HTTPException(status_code=400, detail=f"Unknown format: {fmt}")
+
+
+# ─── Code autocomplete (v2.7) ────────────────────────────────────────────────
+# Use Jedi to introspect the user's session namespace + standard library
+# and return completion candidates for the token at the cursor.
+
+class NotebookCompleteRequest(BaseModel):
+    code: str = Field(..., max_length=50_000)
+    cursor_pos: int = Field(default=0, ge=0)
+
+
+# Curated completions for common numpy / pandas / matplotlib attributes.
+# Used as a fallback when Jedi can't introspect (e.g. user hasn't imported yet)
+# or to make completions appear instantly without a network round-trip for the
+# most common cases.
+_CURATED = {
+    "np": [
+        "array", "zeros", "ones", "empty", "arange", "linspace", "logspace",
+        "reshape", "ravel", "flatten", "transpose", "dot", "matmul", "multiply",
+        "sum", "mean", "std", "var", "min", "max", "argmin", "argmax", "cumsum",
+        "cumprod", "where", "argwhere", "sort", "argsort", "unique", "concatenate",
+        "vstack", "hstack", "split", "vsplit", "hsplit", "random", "linalg", "fft",
+        "pi", "e", "inf", "nan", "ndarray", "dtype", "int32", "int64", "float32",
+        "float64", "bool_", "save", "load", "savez", "fromfile", "copy", "abs",
+        "sqrt", "exp", "log", "log10", "sin", "cos", "tan", "arcsin", "arccos",
+        "arctan", "floor", "ceil", "round", "clip", "newaxis", "ndim", "shape",
+    ],
+    "pd": [
+        "DataFrame", "Series", "read_csv", "read_json", "read_parquet", "read_excel",
+        "read_sql", "read_html", "concat", "merge", "join", "to_datetime", "date_range",
+        "Categorical", "get_dummies", "melt", "pivot", "pivot_table", "cut", "qcut",
+        "isna", "isnull", "notna", "notnull", "dropna", "fillna", "replace", "apply",
+        "applymap", "map", "groupby", "resample", "rolling", "expanding", "shift",
+        "diff", "cumsum", "cummax", "cummin", "value_counts", "unique", "nunique",
+        "head", "tail", "sample", "describe", "info", "columns", "index", "loc",
+        "iloc", "at", "iat", "dt", "str", "plot", "hist", "boxplot", "corr", "cov",
+    ],
+    "plt": [
+        "plot", "scatter", "bar", "barh", "hist", "pie", "boxplot", "violinplot",
+        "imshow", "contour", "contourf", "quiver", "streamplot", "pcolormesh",
+        "subplot", "subplots", "figure", "axes", "gcf", "gca", "sca", "clf", "cla",
+        "close", "show", "savefig", "title", "xlabel", "ylabel", "zlabel", "legend",
+        "colorbar", "xlim", "ylim", "xticks", "yticks", "grid", "axis", "tight_layout",
+        "rcParams", "style", "cm", "colors", "patches", "annotate", "text", "axhline",
+        "axvline", "fill_between", "fill", "semilogx", "semilogy", "loglog",
+    ],
+    "sklearn": [
+        "datasets", "linear_model", "ensemble", "svm", "neighbors", "tree",
+        "neural_network", "cluster", "decomposition", "preprocessing", "pipeline",
+        "model_selection", "metrics", "feature_extraction", "feature_selection",
+        "naive_bayes", "cross_decomposition", "calibration", "compose", "covariance",
+        "discriminant_analysis", "dummy", "ensemble", "gaussian_process", "isotonic",
+        "kernel_approximation", "kernel_ridge", "manifold", "mixture", "multioutput",
+        "multiclass", "multioutput", "naive_bayes", "neighbors", "neural_network",
+        "pipeline", "preprocessing", "random_projection", "semi_supervised", "svm",
+        "tree", "utils",
+    ],
+}
+
+
+def _jedi_completions(code: str, cursor_pos: int, namespace: Dict[str, Any]) -> List[Dict[str, str]]:
+    """Use Jedi to introspect completions at the given cursor position."""
+    try:
+        import jedi
+        # Jedi wants the source and 1-indexed line + column
+        before = code[:cursor_pos]
+        lines = before.split("\n")
+        line = len(lines)
+        col = len(lines[-1]) if lines else 0
+        script = jedi.Script(code=code, line=line, column=col)
+        completions = script.complete()
+        out = []
+        seen = set()
+        for c in completions[:40]:
+            name = c.name
+            if not name or name.startswith("_") or name in seen:
+                continue
+            seen.add(name)
+            # Try to get a friendly type label
+            kind = c.type if hasattr(c, "type") else "statement"
+            desc = ""
+            try:
+                sig = c.get_signatures()
+                if sig:
+                    desc = sig[0].to_string()
+            except Exception:
+                pass
+            out.append({
+                "name": name,
+                "type": kind,
+                "desc": desc,
+            })
+        return out
+    except Exception as e:
+        logger.debug("Jedi completion error: %s", e)
+        return []
+
+
+def _curated_completions(prefix: str) -> List[Dict[str, str]]:
+    """Look up curated completions for `np.`, `pd.`, `plt.`, `sklearn.`."""
+    key = prefix.rstrip(".").lower()
+    items = _CURATED.get(key, [])
+    return [{"name": n, "type": "attr", "desc": ""} for n in items]
+
+
+@router.post("/api/notebook/complete")
+async def notebook_complete_api(
+    payload: NotebookCompleteRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Return autocomplete candidates for the token at the cursor.
+
+    Uses Jedi against the user's live namespace (so variables they've
+    defined in previous cells are completable), plus a curated fallback
+    for the common `np.` / `pd.` / `plt.` / `sklearn.` cases.
+    """
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    code = payload.code
+    cursor = min(payload.cursor_pos, len(code))
+
+    # Find the token immediately before the cursor — anything matching
+    # [A-Za-z_][\w.]* (so we catch `np.`, `df.subset.`, etc.)
+    import re as _re
+    m = _re.search(r"[A-Za-z_][A-Za-z0-9_\.]*$", code[:cursor])
+    token = m.group(0) if m else ""
+
+    # If the token ends with `.` (e.g. `np.`), we want completions for the
+    # attribute set. Otherwise (e.g. `np.ar`), strip the part after the last
+    # dot to get the object, and filter completions by prefix.
+    if "." in token:
+        obj_part, _, attr_part = token.rpartition(".")
+        prefix = obj_part + "."
+    else:
+        obj_part = ""
+        prefix = ""
+        attr_part = token
+
+    # 1) Curated fallback first — instant, no Jedi cost.
+    curated = _curated_completions(prefix) if prefix else []
+    if curated:
+        # Filter by what the user has typed after the dot
+        if attr_part:
+            curated = [c for c in curated if c["name"].lower().startswith(attr_part.lower())]
+        # If we have curated results AND the object isn't in the user's
+        # namespace, return them directly — saves a Jedi round-trip.
+        session = _USER_SESSIONS.get(user.id)
+        ns = session.namespace if session else {}
+        if obj_part not in ns:
+            return {"ok": True, "completions": curated[:30], "source": "curated",
+                    "prefix": prefix, "token": token}
+
+    # 2) Jedi completion against the user's namespace
+    session = _USER_SESSIONS.get(user.id)
+    ns = session.namespace if session else {}
+    jedi_results = _jedi_completions(code, cursor, ns)
+
+    # Filter by attr_part if we have one
+    if attr_part and "." in token:
+        jedi_results = [c for c in jedi_results
+                        if c["name"].lower().startswith(attr_part.lower())]
+
+    # Merge curated (if any) on top, deduped
+    seen = {c["name"] for c in jedi_results}
+    merged = list(jedi_results)
+    for c in curated:
+        if c["name"] not in seen:
+            merged.append(c)
+            seen.add(c["name"])
+
+    return {"ok": True, "completions": merged[:40], "source": "jedi+curated",
+            "prefix": prefix, "token": token}
+
+
+# ─── Installed packages (v2.7) ───────────────────────────────────────────────
+# Surfaces `session.installed_packages` to the UI so users can see what they've
+# `!pip install`ed. Explains why pip installs don't appear in the Files tab.
+
+@router.get("/api/notebook/packages")
+async def notebook_packages_api(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Return packages installed in the user's session via `!pip install`."""
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    session = _USER_SESSIONS.get(user.id)
+    pkgs = list(session.installed_packages) if session else []
+    # Dedupe while preserving order
+    seen = set(); out = []
+    for p in pkgs:
+        if p not in seen:
+            seen.add(p); out.append(p)
+    return {
+        "ok": True,
+        "packages": out,
+        "count": len(out),
+        "note": (
+            "Packages installed via `!pip install` go to Python's site-packages "
+            "directory (system-wide for this Render instance), not to your "
+            "Files workspace. They are immediately importable in any cell — "
+            "just run `import <name>`. They will NOT appear in the Files tab "
+            "because Files only shows files in your per-user workspace."
+        ),
+    }
 
 
 @router.post("/api/notebook/reset")

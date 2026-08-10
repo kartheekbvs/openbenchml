@@ -549,202 +549,364 @@
     font-family: inherit;
   }
   .terminal-action-btn:hover { background: rgba(160, 192, 0, 0.2); }
+
+  /* ─── v2.7: Colab-style left sidebar layout ──────────────────── */
+  .nb-app {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 1rem;
+    align-items: start;
+  }
+  .nb-app.sidebar-collapsed { grid-template-columns: 36px 1fr; }
+  .nb-app.sidebar-collapsed .nb-sidebar-content { display: none; }
+  .nb-app.sidebar-collapsed .nb-sidebar { padding: 0.4rem 0; }
+  .nb-app.sidebar-collapsed .nb-sidebar-toggle { margin: 0 auto; }
+
+  .nb-sidebar {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    position: sticky;
+    top: 1rem;
+    max-height: calc(100vh - 2rem);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .nb-sidebar-header {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-secondary);
+  }
+  .nb-sidebar-header .title {
+    font-weight: 600; font-size: 0.9rem; color: var(--text-primary);
+    flex: 1;
+  }
+  .nb-sidebar-toggle {
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 4px; padding: 2px 8px; cursor: pointer;
+    color: var(--text-secondary); font-size: 0.85rem;
+  }
+  .nb-sidebar-toggle:hover { color: var(--accent); border-color: var(--accent); }
+  .nb-sidebar-content {
+    overflow-y: auto;
+    flex: 1;
+    padding: 0.5rem;
+  }
+  .nb-sidebar-section {
+    margin-bottom: 1rem;
+  }
+  .nb-sidebar-section h4 {
+    margin: 0 0 0.4rem 0;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-secondary);
+    font-weight: 600;
+    padding: 0 0.3rem;
+  }
+  .nb-sidebar .files-actions-btn { font-size: 0.74rem; padding: 0.25rem 0.5rem; }
+  .nb-sidebar .files-drop-zone {
+    padding: 1rem 0.5rem; margin: 0.3rem 0;
+    border-radius: 6px;
+  }
+  .nb-sidebar .files-drop-zone .drop-icon { font-size: 1.5rem; }
+  .nb-sidebar .files-drop-zone .drop-hint { font-size: 0.72rem; }
+  .nb-sidebar .files-list {
+    border-radius: 6px;
+  }
+  .nb-sidebar .files-list .file-row {
+    padding: 0.4rem 0.55rem;
+  }
+  .nb-sidebar .files-list .file-row .file-modified { display: none; }
+  .nb-sidebar .files-list .file-row .file-size { min-width: 50px; font-size: 0.7rem; }
+  .nb-sidebar .quota-text {
+    font-size: 0.72rem; color: var(--text-secondary);
+    padding: 0.3rem 0.4rem; text-align: center;
+  }
+  .nb-sidebar .packages-list {
+    font-family: monospace; font-size: 0.78rem;
+  }
+  .nb-sidebar .packages-list .pkg-row {
+    padding: 0.3rem 0.5rem;
+    border-bottom: 1px dashed var(--border);
+    color: var(--text-primary);
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .nb-sidebar .packages-list .pkg-row:last-child { border-bottom: none; }
+  .nb-sidebar .packages-list .pkg-row .pkg-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent);
+  }
+  .nb-sidebar .packages-empty {
+    padding: 0.6rem; font-size: 0.75rem; color: var(--text-secondary);
+    text-align: center;
+  }
+  .nb-sidebar-hint {
+    font-size: 0.72rem; color: var(--text-secondary);
+    padding: 0.4rem; line-height: 1.45;
+    background: rgba(160, 192, 0, 0.04);
+    border-radius: 4px; margin: 0.3rem 0;
+  }
+  .nb-sidebar-hint code {
+    background: rgba(160, 192, 0, 0.12); color: var(--accent);
+    padding: 0 4px; border-radius: 3px;
+  }
+
+  /* ─── v2.7: Download dropdown ────────────────────────────────── */
+  .download-dropdown { position: relative; display: inline-block; }
+  .download-dropdown-menu {
+    display: none;
+    position: absolute; top: 100%; right: 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    z-index: 100;
+    min-width: 180px;
+    overflow: hidden;
+  }
+  .download-dropdown.open .download-dropdown-menu { display: block; }
+  .download-dropdown-menu button {
+    display: flex; align-items: center; gap: 0.5rem;
+    width: 100%; padding: 0.5rem 0.8rem;
+    background: transparent; border: none; cursor: pointer;
+    color: var(--text-primary); font-family: inherit;
+    font-size: 0.85rem; text-align: left;
+  }
+  .download-dropdown-menu button:hover {
+    background: rgba(160, 192, 0, 0.1);
+  }
+  .download-dropdown-menu button .fmt-badge {
+    margin-left: auto; font-size: 0.7rem;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    padding: 0 6px; border-radius: 3px;
+  }
+
+  /* ─── v2.7: Autocomplete popup ───────────────────────────────── */
+  .autocomplete-popup {
+    position: absolute;
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+    z-index: 1000;
+    max-height: 280px;
+    overflow-y: auto;
+    min-width: 260px;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 12.5px;
+  }
+  .autocomplete-popup .ac-item {
+    padding: 5px 10px;
+    cursor: pointer;
+    color: #e6edf3;
+    display: flex; align-items: center; gap: 0.5rem;
+    border-bottom: 1px solid #21262d;
+  }
+  .autocomplete-popup .ac-item:last-child { border-bottom: none; }
+  .autocomplete-popup .ac-item:hover,
+  .autocomplete-popup .ac-item.selected {
+    background: rgba(160, 192, 0, 0.15);
+  }
+  .autocomplete-popup .ac-item .ac-name {
+    color: #e6edf3; flex: 1;
+  }
+  .autocomplete-popup .ac-item .ac-type {
+    font-size: 0.7rem;
+    color: #8b949e;
+    background: #21262d;
+    padding: 1px 6px; border-radius: 3px;
+    text-transform: uppercase;
+  }
+  .autocomplete-popup .ac-item .ac-type.function { color: #d2a8ff; background: rgba(188, 140, 255, 0.12); }
+  .autocomplete-popup .ac-item .ac-type.class    { color: #ffa657; background: rgba(255, 166, 87, 0.12); }
+  .autocomplete-popup .ac-item .ac-type.module   { color: #79c0ff; background: rgba(121, 192, 255, 0.12); }
+  .autocomplete-popup .ac-item .ac-type.param    { color: #ffa657; background: rgba(255, 166, 87, 0.12); }
+  .autocomplete-popup .ac-item .ac-type.keyword  { color: #ff7b72; background: rgba(255, 123, 114, 0.12); }
+  .autocomplete-popup .ac-empty {
+    padding: 0.6rem; color: #8b949e; font-size: 0.78rem;
+    text-align: center;
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="page-header" style="margin-bottom: 1rem;">
-    <h1>&#128221; Python Notebook <span style="font-size: 0.7em; color: var(--accent); padding: 0.1rem 0.5rem; background: rgba(160,192,0,0.12); border-radius: 4px; vertical-align: middle;">v2.6 OOM-hardened</span></h1>
-    <p class="text-muted">
-        Multi-cell, persistent kernel, shell commands, package recommendations.
-        Variables persist across cells — just like Colab.
-    </p>
+<div class="page-header" style="margin-bottom: 0.75rem; display: flex; align-items: center; gap: 1rem;">
+    <h1 style="margin: 0;">&#128221; Notebook</h1>
+    <span style="font-size: 0.72rem; color: var(--accent); padding: 0.1rem 0.5rem; background: rgba(160,192,0,0.12); border-radius: 4px;">v2.7</span>
+    <span style="font-size: 0.78rem; color: var(--text-secondary);">Multi-cell · persistent kernel · autocomplete</span>
 </div>
 
-<div class="welcome-banner">
-    <h3>&#9889; What's new in v2.1</h3>
-    <p>
-        <strong>Multi-cell:</strong> add as many code cells as you want. Variables persist between cells.
-        <strong>Shell commands:</strong> prefix a line with <code>!</code> to run shell — <code>!pip install xgboost</code>,
-        <code>!ls</code>, <code>!python --version</code>, <code>!git clone https://huggingface.co/...</code>.
-        <strong>&#128193; Files tab:</strong> upload CSV/JSON/parquet, drag-and-drop, then read them in cells with
-        <code>pd.read_csv('file.csv')</code>. Files from <code>!git clone</code> appear here automatically.
-        <strong>Magics:</strong> <code>%whos</code>, <code>%time &lt;stmt&gt;</code>, <code>%reset</code>, <code>%pip install &lt;pkg&gt;</code>.
-        <strong>Package hints:</strong> if your code imports a missing package, we suggest the install command.
-        <strong>Inline plots:</strong> matplotlib figures render inline automatically.
-        <strong>&#128187; Real Terminal:</strong> click the "Terminal" tab for a full bash shell (xterm.js + WebSocket) — runs interactive commands like <code>python</code>, <code>ipython</code>, <code>vim</code>, <code>top</code>.
-    </p>
-</div>
-
-<!-- ─── View tabs: Notebook | Files | Terminal ─────────────────── -->
+<!-- ─── View tabs: Notebook | Terminal (Files moved to left sidebar) ─ -->
 <div class="view-tabs">
     <button class="view-tab active" id="tab-notebook" onclick="switchView('notebook')">
-        &#128221; Notebook <span class="tab-badge">cells</span>
-    </button>
-    <button class="view-tab" id="tab-files" onclick="switchView('files')">
-        &#128193; Files <span class="tab-badge" id="files-badge" style="display: none;">0</span>
+        &#128221; Notebook
     </button>
     <button class="view-tab" id="tab-terminal" onclick="switchView('terminal')">
         &#128187; Terminal <span class="tab-badge" id="terminal-badge" style="display: none;">live</span>
     </button>
 </div>
 
-<!-- ─── Notebook view (cells + sidebar) ────────────────────────── -->
-<div class="view-panel active" id="panel-notebook">
-<div class="notebook-layout">
-  <!-- ─── Main notebook column ─────────────────────────────────── -->
-  <div>
-    <!-- Toolbar -->
-    <div class="notebook-toolbar">
-      <div class="toolbar-section">
-        <button class="toolbar-btn primary" id="run-all-btn" onclick="runAllCells()" title="Run all cells (Ctrl+Shift+Enter)">
-          &#9654;&#9654; Run all
-        </button>
-        <button class="toolbar-btn" id="run-selected-btn" onclick="runSelectedCell()" title="Run selected cell (Shift+Enter)">
-          &#9654; Run
-        </button>
-      </div>
-      <div class="toolbar-divider"></div>
-      <div class="toolbar-section">
-        <button class="toolbar-btn" onclick="addCodeCell()" title="Add code cell below">
-          + Code
-        </button>
-        <button class="toolbar-btn" onclick="addTextCell()" title="Add markdown cell below">
-          + Text
-        </button>
-      </div>
-      <div class="toolbar-divider"></div>
-      <div class="toolbar-section">
-        <button class="toolbar-btn" onclick="moveSelectedCellUp()" title="Move cell up">
-          &#9650;
-        </button>
-        <button class="toolbar-btn" onclick="moveSelectedCellDown()" title="Move cell down">
-          &#9660;
-        </button>
-        <button class="toolbar-btn danger" onclick="deleteSelectedCell()" title="Delete cell">
-          &#128465;
-        </button>
-      </div>
-      <div class="toolbar-divider"></div>
-      <div class="toolbar-section">
-        <button class="toolbar-btn" onclick="resetKernel()" title="Clear all variables">
-          &#10227; Reset kernel
-        </button>
-      </div>
-      <div class="toolbar-divider"></div>
-      <div class="engine-selector">
-        <span style="color: var(--text-secondary);">Engine:</span>
-        <select id="engine-select" onchange="switchEngine(this.value)">
-          <option value="server" selected>&#128421; Server (persistent kernel)</option>
-          <option value="pyodide">&#9889; Pyodide (browser)</option>
-        </select>
-      </div>
-      <span id="kernel-pill" class="kernel-pill ready">
-        <span class="pulse"></span>
-        <span id="kernel-pill-text">kernel ready</span>
-      </span>
-    </div>
+<!-- ─── Main app grid: left sidebar + main content ─────────────── -->
+<div class="nb-app" id="nb-app">
 
-    <!-- Pyodide loader (only shown when engine=pyodide and not ready) -->
-    <div id="pyodide-loader" class="pyodide-loader">
-      <div id="pyodide-loader-text">Loading Pyodide runtime…</div>
-      <div class="progress-bar"><div class="progress-fill"></div></div>
+  <!-- ╔══════════════ LEFT SIDEBAR (Colab-style) ══════════════╗ -->
+  <aside class="nb-sidebar">
+    <div class="nb-sidebar-header">
+      <span class="title">&#128193; Files</span>
+      <button class="nb-sidebar-toggle" onclick="toggleSidebar()" title="Collapse sidebar">&#9776;</button>
     </div>
+    <div class="nb-sidebar-content">
 
-    <!-- Notebook canvas -->
-    <div class="notebook-canvas" id="notebook-canvas">
-      <!-- Cells are injected here by JS -->
-    </div>
+      <!-- Files section -->
+      <div class="nb-sidebar-section">
+        <h4>Workspace</h4>
+        <div class="quota-text" id="files-quota">— / —</div>
+        <div style="display: flex; gap: 0.3rem; margin: 0.3rem 0;">
+          <button class="files-actions-btn primary" style="flex: 1;" onclick="document.getElementById('file-input').click()">
+            &#8679; Upload
+          </button>
+          <button class="files-actions-btn" onclick="refreshFiles()" title="Refresh">&#8635;</button>
+          <button class="files-actions-btn danger" onclick="clearAllFiles()" title="Clear all">&#128465;</button>
+        </div>
+        <input type="file" id="file-input" style="display: none;" multiple
+               onchange="uploadFiles(this.files)">
 
-    <!-- Add cell row at bottom -->
-    <div class="add-cell-row">
-      <button class="add-cell-btn" onclick="addCodeCell()">+ Code</button>
-      <button class="add-cell-btn" onclick="addTextCell()">+ Text</button>
-    </div>
-  </div>
+        <div class="files-drop-zone" id="files-drop-zone"
+             onclick="document.getElementById('file-input').click()">
+          <span class="drop-icon">&#128229;</span>
+          <div><strong>Drop files</strong> or click</div>
+          <div class="drop-hint">Max 100 MB · CSV, JSON, parquet, py</div>
+        </div>
 
-  <!-- ─── Kernel sidebar ───────────────────────────────────────── -->
-  <div class="kernel-sidebar">
-    <div class="card">
-      <div class="card-header">
-        <h3 style="margin: 0; font-size: 0.95rem;">&#129518; Kernel state</h3>
+        <div class="files-list" id="files-list">
+          <div class="empty-state">No files yet</div>
+        </div>
+
+        <div class="nb-sidebar-hint">
+          Read in a cell: <code>pd.read_csv('file.csv')</code><br>
+          Clone a repo: <code>!git clone URL</code>
+        </div>
       </div>
-      <div class="card-body" style="padding: 0.75rem;">
-        <div id="kernel-info" style="font-size: 0.78rem; color: var(--text-secondary); line-height: 1.6;">
+
+      <!-- Packages section -->
+      <div class="nb-sidebar-section">
+        <h4>Packages <span style="color: var(--accent); font-weight: normal;" id="pkg-count-badge"></span></h4>
+        <div class="packages-list" id="packages-list">
+          <div class="packages-empty">No packages installed</div>
+        </div>
+        <div class="nb-sidebar-hint" style="margin-top: 0.4rem;">
+          Install: <code>!pip install numpy</code><br>
+          Packages go to site-packages, not Files.
+        </div>
+      </div>
+
+      <!-- Variables section -->
+      <div class="nb-sidebar-section">
+        <h4>Variables</h4>
+        <div id="var-list" class="var-list" style="font-size: 0.78rem;">
+          <div class="empty-state" style="padding: 0.6rem;">None yet</div>
+        </div>
+      </div>
+
+      <!-- Kernel state -->
+      <div class="nb-sidebar-section">
+        <h4>Kernel</h4>
+        <div id="kernel-info" style="font-size: 0.74rem; color: var(--text-secondary); line-height: 1.6; padding: 0 0.3rem;">
           <div><strong>Engine:</strong> <span id="info-engine">server</span></div>
           <div><strong>Cells run:</strong> <span id="info-cells">0</span></div>
           <div><strong>Uptime:</strong> <span id="info-uptime">0s</span></div>
-          <div><strong>Installed pkgs:</strong> <span id="info-pkgs">0</span></div>
         </div>
       </div>
+
     </div>
-    <div class="card">
-      <div class="card-header">
-        <h3 style="margin: 0; font-size: 0.95rem;">&#128218; Variables</h3>
-      </div>
-      <div class="card-body" style="padding: 0.75rem;">
-        <div id="var-list" class="var-list">
-          <div class="empty-state">No variables yet. Run a cell to define some.</div>
+  </aside>
+
+  <!-- ╔══════════════ MAIN CONTENT ══════════════════════════════╗ -->
+  <div>
+
+    <!-- ─── Notebook view (cells) ───────────────────────────────── -->
+    <div class="view-panel active" id="panel-notebook">
+      <!-- Toolbar -->
+      <div class="notebook-toolbar">
+        <div class="toolbar-section">
+          <button class="toolbar-btn primary" id="run-all-btn" onclick="runAllCells()" title="Run all cells (Ctrl+Shift+Enter)">
+            &#9654;&#9654; Run all
+          </button>
+          <button class="toolbar-btn" id="run-selected-btn" onclick="runSelectedCell()" title="Run selected cell (Shift+Enter)">
+            &#9654; Run
+          </button>
         </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-section">
+          <button class="toolbar-btn" onclick="addCodeCell()" title="Add code cell below">+ Code</button>
+          <button class="toolbar-btn" onclick="addTextCell()" title="Add markdown cell below">+ Text</button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-section">
+          <button class="toolbar-btn" onclick="moveSelectedCellUp()" title="Move up">&#9650;</button>
+          <button class="toolbar-btn" onclick="moveSelectedCellDown()" title="Move down">&#9660;</button>
+          <button class="toolbar-btn danger" onclick="deleteSelectedCell()" title="Delete">&#128465;</button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="toolbar-section">
+          <button class="toolbar-btn" onclick="resetKernel()" title="Clear all variables">&#10227; Reset</button>
+        </div>
+        <div class="toolbar-divider"></div>
+        <!-- Download dropdown -->
+        <div class="download-dropdown" id="download-dropdown">
+          <button class="toolbar-btn" onclick="toggleDownloadMenu()" title="Download notebook">
+            &#8681; Download &#9662;
+          </button>
+          <div class="download-dropdown-menu">
+            <button onclick="downloadNotebook('ipynb')">
+              <span>&#128218; Jupyter</span><span class="fmt-badge">.ipynb</span>
+            </button>
+            <button onclick="downloadNotebook('py')">
+              <span>&#128187; Python script</span><span class="fmt-badge">.py</span>
+            </button>
+            <button onclick="downloadNotebook('html')">
+              <span>&#128196; HTML page</span><span class="fmt-badge">.html</span>
+            </button>
+          </div>
+        </div>
+        <div class="toolbar-divider"></div>
+        <div class="engine-selector">
+          <span style="color: var(--text-secondary);">Engine:</span>
+          <select id="engine-select" onchange="switchEngine(this.value)">
+            <option value="server" selected>Server</option>
+            <option value="pyodide">Pyodide</option>
+          </select>
+        </div>
+        <span id="kernel-pill" class="kernel-pill ready">
+          <span class="pulse"></span>
+          <span id="kernel-pill-text">ready</span>
+        </span>
       </div>
-    </div>
-    <div class="card">
-      <div class="card-header">
-        <h3 style="margin: 0; font-size: 0.95rem;">&#128161; Quick tips</h3>
+
+      <!-- Pyodide loader (only shown when engine=pyodide and not ready) -->
+      <div id="pyodide-loader" class="pyodide-loader">
+        <div id="pyodide-loader-text">Loading Pyodide runtime…</div>
+        <div class="progress-bar"><div class="progress-fill"></div></div>
       </div>
-      <div class="card-body" style="padding: 0.75rem; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.55;">
-        <div style="margin-bottom: 0.4rem;"><code>!pip install xgboost</code></div>
-        <div style="margin-bottom: 0.4rem;"><code>%time model.fit(X, y)</code></div>
-        <div style="margin-bottom: 0.4rem;"><code>%whos</code> — list all variables</div>
-        <div style="margin-bottom: 0.4rem;"><code>%reset</code> — clear kernel</div>
-        <div>Press <code>Shift+Enter</code> in a cell to run it.</div>
+
+      <!-- Notebook canvas -->
+      <div class="notebook-canvas" id="notebook-canvas">
+        <!-- Cells are injected here by JS -->
       </div>
-    </div>
-  </div>
-</div>
-</div><!-- /panel-notebook -->
 
-<!-- ─── Files view (VS Code-style explorer, v2.5) ──────────────── -->
-<div class="view-panel" id="panel-files">
-  <div class="files-toolbar">
-    <span class="toolbar-title">&#128193; My Files</span>
-    <span class="quota-text" id="files-quota">— / —</span>
-    <button class="files-actions-btn primary" onclick="document.getElementById('file-input').click()">
-      &#8679; Upload
-    </button>
-    <button class="files-actions-btn" onclick="refreshFiles()" title="Refresh list">&#8635;</button>
-    <button class="files-actions-btn danger" onclick="clearAllFiles()" title="Delete all files">&#128465; Clear all</button>
-    <input type="file" id="file-input" style="display: none;" multiple
-           onchange="uploadFiles(this.files)">
-  </div>
+      <!-- Add cell row at bottom -->
+      <div class="add-cell-row">
+        <button class="add-cell-btn" onclick="addCodeCell()">+ Code</button>
+        <button class="add-cell-btn" onclick="addTextCell()">+ Text</button>
+      </div>
+    </div><!-- /panel-notebook -->
 
-  <div class="file-hint-banner">
-    <strong>&#128161; How to use these files in cells:</strong>
-    Upload a CSV / JSON / parquet file here, then in a notebook cell run:
-    <code>df = pd.read_csv('filename.csv')</code>.
-    Files are scoped to <em>your</em> workspace and persist for the session.
-    <br>
-    <strong>&#129516; Clone a repo (HuggingFace, GitHub):</strong> in a cell, run
-    <code>!git clone https://huggingface.co/zai-org/GLM-5.2</code> — files appear
-    here automatically and are readable as <code>open('GLM-5.2/config.json').read()</code>.
-    <br>
-    <strong>&#128229; Download:</strong> click any file's &#8681; button. Files are scoped to your account.
-  </div>
-
-  <div class="files-drop-zone" id="files-drop-zone"
-       onclick="document.getElementById('file-input').click()">
-    <span class="drop-icon">&#128229;</span>
-    <div><strong>Drop files here</strong> or click to browse</div>
-    <div class="drop-hint">Max 100 MB per file · CSV, JSON, parquet, txt, py, ipynb, …</div>
-  </div>
-
-  <div class="files-list" id="files-list">
-    <div class="empty-state">Loading…</div>
-  </div>
-</div><!-- /panel-files -->
-
-<!-- ─── Terminal view (xterm.js + WebSocket) ───────────────────── -->
-<div class="view-panel" id="panel-terminal">
+    <!-- ─── Terminal view (xterm.js + WebSocket) ────────────────── -->
+    <div class="view-panel" id="panel-terminal">
   <div class="terminal-status-bar" id="terminal-status">
     <span class="status-dot"></span>
     <span id="terminal-status-text">disconnected</span>
@@ -763,7 +925,11 @@
     Press <code>Ctrl+D</code> to exit the shell, <code>Ctrl+C</code> to interrupt a running command.
     The terminal is shared — opening it again will resume the same shell.
   </div>
-</div>
+</div><!-- /panel-terminal -->
+
+  </div><!-- /main content -->
+
+</div><!-- /nb-app -->
 
 {% endblock %}
 
@@ -905,9 +1071,13 @@ function renderCell(cell) {
   if (cell.type === 'code') {
     const editor = wrap.querySelector('.cell-editor');
     editor.value = cell.source;
-    editor.addEventListener('input', () => { cell.source = editor.value; });
+    editor.addEventListener('input', () => {
+      cell.source = editor.value;
+      _maybeTriggerAutocomplete(editor, cell);
+    });
     editor.addEventListener('focus', () => selectCell(cell.id));
     editor.addEventListener('keydown', (e) => onEditorKeydown(e, cell));
+    editor.addEventListener('blur', () => setTimeout(() => _hideAutocomplete(), 200));
     // Render existing output if any
     if (cell.output) renderOutput(cell);
   } else if (cell.type === 'text') {
@@ -980,9 +1150,42 @@ function moveCellDown(id) {
 
 // ─── Editor keyboard shortcuts ──────────────────────────────────────────────
 function onEditorKeydown(e, cell) {
+  const ta = e.target;
+
+  // ── Autocomplete navigation (when popup is open) ──────────────
+  if (_acPopup && _acPopup.style.display !== 'none') {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const items = _acPopup.querySelectorAll('.ac-item');
+      if (!items.length) return;
+      let idx = Array.from(items).findIndex(it => it.classList.contains('selected'));
+      if (e.key === 'ArrowDown') idx = (idx + 1) % items.length;
+      else idx = idx <= 0 ? items.length - 1 : idx - 1;
+      items.forEach(it => it.classList.remove('selected'));
+      items[idx].classList.add('selected');
+      items[idx].scrollIntoView({block: 'nearest'});
+      return;
+    }
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      const sel = _acPopup.querySelector('.ac-item.selected') ||
+                  _acPopup.querySelector('.ac-item');
+      if (sel) {
+        _acceptCompletion(ta, cell, sel.dataset.name);
+      }
+      return;
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      _hideAutocomplete();
+      return;
+    }
+  }
+
   // Shift+Enter → run cell, focus next (or add new)
   if (e.key === 'Enter' && e.shiftKey) {
     e.preventDefault();
+    _hideAutocomplete();
     runCell(cell.id).then(() => {
       const idx = cells.findIndex(c => c.id === cell.id);
       if (idx === cells.length - 1) {
@@ -1003,12 +1206,14 @@ function onEditorKeydown(e, cell) {
   // Ctrl+Enter → run cell, keep focus
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
+    _hideAutocomplete();
     runCell(cell.id);
     return;
   }
   // Alt+Enter → run cell, add new cell below
   if (e.key === 'Enter' && e.altKey) {
     e.preventDefault();
+    _hideAutocomplete();
     runCell(cell.id).then(() => {
       const newCell = addCodeCell('', cell.id);
       setTimeout(() => {
@@ -1018,17 +1223,205 @@ function onEditorKeydown(e, cell) {
     });
     return;
   }
-  // Tab → insert 4 spaces (not tab char)
+  // Tab → indent, or Shift+Tab → dedent, or accept autocomplete if open
   if (e.key === 'Tab') {
+    if (_acPopup && _acPopup.style.display !== 'none') {
+      // Tab to accept is handled above
+      return;
+    }
     e.preventDefault();
-    const ta = e.target;
     const start = ta.selectionStart, end = ta.selectionEnd;
-    ta.value = ta.value.slice(0, start) + '    ' + ta.value.slice(end);
-    ta.selectionStart = ta.selectionEnd = start + 4;
+    if (e.shiftKey) {
+      // Dedent: remove up to 4 leading spaces on the current line
+      const before = ta.value.slice(0, start);
+      const lineStart = before.lastIndexOf('\n') + 1;
+      const lineHead = ta.value.slice(lineStart, lineStart + 4);
+      let removeCount = 0;
+      for (const ch of lineHead) {
+        if (ch === ' ') removeCount++;
+        else break;
+        if (removeCount >= 4) break;
+      }
+      if (removeCount > 0) {
+        ta.value = ta.value.slice(0, lineStart) + ta.value.slice(lineStart + removeCount);
+        ta.selectionStart = ta.selectionEnd = Math.max(lineStart, start - removeCount);
+      }
+    } else {
+      // Indent: insert 4 spaces (or indent selected block)
+      if (start !== end && ta.value.slice(start, end).includes('\n')) {
+        // Multi-line: indent each line
+        const before = ta.value.slice(0, start);
+        const sel = ta.value.slice(start, end);
+        const after = ta.value.slice(end);
+        const lineStart = before.lastIndexOf('\n') + 1;
+        const indented = (ta.value.slice(lineStart, start) + sel).split('\n').map(l => '    ' + l).join('\n');
+        ta.value = ta.value.slice(0, lineStart) + indented + after;
+        ta.selectionStart = lineStart;
+        ta.selectionEnd = lineStart + indented.length;
+      } else {
+        ta.value = ta.value.slice(0, start) + '    ' + ta.value.slice(end);
+        ta.selectionStart = ta.selectionEnd = start + 4;
+      }
+    }
     cell.source = ta.value;
     return;
   }
+  // Enter → auto-indent after lines ending with ':'
+  if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    const start = ta.selectionStart;
+    const before = ta.value.slice(0, start);
+    const lineStart = before.lastIndexOf('\n') + 1;
+    const currentLine = ta.value.slice(lineStart, start);
+    // Compute current indent
+    const indentMatch = currentLine.match(/^[ \t]*/);
+    let indent = indentMatch ? indentMatch[0] : '';
+    // If line ends with ':' (after stripping trailing whitespace/comments),
+    // add 4 extra spaces
+    const stripped = currentLine.replace(/#.*$/, '').trimEnd();
+    if (stripped.endsWith(':')) {
+      indent += '    ';
+    }
+    if (indent.length > 0) {
+      e.preventDefault();
+      const insert = '\n' + indent;
+      ta.value = ta.value.slice(0, start) + insert + ta.value.slice(ta.selectionEnd);
+      ta.selectionStart = ta.selectionEnd = start + insert.length;
+      cell.source = ta.value;
+      _hideAutocomplete();
+      _maybeTriggerAutocomplete(ta, cell);
+      return;
+    }
+  }
 }
+
+// ── v2.7: Autocomplete (Jedi-backed, with curated fallback) ────────────────
+let _acPopup = null;
+let _acRequestId = 0;
+let _acDebounceTimer = null;
+
+function _ensureAcPopup() {
+  if (_acPopup) return _acPopup;
+  _acPopup = document.createElement('div');
+  _acPopup.className = 'autocomplete-popup';
+  _acPopup.style.display = 'none';
+  document.body.appendChild(_acPopup);
+  return _acPopup;
+}
+
+function _hideAutocomplete() {
+  if (_acPopup) _acPopup.style.display = 'none';
+}
+
+function _maybeTriggerAutocomplete(ta, cell) {
+  if (_acDebounceTimer) clearTimeout(_acDebounceTimer);
+  _acDebounceTimer = setTimeout(() => _fetchCompletions(ta, cell), 180);
+}
+
+async function _fetchCompletions(ta, cell) {
+  // Only trigger for code cells, not markdown
+  if (cell.type !== 'code') return;
+  const code = ta.value;
+  const cursor = ta.selectionStart;
+  // Find the token immediately before the cursor
+  const before = code.slice(0, cursor);
+  const m = before.match(/[A-Za-z_][A-Za-z0-9_\.]*$/);
+  if (!m) { _hideAutocomplete(); return; }
+  const token = m[0];
+  // Trigger conditions:
+  //  - token contains a `.` (e.g. `np.`, `df.subset.`), OR
+  //  - token is at least 3 chars (e.g. `imp` → import)
+  if (!token.includes('.') && token.length < 3) {
+    _hideAutocomplete();
+    return;
+  }
+  // Don't trigger if there's whitespace right before the cursor and no
+  // partial word (e.g. just typed a space after a complete word).
+  const reqId = ++_acRequestId;
+  try {
+    const r = await fetch('/api/notebook/complete', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({code: code, cursor_pos: cursor}),
+    });
+    if (!r.ok) { _hideAutocomplete(); return; }
+    const data = await r.json();
+    // Stale response guard
+    if (reqId !== _acRequestId) return;
+    if (!data.completions || data.completions.length === 0) {
+      _hideAutocomplete();
+      return;
+    }
+    _renderAutocomplete(ta, data.completions, cell);
+  } catch (e) {
+    _hideAutocomplete();
+  }
+}
+
+function _renderAutocomplete(ta, completions, cell) {
+  const popup = _ensureAcPopup();
+  // Render items
+  const items = completions.slice(0, 30).map(c => {
+    const typeClass = (c.type || 'attr').replace(/[^a-z]/gi, '');
+    return `<div class="ac-item" data-name="${escapeHtml(c.name)}" data-type="${escapeHtml(c.type||'')}">
+      <span class="ac-name">${escapeHtml(c.name)}</span>
+      <span class="ac-type ${typeClass}">${escapeHtml(c.type || 'attr')}</span>
+    </div>`;
+  }).join('');
+  popup.innerHTML = items || '<div class="ac-empty">No completions</div>';
+  // Attach click handlers
+  popup.querySelectorAll('.ac-item').forEach(it => {
+    it.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      _acceptCompletion(ta, cell, it.dataset.name);
+    });
+  });
+  // Select the first item by default
+  const first = popup.querySelector('.ac-item');
+  if (first) first.classList.add('selected');
+  // Position the popup just below the cursor, aligned with the textarea
+  const rect = ta.getBoundingClientRect();
+  // Approximate cursor position: count lines above cursor
+  const beforeCursor = ta.value.slice(0, ta.selectionStart);
+  const lines = beforeCursor.split('\n');
+  const lineHeight = 18;  // matches CSS line-height 1.55 * 13px font
+  const charWidth = 7.5;   // approx for SFMono 13px
+  const cursorX = (lines[lines.length - 1].length) * charWidth;
+  const cursorY = (lines.length - 1) * lineHeight;
+  popup.style.left = (rect.left + window.scrollX + Math.min(cursorX, rect.width - 280)) + 'px';
+  popup.style.top = (rect.top + window.scrollY + cursorY + lineHeight + 6) + 'px';
+  popup.style.display = 'block';
+}
+
+function _acceptCompletion(ta, cell, name) {
+  // Replace the token at the cursor with the chosen completion.
+  const cursor = ta.selectionStart;
+  const before = ta.value.slice(0, cursor);
+  const m = before.match(/[A-Za-z_][A-Za-z0-9_\.]*$/);
+  if (!m) { _hideAutocomplete(); return; }
+  const tokenStart = cursor - m[0].length;
+  // If token ends with `.`, keep the dot — only replace what's after it
+  let replaceStart = tokenStart;
+  let insertName = name;
+  if (m[0].includes('.')) {
+    const dotIdx = m[0].lastIndexOf('.');
+    replaceStart = tokenStart + dotIdx + 1;
+  }
+  ta.value = ta.value.slice(0, replaceStart) + insertName + ta.value.slice(cursor);
+  const newPos = replaceStart + insertName.length;
+  ta.selectionStart = ta.selectionEnd = newPos;
+  ta.focus();
+  cell.source = ta.value;
+  _hideAutocomplete();
+}
+
+// Hide autocomplete on outside click
+document.addEventListener('mousedown', (e) => {
+  if (_acPopup && _acPopup.style.display !== 'none' &&
+      !_acPopup.contains(e.target) &&
+      !e.target.classList.contains('cell-editor')) {
+    _hideAutocomplete();
+  }
+});
 
 // ─── Run cells ──────────────────────────────────────────────────────────────
 async function runCell(cellId) {
@@ -1073,6 +1466,15 @@ async function runCell(cellId) {
       setKernelStatus('kernel: last error', 'error');
     }
     refreshKernelInfo();
+    // v2.7: After running a cell, refresh the sidebar Files list (in case
+    // the cell did `!git clone`, `!wget`, or wrote a file via open()) and
+    // the Packages list (in case the cell did `!pip install`).
+    if (cell.source && cell.source.startsWith('!')) {
+      refreshFiles();
+      refreshPackages();
+    } else if (cell.source && /pip\s+install/.test(cell.source)) {
+      refreshPackages();
+    }
     return result.ok;
   } catch (e) {
     cell.output = { ok: false, stdout: '', stderr: 'Fetch error: ' + e.message, figures: [], elapsed_ms: 0 };
@@ -1531,6 +1933,9 @@ document.addEventListener('keydown', (e) => {
   setTimeout(() => {
     refreshKernelInfo();
     setInterval(refreshKernelInfo, 15000);  // refresh every 15s
+    // v2.7: load sidebar contents on boot
+    refreshFiles();
+    refreshPackages();
   }, 500);
 })();
 
@@ -1547,13 +1952,14 @@ let xtermConnecting = false;
 function switchView(view) {
   document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
   document.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('tab-' + view).classList.add('active');
-  document.getElementById('panel-' + view).classList.add('active');
+  const tab = document.getElementById('tab-' + view);
+  const panel = document.getElementById('panel-' + view);
+  if (tab) tab.classList.add('active');
+  if (panel) panel.classList.add('active');
 
-  if (view === 'files') {
-    // Auto-load file list when switching to the Files tab
-    refreshFiles();
-  }
+  // 'files' is no longer a top-tab — it lives in the sidebar. But we still
+  // support switchView('files') for backwards compat (no-op now, sidebar is
+  // always visible).
   if (view === 'terminal') {
     // Auto-connect on first view
     if (!xterm && !xtermConnecting) {
@@ -1566,6 +1972,90 @@ function switchView(view) {
       setTimeout(() => xtermFit && xtermFit.fit(), 50);
     }
   }
+}
+
+// ─── v2.7: Sidebar collapse ─────────────────────────────────────────────────
+function toggleSidebar() {
+  const app = document.getElementById('nb-app');
+  app.classList.toggle('sidebar-collapsed');
+  // Save preference
+  try { localStorage.setItem('nb-sidebar-collapsed', app.classList.contains('sidebar-collapsed') ? '1' : '0'); } catch(e) {}
+}
+(function() {
+  try {
+    if (localStorage.getItem('nb-sidebar-collapsed') === '1') {
+      document.getElementById('nb-app').classList.add('sidebar-collapsed');
+    }
+  } catch(e) {}
+})();
+
+// ─── v2.7: Download dropdown ────────────────────────────────────────────────
+function toggleDownloadMenu() {
+  const dd = document.getElementById('download-dropdown');
+  dd.classList.toggle('open');
+  // Close on outside click
+  if (dd.classList.contains('open')) {
+    setTimeout(() => {
+      const handler = (e) => {
+        if (!dd.contains(e.target)) {
+          dd.classList.remove('open');
+          document.removeEventListener('click', handler);
+        }
+      };
+      document.addEventListener('click', handler);
+    }, 0);
+  }
+}
+
+async function downloadNotebook(format) {
+  const dd = document.getElementById('download-dropdown');
+  dd.classList.remove('open');
+  // Serialize cells — only code + text, with their current source
+  const exportCells = cells.map(c => ({
+    type: c.type,
+    source: c.source || '',
+  }));
+  try {
+    const r = await fetch('/api/notebook/download', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({cells: exportCells, format: format}),
+    });
+    if (!r.ok) {
+      const err = await r.text();
+      alert('Download failed: ' + err.slice(0, 200));
+      return;
+    }
+    const blob = await r.blob();
+    const ext = format === 'ipynb' ? 'ipynb' : (format === 'py' ? 'py' : 'html');
+    const filename = 'notebook.' + ext;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 1000);
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+// ─── v2.7: Packages panel ───────────────────────────────────────────────────
+async function refreshPackages() {
+  try {
+    const r = await fetch('/api/notebook/packages');
+    if (!r.ok) return;
+    const data = await r.json();
+    const list = document.getElementById('packages-list');
+    const badge = document.getElementById('pkg-count-badge');
+    if (badge) badge.textContent = data.count ? `(${data.count})` : '';
+    if (!data.packages || data.packages.length === 0) {
+      list.innerHTML = '<div class="packages-empty">No packages installed</div>';
+      return;
+    }
+    list.innerHTML = data.packages.map(p =>
+      `<div class="pkg-row"><span class="pkg-dot"></span><span>${escapeHtml(p)}</span></div>`
+    ).join('');
+  } catch (e) { /* silent */ }
 }
 
 // ─── Files explorer (v2.5) ──────────────────────────────────────────────────
