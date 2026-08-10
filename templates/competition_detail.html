@@ -153,6 +153,12 @@
 <script>
 // Real-time leaderboard updates via WebSocket
 (function() {
+    function escapeHtml(s) {
+        if (s === null || s === undefined) return '';
+        return String(s)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/`/g, '&#96;');
+    }
     const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(`${proto}//${location.host}/ws/leaderboard`);
     ws.onopen = () => console.log('[WS] Leaderboard stream connected');
@@ -168,11 +174,11 @@
                     if (tbody && rows.length) {
                         tbody.innerHTML = rows.map(r => `
                             <tr>
-                                <td>#${r.rank}</td>
-                                <td><a href="/models/${r.model_id}">${r.username}</a></td>
-                                <td>${r.model_name}</td>
+                                <td>#${escapeHtml(r.rank)}</td>
+                                <td><a href="/models/${escapeHtml(r.model_id)}">${escapeHtml(r.username)}</a></td>
+                                <td>${escapeHtml(r.model_name)}</td>
                                 <td><strong>${r.score !== null ? r.score.toFixed(4) : '-'}</strong></td>
-                                <td>${new Date(r.submitted_at).toLocaleString()}</td>
+                                <td>${escapeHtml(new Date(r.submitted_at).toLocaleString())}</td>
                             </tr>
                         `).join('');
                     }
@@ -184,6 +190,35 @@
     setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type: 'ping'}));
     }, 30000);
+
+    // Load comments (moved here so escapeHtml is in scope)
+    fetch('/api/comments?competition_id={{ comp.id }}')
+        .then(r => r.json())
+        .then(comments => {
+            const container = document.getElementById('comments-container');
+            if (!comments.length) {
+                container.innerHTML = '<p class="text-muted">No comments yet. Start the conversation!</p>';
+                return;
+            }
+            container.innerHTML = comments.map(c => `
+                <div class="comment">
+                    <strong>${escapeHtml(c.author_username || 'Unknown')}</strong>
+                    <span class="text-muted" style="font-size: 0.85em;">${escapeHtml(new Date(c.created_at).toLocaleString())}</span>
+                    <p>${escapeHtml(c.body)}</p>
+                    ${c.replies && c.replies.length ? c.replies.map(r => `
+                        <div class="comment comment-reply" style="margin-left: 1.5rem;">
+                            <strong>${escapeHtml(r.author_username || 'Unknown')}</strong>
+                            <span class="text-muted" style="font-size: 0.85em;">${escapeHtml(new Date(r.created_at).toLocaleString())}</span>
+                            <p>${escapeHtml(r.body)}</p>
+                        </div>
+                    `).join('') : ''}
+                </div>
+            `).join('');
+        })
+        .catch(e => {
+            document.getElementById('comments-container').innerHTML =
+                '<p class="text-muted">Could not load comments.</p>';
+        });
 })();
 
 // Countdown timer
@@ -204,35 +239,5 @@
     setInterval(tick, 1000);
 })();
 
-// Load comments
-(function() {
-    fetch('/api/comments?competition_id={{ comp.id }}')
-        .then(r => r.json())
-        .then(comments => {
-            const container = document.getElementById('comments-container');
-            if (!comments.length) {
-                container.innerHTML = '<p class="text-muted">No comments yet. Start the conversation!</p>';
-                return;
-            }
-            container.innerHTML = comments.map(c => `
-                <div class="comment">
-                    <strong>${c.author_username || 'Unknown'}</strong>
-                    <span class="text-muted" style="font-size: 0.85em;">${new Date(c.created_at).toLocaleString()}</span>
-                    <p>${c.body}</p>
-                    ${c.replies && c.replies.length ? c.replies.map(r => `
-                        <div class="comment comment-reply" style="margin-left: 1.5rem;">
-                            <strong>${r.author_username || 'Unknown'}</strong>
-                            <span class="text-muted" style="font-size: 0.85em;">${new Date(r.created_at).toLocaleString()}</span>
-                            <p>${r.body}</p>
-                        </div>
-                    `).join('') : ''}
-                </div>
-            `).join('');
-        })
-        .catch(e => {
-            document.getElementById('comments-container').innerHTML =
-                '<p class="text-muted">Could not load comments.</p>';
-        });
-})();
 </script>
 {% endblock %}

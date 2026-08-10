@@ -1,0 +1,480 @@
+{% extends "base.html" %}
+
+{% block title %}About — How OpenBenchML Works{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ─── About page layout ───────────────────────────────────────── */
+  .about-hero {
+    background: linear-gradient(135deg, rgba(160,192,0,0.08), rgba(88,166,255,0.06));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 2.5rem 2rem;
+    margin-bottom: 2rem;
+    text-align: center;
+  }
+  .about-hero h1 {
+    font-size: 2.4rem;
+    margin: 0 0 0.5rem 0;
+    background: linear-gradient(135deg, var(--accent), #58a6ff);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    letter-spacing: -0.02em;
+  }
+  .about-hero p.lead {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    max-width: 720px;
+    margin: 0 auto 1.25rem;
+    line-height: 1.65;
+  }
+  .about-hero .meta-row {
+    display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;
+    margin-top: 1rem;
+    font-size: 0.85rem;
+  }
+  .about-hero .meta-pill {
+    padding: 0.3rem 0.75rem; border-radius: 999px;
+    background: rgba(160,192,0,0.1); color: var(--accent);
+    border: 1px solid rgba(160,192,0,0.25);
+  }
+
+  /* ─── Section ──────────────────────────────────────────────────── */
+  .about-section {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.75rem 1.5rem;
+    margin-bottom: 1.25rem;
+  }
+  .about-section .section-header {
+    display: flex; align-items: center; gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px dashed var(--border-light);
+  }
+  .about-section .section-icon {
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(160,192,0,0.12);
+    border: 1px solid rgba(160,192,0,0.3);
+    border-radius: 9px;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+  }
+  .about-section h2 {
+    margin: 0; font-size: 1.35rem;
+    color: var(--text-primary);
+  }
+  .about-section .lead {
+    color: var(--accent); font-size: 0.95rem;
+    margin: 0 0 1rem 0; font-weight: 500;
+  }
+  .about-section p {
+    color: var(--text-secondary);
+    line-height: 1.7;
+    margin: 0 0 0.75rem 0;
+    font-size: 0.94rem;
+  }
+  .about-section p:last-child { margin-bottom: 0; }
+
+  /* ─── Icon → emoji map (no external libs) ──────────────────────── */
+  .icon-sparkles::before { content: "\u2728"; }
+  .icon-layers::before    { content: "\u25A6"; }
+  .icon-upload::before    { content: "\u2B06"; }
+  .icon-wand::before      { content: "\u269A"; }
+  .icon-book::before      { content: "\u1F4D8"; }
+  .icon-bolt::before      { content: "\u26A1"; }
+  .icon-shield::before    { content: "\u1F6E1"; }
+
+  /* ─── Items list (stack bullets) ──────────────────────────────── */
+  .items-list {
+    list-style: none; padding: 0; margin: 0;
+  }
+  .items-list li {
+    padding: 0.6rem 0.75rem 0.6rem 1.25rem;
+    border-left: 3px solid rgba(160,192,0,0.4);
+    background: rgba(160,192,0,0.03);
+    margin-bottom: 0.4rem;
+    border-radius: 0 6px 6px 0;
+  }
+  .items-list li:last-child { margin-bottom: 0; }
+  .items-list strong {
+    color: var(--text-primary);
+    display: block;
+    margin-bottom: 0.2rem;
+    font-size: 0.95rem;
+  }
+  .items-list li > span,
+  .items-list li > div {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    line-height: 1.55;
+  }
+
+  /* ─── Steps (numbered) ────────────────────────────────────────── */
+  .steps-list {
+    list-style: none; padding: 0; margin: 0;
+    counter-reset: step-counter;
+  }
+  .steps-list li {
+    position: relative;
+    padding: 0.75rem 0.75rem 0.75rem 3rem;
+    margin-bottom: 0.5rem;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    counter-increment: step-counter;
+  }
+  .steps-list li::before {
+    content: counter(step-counter);
+    position: absolute;
+    left: 0.75rem; top: 0.75rem;
+    width: 1.75rem; height: 1.75rem;
+    background: var(--accent); color: #1a1a1a;
+    font-weight: 700; font-size: 0.85rem;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .steps-list strong {
+    color: var(--text-primary);
+    display: block;
+    margin-bottom: 0.2rem;
+    font-size: 0.95rem;
+  }
+  .steps-list li > div {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    line-height: 1.55;
+  }
+
+  /* ─── Workflow diagram ────────────────────────────────────────── */
+  .workflow-diagram {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    overflow-x: auto;
+  }
+  .workflow-row {
+    display: flex; align-items: stretch; gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    min-width: 700px;
+  }
+  .workflow-row:last-child { margin-bottom: 0; }
+  .wf-node {
+    flex: 1;
+    padding: 0.75rem 0.6rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    text-align: center;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 60px;
+  }
+  .wf-node strong {
+    color: var(--text-primary);
+    font-size: 0.88rem;
+    margin-bottom: 0.15rem;
+  }
+  .wf-node.accent {
+    background: rgba(160,192,0,0.1);
+    border-color: rgba(160,192,0,0.4);
+    color: var(--accent);
+  }
+  .wf-node.accent strong { color: var(--accent); }
+  .wf-arrow {
+    display: flex; align-items: center;
+    color: var(--accent); font-size: 1.1rem; font-weight: 700;
+    padding: 0 0.15rem;
+  }
+  .wf-label {
+    text-align: center;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin: 0.5rem 0;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 600;
+  }
+
+  /* ─── Architecture diagram (CSS grid) ─────────────────────────── */
+  .arch-diagram {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.75rem;
+    margin: 1rem 0;
+  }
+  @media (max-width: 800px) {
+    .arch-diagram { grid-template-columns: 1fr; }
+  }
+  .arch-layer {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem;
+    text-align: center;
+  }
+  .arch-layer .layer-name {
+    font-weight: 600; color: var(--accent);
+    font-size: 0.88rem; margin-bottom: 0.25rem;
+  }
+  .arch-layer .layer-desc {
+    font-size: 0.78rem; color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  /* ─── Footer CTA ──────────────────────────────────────────────── */
+  .about-cta {
+    display: flex; gap: 0.75rem; flex-wrap: wrap;
+    justify-content: center; margin-top: 2rem;
+  }
+  .about-cta a {
+    padding: 0.6rem 1.25rem;
+    border-radius: 8px;
+    font-weight: 600; font-size: 0.95rem;
+    text-decoration: none;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    transition: all 0.15s;
+  }
+  .about-cta a:hover {
+    border-color: var(--accent);
+    background: rgba(160,192,0,0.1);
+  }
+  .about-cta a.primary {
+    background: var(--accent); color: #1a1a1a;
+    border-color: var(--accent);
+  }
+  .about-cta a.primary:hover { box-shadow: var(--shadow-glow); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="about-hero">
+    <h1>How OpenBenchML Works</h1>
+    <p class="lead">A visual walkthrough of every workflow, every layer, every moving part &mdash; from the moment you paste Python code to the moment a leaderboard row lights up in someone else's browser.</p>
+    <div class="meta-row">
+        <span class="meta-pill">v{{ app_version }}</span>
+        <span class="meta-pill">FastAPI + SQLAlchemy + Jinja2</span>
+        <span class="meta-pill">WebSocket real-time</span>
+        <span class="meta-pill">Server-side Python kernel</span>
+    </div>
+</div>
+
+<!-- Architecture overview (3-layer diagram) -->
+<div class="about-section">
+    <div class="section-header">
+        <div class="section-icon">&#127959;</div>
+        <div>
+            <h2>Architecture at a glance</h2>
+            <p class="lead" style="margin: 0;">Three layers, each doing one job. Click any workflow below to see how data flows through them.</p>
+        </div>
+    </div>
+    <div class="arch-diagram">
+        <div class="arch-layer">
+            <div class="layer-name">Browser</div>
+            <div class="layer-desc">Jinja2-rendered HTML + vanilla JS + fetch(). xterm.js for the terminal. WebSocket client for live updates.</div>
+        </div>
+        <div class="arch-layer">
+            <div class="layer-name">FastAPI server</div>
+            <div class="layer-desc">Async route handlers, Pydantic validation, per-user kernel sessions, WebSocket broadcast, sandboxed shell executor.</div>
+        </div>
+        <div class="arch-layer">
+            <div class="layer-name">Database + files</div>
+            <div class="layer-desc">SQLAlchemy ORM → SQLite (dev) / Supabase Postgres (prod). Pickled models live on disk under uploads/.</div>
+        </div>
+    </div>
+</div>
+
+{% for section in sections %}
+<div class="about-section" id="{{ section.id }}">
+    <div class="section-header">
+        <div class="section-icon icon-{{ section.icon }}">&#128640;</div>
+        <div>
+            <h2>{{ section.title }}</h2>
+            {% if section.lead %}<p class="lead">{{ section.lead }}</p>{% endif %}
+        </div>
+    </div>
+
+    {% if section.paragraphs %}
+        {% for p in section.paragraphs %}
+        <p>{{ p }}</p>
+        {% endfor %}
+    {% endif %}
+
+    {% if section["items_list"] %}
+    <ul class="items-list">
+        {% for name, desc in section["items_list"] %}
+        <li>
+            <strong>{{ name }}</strong>
+            <div>{{ desc }}</div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if section.steps %}
+    <ol class="steps-list">
+        {% for name, desc in section.steps %}
+        <li>
+            <strong>{{ name }}</strong>
+            <div>{{ desc }}</div>
+        </li>
+        {% endfor %}
+    </ol>
+    {% endif %}
+
+    {% if section.id == 'flow-upload' %}
+    <!-- Workflow A diagram -->
+    <div class="wf-label">End-to-end upload &amp; benchmark flow</div>
+    <div class="workflow-diagram">
+        <div class="workflow-row">
+            <div class="wf-node"><strong>Train</strong>joblib.dump()</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node"><strong>Upload</strong>POST /models/upload</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node accent"><strong>Pickle stored</strong>uploads/*.pkl</div>
+        </div>
+        <div class="workflow-row">
+            <div class="wf-node"><strong>Pick dataset</strong>/benchmark</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node accent"><strong>Benchmark</strong>fit + predict</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node"><strong>Score</strong>accuracy / F1 / RMSE</div>
+        </div>
+        <div class="workflow-row">
+            <div class="wf-node"><strong>Insert row</strong>leaderboard_entries</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node accent"><strong>Broadcast WS</strong>/ws/leaderboard</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node"><strong>Browser updates</strong>DOM patch, no reload</div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if section.id == 'flow-convert' %}
+    <div class="wf-label">Paste-code &rarr; pickled-model flow</div>
+    <div class="workflow-diagram">
+        <div class="workflow-row">
+            <div class="wf-node"><strong>Paste code</strong>/convert</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node accent"><strong>Auto-detect</strong>sklearn / xgb / lgbm</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node"><strong>Run server-side</strong>fresh namespace</div>
+        </div>
+        <div class="workflow-row">
+            <div class="wf-node"><strong>Capture figures</strong>matplotlib &rarr; PNG</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node accent"><strong>Pickle model</strong>joblib.dump</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node"><strong>POST upload-pickle</strong>creates Model row</div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if section.id == 'flow-notebook' %}
+    <div class="wf-label">Notebook request lifecycle</div>
+    <div class="workflow-diagram">
+        <div class="workflow-row">
+            <div class="wf-node"><strong>Open /notebook</strong>create session</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node accent"><strong>_SessionState</strong>namespace dict + lock</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node"><strong>Run cell</strong>POST /api/notebook/cell</div>
+        </div>
+        <div class="workflow-row">
+            <div class="wf-node"><strong>!shell</strong>allowlist + blocklist</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node"><strong>%magic</strong>%whos / %time / %reset</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node accent"><strong>Figures + suggestions</strong>base64 PNG + pip hints</div>
+        </div>
+        <div class="workflow-row">
+            <div class="wf-node"><strong>Terminal tab</strong>xterm.js</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node accent"><strong>WebSocket</strong>/api/notebook/terminal</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node"><strong>PTY bash</strong>cwd /tmp, 30-min TTL</div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if section.id == 'flow-realtime' %}
+    <div class="wf-label">Real-time fan-out path</div>
+    <div class="workflow-diagram">
+        <div class="workflow-row">
+            <div class="wf-node"><strong>Benchmark done</strong>benchmark.py</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node accent"><strong>Build event JSON</strong>{type, dataset_id, score}</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node"><strong>ws_manager.broadcast</strong>iterate active conns</div>
+        </div>
+        <div class="workflow-row">
+            <div class="wf-node"><strong>Browser WS onmessage</strong>competition_detail.html</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node accent"><strong>Fetch fresh HTML</strong>GET /api/.../leaderboard</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node"><strong>tbody.innerHTML = </strong>DOM patch</div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if section.id == 'auth' %}
+    <div class="wf-label">Auth &amp; sandbox defence in depth</div>
+    <div class="workflow-diagram">
+        <div class="workflow-row">
+            <div class="wf-node"><strong>Login</strong>POST /api/auth/login</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node accent"><strong>JWT signed</strong>HS256 + SECRET_KEY</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node"><strong>httpOnly cookie</strong>SameSite=Lax</div>
+        </div>
+        <div class="workflow-row">
+            <div class="wf-node"><strong>Every request</strong>cookie sent automatically</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node accent"><strong>get_current_user</strong>verify sig + expiry</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node"><strong>user in context</strong>template gets user</div>
+        </div>
+        <div class="workflow-row">
+            <div class="wf-node"><strong>!pip install x</strong>notebook shell</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node accent"><strong>Allowlist</strong>pip in allowed set?</div>
+            <div class="wf-arrow">&rarr;</div>
+            <div class="wf-node"><strong>Blocklist</strong>rm -rf / blocked?</div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+
+<div class="about-cta">
+    <a href="/learn" class="primary">Start learning &rarr;</a>
+    <a href="/notebook">Try the notebook</a>
+    <a href="/convert">Try convert</a>
+    <a href="https://github.com/kartheekbvs/openbenchml" target="_blank" rel="noopener">View source on GitHub</a>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Smooth-scroll to section if URL has a hash
+  if (location.hash) {
+    const el = document.querySelector(location.hash);
+    if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'});
+  }
+  // Click-to-expand section icons (just visual feedback)
+  document.querySelectorAll('.about-section .section-icon').forEach(ic => {
+    ic.addEventListener('click', () => {
+      ic.style.transform = 'scale(1.15) rotate(5deg)';
+      setTimeout(() => ic.style.transform = '', 200);
+    });
+  });
+</script>
+{% endblock %}

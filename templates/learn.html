@@ -1,0 +1,522 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if view == "concept" %}{{ concept.title }} &mdash; Learn &mdash; OpenBenchML
+  {% elif view == "category" %}{{ current_cat.category }} &mdash; Learn &mdash; OpenBenchML
+  {% else %}Learn &mdash; OpenBenchML{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ─── Learn hero ──────────────────────────────────────────────── */
+  .learn-hero {
+    background: linear-gradient(135deg, rgba(160,192,0,0.08), rgba(188,140,255,0.06));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 2rem 1.75rem;
+    margin-bottom: 1.5rem;
+  }
+  .learn-hero h1 {
+    font-size: 2rem; margin: 0 0 0.4rem 0;
+    background: linear-gradient(135deg, var(--accent), #bc8cff);
+    -webkit-background-clip: text; background-clip: text;
+    color: transparent;
+    letter-spacing: -0.02em;
+  }
+  .learn-hero p {
+    color: var(--text-secondary); font-size: 0.95rem;
+    line-height: 1.6; margin: 0;
+    max-width: 720px;
+  }
+  .learn-hero .stats-row {
+    display: flex; gap: 1rem; flex-wrap: wrap;
+    margin-top: 1rem;
+    font-size: 0.85rem;
+  }
+  .learn-hero .stat-pill {
+    padding: 0.25rem 0.7rem; border-radius: 999px;
+    background: rgba(160,192,0,0.1); color: var(--accent);
+    border: 1px solid rgba(160,192,0,0.25);
+  }
+
+  /* ─── Breadcrumb ──────────────────────────────────────────────── */
+  .learn-breadcrumb {
+    display: flex; gap: 0.4rem; align-items: center;
+    font-size: 0.82rem; color: var(--text-secondary);
+    margin-bottom: 1rem; flex-wrap: wrap;
+  }
+  .learn-breadcrumb a {
+    color: var(--accent); text-decoration: none;
+  }
+  .learn-breadcrumb a:hover { text-decoration: underline; }
+  .learn-breadcrumb .sep { opacity: 0.5; }
+
+  /* ─── Category grid (landing view) ────────────────────────────── */
+  .category-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1rem;
+  }
+  .category-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.18s;
+    display: flex; flex-direction: column;
+  }
+  .category-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 4px 16px rgba(160,192,0,0.1);
+    transform: translateY(-2px);
+  }
+  .category-card .cat-header {
+    display: flex; align-items: center; gap: 0.6rem;
+    margin-bottom: 0.5rem;
+  }
+  .category-card .cat-icon {
+    width: 36px; height: 36px;
+    border-radius: 9px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+  .category-card h3 {
+    margin: 0; font-size: 1.1rem;
+    color: var(--text-primary);
+  }
+  .category-card .cat-blurb {
+    color: var(--text-secondary);
+    font-size: 0.88rem; line-height: 1.55;
+    margin: 0 0 0.75rem 0;
+    flex: 1;
+  }
+  .category-card .cat-meta {
+    display: flex; gap: 0.5rem; flex-wrap: wrap;
+    font-size: 0.78rem;
+  }
+  .category-card .cat-count {
+    padding: 0.15rem 0.55rem; border-radius: 999px;
+    background: rgba(160,192,0,0.1); color: var(--accent);
+    border: 1px solid rgba(160,192,0,0.25);
+    font-weight: 600;
+  }
+  .category-card .concept-preview {
+    color: var(--text-secondary); font-size: 0.78rem;
+    line-height: 1.5;
+  }
+
+  /* ─── Concept list (category view) ────────────────────────────── */
+  .concept-list {
+    display: flex; flex-direction: column; gap: 0.6rem;
+  }
+  .concept-row {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    text-decoration: none;
+    color: inherit;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 0.75rem;
+  }
+  .concept-row:hover {
+    border-color: var(--accent);
+    background: rgba(160,192,0,0.04);
+  }
+  .concept-row .cr-num {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: rgba(160,192,0,0.1);
+    color: var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.82rem;
+    flex-shrink: 0;
+  }
+  .concept-row .cr-body {
+    flex: 1;
+  }
+  .concept-row .cr-title {
+    color: var(--text-primary); font-weight: 600;
+    font-size: 0.98rem;
+    margin-bottom: 0.15rem;
+  }
+  .concept-row .cr-summary {
+    color: var(--text-secondary);
+    font-size: 0.85rem; line-height: 1.5;
+  }
+  .concept-row .cr-arrow {
+    color: var(--accent); font-size: 1.2rem; opacity: 0.6;
+  }
+
+  /* ─── Concept page (concept view) ─────────────────────────────── */
+  .concept-page {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 2rem;
+    align-items: start;
+  }
+  @media (max-width: 1100px) {
+    .concept-page { grid-template-columns: 1fr; }
+  }
+  .concept-content {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.75rem 1.5rem;
+  }
+  .concept-content h1 {
+    margin: 0 0 0.4rem 0;
+    font-size: 1.7rem;
+    color: var(--text-primary);
+    line-height: 1.25;
+  }
+  .concept-content .concept-summary {
+    color: var(--accent); font-size: 1rem;
+    font-weight: 500; line-height: 1.5;
+    margin: 0 0 1.25rem 0;
+    padding-bottom: 1rem;
+    border-bottom: 1px dashed var(--border-light);
+  }
+  .concept-content h3 {
+    color: var(--text-primary);
+    font-size: 1.05rem; margin: 1.5rem 0 0.5rem 0;
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .concept-content h3::before {
+    content: ""; display: inline-block;
+    width: 4px; height: 18px; background: var(--accent);
+    border-radius: 2px; margin-right: 0.4rem;
+  }
+  .concept-content p {
+    color: var(--text-secondary);
+    font-size: 0.92rem; line-height: 1.7;
+    margin: 0 0 0.75rem 0;
+  }
+  .concept-content .code-block {
+    background: #0d1117;
+    border: 1px solid #21262d;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin: 0.75rem 0 1.25rem 0;
+    overflow-x: auto;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: #e6edf3;
+    white-space: pre;
+  }
+  .concept-content .code-block .kw   { color: #ff7b72; }
+  .concept-content .code-block .str  { color: #a5d6ff; }
+  .concept-content .code-block .com  { color: #8b949e; font-style: italic; }
+  .concept-content .code-block .fn   { color: #d2a8ff; }
+  .concept-content .code-block .num  { color: #79c0ff; }
+
+  .concept-content .used-in-box {
+    margin-top: 1.5rem;
+    padding: 0.85rem 1rem;
+    background: rgba(160,192,0,0.06);
+    border: 1px solid rgba(160,192,0,0.25);
+    border-radius: 8px;
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    line-height: 1.55;
+  }
+  .concept-content .used-in-box strong {
+    color: var(--accent);
+    display: block;
+    margin-bottom: 0.25rem;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* ─── Concept sidebar ─────────────────────────────────────────── */
+  .concept-sidebar {
+    position: sticky; top: 1rem;
+    display: flex; flex-direction: column; gap: 1rem;
+  }
+  .concept-sidebar .card {
+    margin: 0;
+  }
+  .concept-sidebar .card-header {
+    padding: 0.6rem 0.85rem;
+    border-bottom: 1px solid var(--border-light);
+  }
+  .concept-sidebar .card-header h4 {
+    margin: 0; font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+  .concept-sidebar .card-body { padding: 0.6rem 0.85rem; }
+  .concept-sidebar .nav-btn {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 0.6rem;
+    text-decoration: none;
+    color: var(--text-primary);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    border: 1px solid var(--border);
+    background: var(--bg-elevated);
+    margin-bottom: 0.4rem;
+    transition: all 0.15s;
+  }
+  .concept-sidebar .nav-btn:last-child { margin-bottom: 0; }
+  .concept-sidebar .nav-btn:hover {
+    border-color: var(--accent);
+    background: rgba(160,192,0,0.06);
+  }
+  .concept-sidebar .nav-btn .nav-dir {
+    color: var(--accent); font-weight: 700;
+    font-size: 0.78rem;
+  }
+  .concept-sidebar .nav-btn .nav-title {
+    flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .concept-sidebar .nav-btn.disabled {
+    opacity: 0.4; pointer-events: none;
+  }
+
+  /* ─── Sidebar concept list (within category) ──────────────────── */
+  .sidebar-concept-list {
+    list-style: none; padding: 0; margin: 0;
+    max-height: 360px; overflow-y: auto;
+  }
+  .sidebar-concept-list li a {
+    display: block;
+    padding: 0.4rem 0.6rem;
+    text-decoration: none;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    border-radius: 4px;
+    border-left: 2px solid transparent;
+    transition: all 0.1s;
+    line-height: 1.4;
+  }
+  .sidebar-concept-list li a:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+  }
+  .sidebar-concept-list li a.active {
+    background: rgba(160,192,0,0.1);
+    color: var(--accent);
+    border-left-color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* ─── Category sidebar (landing view) ─────────────────────────── */
+  .category-color-bar {
+    width: 6px; height: 24px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  /* ─── Empty state ─────────────────────────────────────────────── */
+  .empty-state {
+    text-align: center;
+    padding: 2rem 1rem;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if view == "landing" %}
+  {# ════════════════════════════════════════════════════════════════
+     LANDING VIEW — all categories as a card grid
+     ════════════════════════════════════════════════════════════════ #}
+  <div class="learn-hero">
+      <h1>&#128218; Learn every concept behind OpenBenchML</h1>
+      <p>A massive, hierarchical learning centre that teaches every concept used to build this platform &mdash; from Python variables and loops all the way to FastAPI routes, WebSocket broadcasting, sandboxed kernels, and CSS Grid. Every concept page has a runnable code snippet, a plain-English explanation, and a "where it's used" pointer back into the codebase.</p>
+      <div class="stats-row">
+          <span class="stat-pill">{{ tree | length }} categories</span>
+          <span class="stat-pill">{{ total_concepts }} concepts</span>
+          <span class="stat-pill">100% tied to real code</span>
+      </div>
+  </div>
+
+  <div class="category-grid">
+      {% for cat in tree %}
+      <a class="category-card" href="/learn/cat/{{ cat.slug }}">
+          <div class="cat-header">
+              <div class="cat-icon" style="background: {{ cat.color }}22; border: 1px solid {{ cat.color }}55; color: {{ cat.color }};">
+                  {% if cat.slug == 'python' %}&#128013;
+                  {% elif cat.slug == 'web' %}&#127760;
+                  {% elif cat.slug == 'database' %}&#128451;
+                  {% elif cat.slug == 'ml' %}&#129504;
+                  {% elif cat.slug == 'frontend' %}&#127912;
+                  {% elif cat.slug == 'security' %}&#128274;
+                  {% elif cat.slug == 'devops' %}&#128640;
+                  {% elif cat.slug == 'realtime' %}&#9889;
+                  {% elif cat.slug == 'algorithms' %}&#127795;
+                  {% else %}&#128218;{% endif %}
+              </div>
+              <h3>{{ cat.category }}</h3>
+          </div>
+          <p class="cat-blurb">{{ cat.blurb }}</p>
+          <div class="cat-meta">
+              <span class="cat-count">{{ cat.concepts | length }} concepts</span>
+              <span class="concept-preview">
+                  {% for c in cat.concepts[:3] %}{{ c.title }}{% if not loop.last %} &middot; {% endif %}{% endfor %}
+                  {% if cat.concepts | length > 3 %} &middot; +{{ cat.concepts | length - 3 }} more{% endif %}
+              </span>
+          </div>
+      </a>
+      {% endfor %}
+  </div>
+
+{% elif view == "category" %}
+  {# ════════════════════════════════════════════════════════════════
+     CATEGORY VIEW — list of concepts in one category
+     ════════════════════════════════════════════════════════════════ #}
+  <div class="learn-breadcrumb">
+      <a href="/learn">&#128218; Learn</a>
+      <span class="sep">/</span>
+      <span>{{ current_cat.category }}</span>
+  </div>
+
+  <div class="learn-hero" style="padding: 1.5rem 1.5rem;">
+      <h1 style="font-size: 1.7rem;">
+          {% if current_cat.slug == 'python' %}&#128013;
+          {% elif current_cat.slug == 'web' %}&#127760;
+          {% elif current_cat.slug == 'database' %}&#128451;
+          {% elif current_cat.slug == 'ml' %}&#129504;
+          {% elif current_cat.slug == 'frontend' %}&#127912;
+          {% elif current_cat.slug == 'security' %}&#128274;
+          {% elif current_cat.slug == 'devops' %}&#128640;
+          {% elif current_cat.slug == 'realtime' %}&#9889;
+          {% elif current_cat.slug == 'algorithms' %}&#127795;
+          {% endif %}
+          {{ current_cat.category }}
+      </h1>
+      <p>{{ current_cat.blurb }}</p>
+      <div class="stats-row">
+          <span class="stat-pill">{{ current_cat.concepts | length }} concepts</span>
+      </div>
+  </div>
+
+  <div class="concept-list">
+      {% for c in current_cat.concepts %}
+      <a class="concept-row" href="/learn/{{ c.slug }}">
+          <div class="cr-num">{{ loop.index }}</div>
+          <div class="cr-body">
+              <div class="cr-title">{{ c.title }}</div>
+              <div class="cr-summary">{{ c.summary }}</div>
+          </div>
+          <div class="cr-arrow">&rsaquo;</div>
+      </a>
+      {% endfor %}
+  </div>
+
+{% elif view == "concept" %}
+  {# ════════════════════════════════════════════════════════════════
+     CONCEPT VIEW — full single-concept page
+     ════════════════════════════════════════════════════════════════ #}
+  <div class="learn-breadcrumb">
+      <a href="/learn">&#128218; Learn</a>
+      <span class="sep">/</span>
+      <a href="/learn/cat/{{ current_cat.slug }}">{{ current_cat.category }}</a>
+      <span class="sep">/</span>
+      <span>{{ concept.title }}</span>
+  </div>
+
+  <div class="concept-page">
+      <div class="concept-content">
+          <h1>{{ concept.title }}</h1>
+          <p class="concept-summary">{{ concept.summary }}</p>
+
+          <h3>Code example</h3>
+          <pre class="code-block">{{ concept.code }}</pre>
+
+          <h3>How it works</h3>
+          <p>{{ concept.explanation }}</p>
+
+          <div class="used-in-box">
+              <strong>&#128269; Where this is used in OpenBenchML</strong>
+              {{ concept.used_in }}
+          </div>
+      </div>
+
+      <div class="concept-sidebar">
+          <div class="card">
+              <div class="card-header"><h4>Navigation</h4></div>
+              <div class="card-body">
+                  {% if prev_concept %}
+                  <a class="nav-btn" href="/learn/{{ prev_concept.slug }}">
+                      <span class="nav-dir">&larr; prev</span>
+                      <span class="nav-title">{{ prev_concept.title }}</span>
+                  </a>
+                  {% else %}
+                  <div class="nav-btn disabled">
+                      <span class="nav-dir">&larr; prev</span>
+                      <span class="nav-title">(start of category)</span>
+                  </div>
+                  {% endif %}
+                  {% if next_concept %}
+                  <a class="nav-btn" href="/learn/{{ next_concept.slug }}">
+                      <span class="nav-dir">next &rarr;</span>
+                      <span class="nav-title">{{ next_concept.title }}</span>
+                  </a>
+                  {% else %}
+                  <div class="nav-btn disabled">
+                      <span class="nav-dir">next &rarr;</span>
+                      <span class="nav-title">(end of category)</span>
+                  </div>
+                  {% endif %}
+              </div>
+          </div>
+
+          <div class="card">
+              <div class="card-header"><h4>{{ current_cat.category }} concepts</h4></div>
+              <div class="card-body" style="padding: 0.4rem;">
+                  <ul class="sidebar-concept-list">
+                      {% for c in current_cat.concepts %}
+                      <li>
+                          <a href="/learn/{{ c.slug }}" {% if c.slug == concept.slug %}class="active"{% endif %}>
+                              {{ loop.index }}. {{ c.title }}
+                          </a>
+                      </li>
+                      {% endfor %}
+                  </ul>
+              </div>
+          </div>
+
+          <div class="card">
+              <div class="card-header"><h4>All categories</h4></div>
+              <div class="card-body" style="padding: 0.4rem;">
+                  <ul class="sidebar-concept-list">
+                      {% for cat in tree %}
+                      <li>
+                          <a href="/learn/cat/{{ cat.slug }}" {% if cat.slug == current_cat.slug %}class="active"{% endif %}>
+                              {{ cat.category }} ({{ cat.concepts | length }})
+                          </a>
+                      </li>
+                      {% endfor %}
+                  </ul>
+              </div>
+          </div>
+      </div>
+  </div>
+
+{% else %}
+  <div class="empty-state">Unknown view.</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  // Highlight current concept in sidebar (active class is set server-side,
+  // but we add a smooth scroll-to-top on concept page load)
+  if (document.querySelector('.concept-page')) {
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  }
+</script>
+{% endblock %}

@@ -32,7 +32,7 @@ import os
 import base64
 import io
 
-ROOT = "/home/z/my-project/download/openbenchml"
+ROOT = "/home/z/my-project"
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 

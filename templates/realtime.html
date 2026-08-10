@@ -260,7 +260,7 @@ curl -s http://localhost:8000/health | jq .websocket_connections
     try {
       ws = new WebSocket(url);
     } catch (e) {
-      preview.innerHTML += `<div class="evt"><span class="evt-time">${now()}</span> <span class="evt-type">error</span> <span class="evt-data">${e.message}</span></div>`;
+      preview.innerHTML += `<div class="evt"><span class="evt-time">${now()}</span> <span class="evt-type">error</span> <span class="evt-data">${escapeHtml(e.message)}</span></div>`;
       return;
     }
 
@@ -286,7 +286,7 @@ curl -s http://localhost:8000/health | jq .websocket_connections
   function addEvent(type, data) {
     const line = document.createElement('div');
     line.className = 'evt';
-    line.innerHTML = `<span class="evt-time">${now()}</span> <span class="evt-type">${type}</span> <span class="evt-data">${escapeHtml(data)}</span>`;
+    line.innerHTML = `<span class="evt-time">${now()}</span> <span class="evt-type">${escapeHtml(type)}</span> <span class="evt-data">${escapeHtml(data)}</span>`;
     preview.appendChild(line);
     preview.scrollTop = preview.scrollHeight;
   }
@@ -296,7 +296,10 @@ curl -s http://localhost:8000/health | jq .websocket_connections
   }
 
   function escapeHtml(s) {
-    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    if (s === null || s === undefined) return '';
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/`/g, '&#96;');
   }
 
   connect();
