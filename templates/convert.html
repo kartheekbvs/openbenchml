@@ -31,62 +31,11 @@
   .code-editor:focus {
     outline: none;
     border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2), 0 0 16px rgba(139, 92, 246, 0.15);
+    box-shadow: 0 0 0 3px rgba(160, 192, 0, 0.15);
   }
-
-  /* ── Engine toggle (matches the notebook page) ─────────────────── */
-  .engine-toggle {
-    display: inline-flex; background: var(--bg-secondary);
-    border: 1px solid var(--border); border-radius: 8px; padding: 3px;
-  }
-  .engine-toggle button {
-    background: transparent; border: none; cursor: pointer;
-    padding: 0.45rem 0.95rem; border-radius: 6px; color: var(--text-secondary);
-    font-size: 0.85rem; font-weight: 600; transition: all 0.15s;
-    font-family: inherit;
-  }
-  .engine-toggle button.active {
-    background: var(--accent); color: #1a1a1a;
-  }
-  .engine-toggle button:not(.active):hover {
-    color: var(--text-primary); background: var(--bg-elevated);
-  }
-  .kernel-status {
-    font-size: 0.78rem; padding: 0.3rem 0.75rem; border-radius: 999px;
-    font-weight: 600; background: rgba(139, 92, 246, 0.12); color: var(--accent-bright);
-    border: 1px solid var(--border-bright);
-  }
-  .kernel-status.starting { background: rgba(234,179,8,0.12);  color: #eab308; border-color: rgba(234,179,8,0.3); }
-  .kernel-status.ready    { background: rgba(16, 185, 129, 0.12);  color: var(--success-bright); border-color: rgba(16, 185, 129, 0.35); }
-  .kernel-status.running  { background: rgba(168,85,247,0.15); color: #a855f7; border-color: rgba(168,85,247,0.35); }
-  .kernel-status.error    { background: rgba(239,68,68,0.15);  color: #ef4444; border-color: rgba(239,68,68,0.35); }
-
-  .convert-toolbar {
-    display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
-    margin-bottom: 1rem;
-  }
-  .convert-toolbar .spacer { flex: 1; }
-
-  /* ── Live training output (Pyodide path) ───────────────────────── */
-  .live-output {
-    background: #0d1117; color: #e6edf3; border: 1px solid var(--border);
-    border-radius: 8px; padding: 12px 14px;
-    font-family: 'SFMono-Regular', Consolas, monospace;
-    font-size: 12.5px; line-height: 1.55;
-    max-height: 220px; overflow: auto;
-    white-space: pre-wrap; word-break: break-word;
-    margin-top: 0.75rem; display: none;
-  }
-  .live-output.has-content { display: block; }
-  .live-output .stream-stdout { color: #e6edf3; }
-  .live-output .stream-stderr { color: #ff7b72; }
-  .live-output .stream-error  { color: #ff7b72; font-weight: 600; }
-  .live-output .stream-success { color: var(--success-bright); font-weight: 600; }
-
-  /* ── Hint cards ────────────────────────────────────────────────── */
   .hint-card {
-    background: rgba(139, 92, 246, 0.06);
-    border: 1px solid var(--border-light);
+    background: rgba(160, 192, 0, 0.06);
+    border: 1px solid rgba(160, 192, 0, 0.2);
     border-radius: 10px;
     padding: 1rem 1.25rem;
     margin-bottom: 1rem;
@@ -113,67 +62,12 @@
     display: flex; align-items: center; justify-content: center;
   }
   .step-list li code {
-    background: rgba(139, 92, 246, 0.12);
-    color: var(--accent-bright);
+    background: rgba(160, 192, 0, 0.12);
+    color: var(--accent);
     padding: 0.1rem 0.4rem;
     border-radius: 4px;
     font-size: 0.85rem;
   }
-
-  /* ── Alert/error box ───────────────────────────────────────────── */
-  .convert-alert {
-    background: rgba(239, 68, 68, 0.08);
-    border: 1px solid rgba(239, 68, 68, 0.4);
-    color: #ff7b72;
-    padding: 0.9rem 1rem;
-    border-radius: 8px;
-    margin-bottom: 1rem;
-    font-size: 0.88rem;
-    white-space: pre-wrap;
-    word-break: break-word;
-    font-family: 'SFMono-Regular', Consolas, monospace;
-  }
-  .convert-alert.success {
-    background: rgba(16, 185, 129, 0.08);
-    border-color: rgba(16, 185, 129, 0.4);
-    color: var(--success-bright);
-  }
-
-  /* ── Preset chips ──────────────────────────────────────────────── */
-  .preset-chips {
-    display: flex; flex-wrap: wrap; gap: 0.4rem;
-    margin-top: 0.5rem;
-  }
-  .preset-chip {
-    padding: 0.35rem 0.7rem;
-    background: rgba(139, 92, 246, 0.06);
-    border: 1px solid var(--border-light);
-    border-radius: 999px;
-    cursor: pointer;
-    font-size: 0.78rem;
-    color: var(--text-primary);
-    transition: all 0.15s;
-    font-family: inherit;
-  }
-  .preset-chip:hover {
-    background: rgba(139, 92, 246, 0.15);
-    border-color: var(--accent-bright);
-  }
-
-  .btn-train {
-    padding: 0.55rem 1.1rem;
-    border-radius: 8px;
-    border: 1px solid var(--accent);
-    background: rgba(139, 92, 246, 0.12);
-    color: var(--accent-bright);
-    cursor: pointer;
-    font-weight: 600;
-    font-size: 0.9rem;
-    font-family: inherit;
-    transition: all 0.15s;
-  }
-  .btn-train:hover:not(:disabled) { background: rgba(139, 92, 246, 0.22); box-shadow: var(--shadow-glow); }
-  .btn-train:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
 {% endblock %}
 
@@ -182,23 +76,11 @@
     <h1>&#9889; Convert Code → Model</h1>
     <p class="text-muted">
         Paste Python code that <strong>trains a model</strong> and assigns it to a variable named
-        <code style="background: rgba(139, 92, 246, 0.15); color: var(--accent-bright); padding: 0.15rem 0.5rem; border-radius: 6px; border: 1px solid var(--border-light);">model</code>.
+        <code style="background: rgba(160, 192, 0,0.12); color: var(--accent); padding: 0.1rem 0.4rem; border-radius: 4px;">model</code>.
         OpenBenchML will execute it, pickle the model, and register it — ready to benchmark.
         No local Python or git needed.
     </p>
 </div>
-
-<div class="convert-toolbar">
-    <div class="engine-toggle" role="tablist">
-        <button id="engine-pyodide" class="active" onclick="setEngine('pyodide')">&#9889; Pyodide (in-browser, no timeout)</button>
-        <button id="engine-server" onclick="setEngine('server')">&#128421; Server sandbox (300s limit)</button>
-    </div>
-    <span id="kernel-status" class="kernel-status starting">kernel: starting…</span>
-</div>
-
-{% if error %}
-<div class="convert-alert">{{ error }}</div>
-{% endif %}
 
 <div class="convert-grid">
     <!-- ── Code + form ──────────────────────────────────────────────── -->
@@ -206,13 +88,11 @@
         <div class="card-header">
             <h3>Your Python code</h3>
         </div>
-        <div style="padding: 0 1rem;">
+        <form method="POST" action="/convert" id="convert-form">
             <div class="form-group">
                 <label for="model_name">Model Name</label>
                 <input type="text" id="model_name" name="model_name"
-                       placeholder="e.g. RandomForest on California Housing"
-                       value="{{ model_name_hint | default('') }}"
-                       required autofocus
+                       placeholder="e.g. RandomForest on Iris" required autofocus
                        style="width: 100%;">
             </div>
 
@@ -249,32 +129,18 @@
                 </span>
             </div>
 
-            <div class="preset-chips">
-                <span class="form-hint" style="margin-right: 0.4rem;">Presets:</span>
-                <button type="button" class="preset-chip" onclick="loadPreset('iris-rf')">Iris RF (small)</button>
-                <button type="button" class="preset-chip" onclick="loadPreset('cali-rf')">California RF (heavy)</button>
-                <button type="button" class="preset-chip" onclick="loadPreset('wine-xgb')">Wine XGBoost</button>
-                <button type="button" class="preset-chip" onclick="loadPreset('moons-svm')">Moons SVM</button>
-                <button type="button" class="preset-chip" onclick="loadPreset('diabetes-ridge')">Diabetes Ridge</button>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">&#9889; Convert &amp; Save Model</button>
+                <a href="/my-models" class="btn btn-secondary">Cancel</a>
             </div>
-        </div>
-
-        <!-- ── Live training output (only used by Pyodide path) ────── -->
-        <div id="live-output" class="live-output" style="margin: 0.75rem 1rem 0 1rem;"></div>
-
-        <div class="form-actions" style="padding: 1rem;">
-            <button type="button" id="train-btn" class="btn btn-primary" onclick="onTrainClick()">
-                &#9889; Train &amp; Convert
-            </button>
-            <a href="/my-models" class="btn btn-secondary">Cancel</a>
-        </div>
+        </form>
     </div>
 
     <!-- ── Sidebar: how it works + tips ─────────────────────────────── -->
     <div>
         <div class="hint-card">
             <h4>&#128218; How /convert works</h4>
-            <p>Three steps. Two engines. Pick whichever fits your training budget.</p>
+            <p>Three steps. Basic syntax, powerful engine.</p>
         </div>
 
         <div class="card" style="margin-bottom: 1rem;">
@@ -282,26 +148,9 @@
             <div class="card-body">
                 <ol class="step-list">
                     <li>You write Python that <strong>trains</strong> a model and assigns it to <code>model</code>.</li>
-                    <li>OpenBenchML executes your code — either in your browser (Pyodide, no timeout) or in the server sandbox (300s limit). <code>np</code>, <code>pd</code>, <code>sklearn</code> are pre-imported.</li>
+                    <li>OpenBenchML executes your code in a sandboxed namespace — <code>np</code>, <code>pd</code>, <code>sklearn</code> are pre-imported.</li>
                     <li>The model is <strong>pickled</strong> and saved as an <code>MLModel</code>. You can benchmark it instantly.</li>
                 </ol>
-            </div>
-        </div>
-
-        <div class="card" style="margin-bottom: 1rem;">
-            <div class="card-header"><h3>Which engine should I pick?</h3></div>
-            <div class="card-body">
-                <p style="margin-top: 0; color: var(--text-secondary); font-size: 0.88rem;">
-                    <strong style="color: var(--accent);">Pyodide (recommended)</strong> — trains in your
-                    browser using WebAssembly. No server timeout. The browser tab can run as long as
-                    your model needs (RandomForest on California Housing, XGBoost with 500 trees, etc.).
-                    First load downloads ~30 MB of packages; subsequent runs are instant.
-                </p>
-                <p style="color: var(--text-secondary); font-size: 0.88rem;">
-                    <strong style="color: var(--accent-secondary);">Server sandbox</strong> — runs on the
-                    server. Useful if your browser is slow or you want to close the tab. Hard 300-second
-                    limit (5 min). Best for small/medium models only.
-                </p>
             </div>
         </div>
 
@@ -337,7 +186,7 @@
             <div class="card-header"><h3>Security</h3></div>
             <div class="card-body">
                 <p style="margin-top: 0; color: var(--text-secondary); font-size: 0.9rem;">
-                    For your safety, the server sandbox blocks:
+                    For your safety, the sandbox blocks:
                 </p>
                 <ul style="margin: 0; padding-left: 1.2rem; color: var(--text-secondary); font-size: 0.88rem;">
                     <li><code>open()</code>, file I/O</li>
@@ -346,459 +195,10 @@
                     <li><code>ctypes</code>, <code>shutil</code></li>
                 </ul>
                 <p style="margin-bottom: 0; color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.8rem;">
-                    Pyodide runs in your browser's sandbox — no server access at all.
+                    Execution has a 60-second timeout.
                 </p>
             </div>
         </div>
     </div>
 </div>
-
-{% endblock %}
-
-{% block extra_js %}
-<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
-<script>
-// ─────────────────────────────────────────────────────────────────────────────
-//  OpenBenchML Convert page — dual engine (Pyodide / Server)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const PYODIDE_PACKAGES = [
-    "numpy", "pandas", "scipy", "scikit-learn", "matplotlib", "micropip", "joblib",
-];
-
-let engine = "pyodide";
-let pyodide = null;
-let pyodideReady = false;
-let pyodideFailed = false;
-let isTraining = false;
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Kernel status
-// ─────────────────────────────────────────────────────────────────────────────
-function setKernelStatus(label, kind) {
-    const el = document.getElementById('kernel-status');
-    el.textContent = label;
-    el.className = 'kernel-status ' + (kind || '');
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Engine toggle
-// ─────────────────────────────────────────────────────────────────────────────
-function setEngine(eng) {
-    engine = eng;
-    document.getElementById('engine-pyodide').classList.toggle('active', eng === 'pyodide');
-    document.getElementById('engine-server').classList.toggle('active', eng === 'server');
-    if (eng === 'pyodide') {
-        if (pyodideFailed) {
-            setKernelStatus('kernel: pyodide failed', 'error');
-        } else if (pyodideReady) {
-            setKernelStatus('kernel: ready', 'ready');
-        } else {
-            setKernelStatus('kernel: starting…', 'starting');
-            initPyodide();
-        }
-    } else {
-        setKernelStatus('kernel: server sandbox (300s limit)', 'ready');
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Pyodide initialization — same as the notebook page
-// ─────────────────────────────────────────────────────────────────────────────
-async function initPyodide() {
-    if (pyodideReady || pyodideFailed) return;
-    try {
-        setKernelStatus('kernel: loading Pyodide…', 'starting');
-        pyodide = await loadPyodide();
-
-        setKernelStatus('kernel: loading packages (np, pd, sklearn, matplotlib, joblib)…', 'starting');
-        await pyodide.loadPackage(PYODIDE_PACKAGES, { messageCallback: () => {} });
-
-        setKernelStatus('kernel: auto-importing…', 'starting');
-        await pyodide.runPythonAsync(`
-import numpy as np
-import pandas as pd
-import sklearn
-import scipy
-import joblib
-import matplotlib
-matplotlib.use("AGG")
-import matplotlib.pyplot as plt
-import io, base64, pickle, sys
-
-print("[kernel] Pyodide ready — np, pd, sklearn, scipy, matplotlib, joblib imported.")
-`);
-
-        pyodideReady = true;
-        setKernelStatus('kernel: ready', 'ready');
-        appendLiveOutput("[kernel] ready — you can train now.", "success");
-    } catch (err) {
-        console.error("[convert] Pyodide init failed:", err);
-        pyodideFailed = true;
-        setKernelStatus('kernel: pyodide failed', 'error');
-        appendLiveOutput("[kernel] Pyodide failed to load: " + (err.message || err), "error");
-        appendLiveOutput("[kernel] Switch to Server sandbox above, or refresh the page.", "stderr");
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Live output helpers
-// ─────────────────────────────────────────────────────────────────────────────
-function escapeHtml(s) {
-    return String(s)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-function appendLiveOutput(text, cls = "stdout") {
-    const out = document.getElementById('live-output');
-    out.classList.add('has-content');
-    out.innerHTML += `<span class="stream-${cls}">${escapeHtml(text)}\n</span>`;
-    out.scrollTop = out.scrollHeight;
-}
-function clearLiveOutput() {
-    const out = document.getElementById('live-output');
-    out.classList.remove('has-content');
-    out.innerHTML = "";
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Presets — including the actual California Housing RF that the user
-//  reported timing out. The Pyodide engine handles it cleanly.
-// ─────────────────────────────────────────────────────────────────────────────
-const PRESETS = {
-    'iris-rf': `from sklearn.datasets import load_iris
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-
-X, y = load_iris(return_X_y=True)
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
-
-model = RandomForestClassifier(n_estimators=50, random_state=42)
-model.fit(X_train, y_train)
-
-acc = model.score(X_test, y_test)
-print(f'Training complete — test accuracy = {acc:.4f}')
-`,
-    'cali-rf': `# California Housing regression — the workload that was hitting the
-# server's 60s timeout. With the Pyodide engine it runs in your browser
-# in ~10-20s depending on your machine.
-from sklearn.datasets import fetch_california_housing
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score
-import numpy as np
-
-print("Loading California Housing dataset...")
-X, y = fetch_california_housing(return_X_y=True)
-print(f"  X shape: {X.shape}, y shape: {y.shape}")
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
-
-# n_estimators=100 is the default. If you want faster training, drop to 30.
-# If you want better accuracy, raise to 200-300 (will take longer).
-print("Training Random Forest Regressor (n_estimators=100)...")
-model = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=1)
-model.fit(X_train, y_train)
-
-y_pred = model.predict(X_test)
-rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-r2 = r2_score(y_test, y_pred)
-print(f"  RMSE: {rmse:.4f}")
-print(f"  R2:   {r2:.4f}")
-print("Done — model trained.")
-`,
-    'wine-xgb': `from sklearn.datasets import load_wine
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report
-
-# Note: XGBoost is not in Pyodide's package set. If you need XGBoost,
-# use the Server sandbox engine, or substitute with sklearn's
-# GradientBoostingClassifier (similar performance on small datasets).
-from sklearn.ensemble import GradientBoostingClassifier
-
-X, y = load_wine(return_X_y=True)
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
-
-model = GradientBoostingClassifier(n_estimators=100, random_state=42)
-model.fit(X_train, y_train)
-acc = accuracy_score(y_test, model.predict(X_test))
-print(f"Test accuracy: {acc:.4f}")
-`,
-    'moons-svm': `from sklearn.datasets import make_moons
-from sklearn.svm import SVC
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
-
-X, y = make_moons(n_samples=1000, noise=0.25, random_state=42)
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
-
-model = SVC(kernel="rbf", C=1.0, gamma="scale")
-model.fit(X_train, y_train)
-acc = accuracy_score(y_test, model.predict(X_test))
-print(f"Moons SVM accuracy: {acc:.4f}")
-`,
-    'diabetes-ridge': `from sklearn.datasets import load_diabetes
-from sklearn.linear_model import Ridge
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score
-import numpy as np
-
-X, y = load_diabetes(return_X_y=True)
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
-
-model = Ridge(alpha=1.0)
-model.fit(X_train, y_train)
-y_pred = model.predict(X_test)
-rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-r2 = r2_score(y_test, y_pred)
-print(f"Ridge RMSE: {rmse:.2f}")
-print(f"Ridge R2:   {r2:.4f}")
-`,
-};
-
-function loadPreset(key) {
-    const code = PRESETS[key];
-    if (!code) return;
-    document.getElementById('code').value = code;
-    // Pre-fill the model name based on the preset.
-    const nameMap = {
-        'iris-rf':       'Iris RandomForest',
-        'cali-rf':       'California Housing RF',
-        'wine-xgb':      'Wine GradientBoosting',
-        'moons-svm':     'Moons SVM rbf',
-        'diabetes-ridge':'Diabetes Ridge',
-    };
-    if (nameMap[key] && !document.getElementById('model_name').value) {
-        document.getElementById('model_name').value = nameMap[key];
-    }
-    document.getElementById('code').focus();
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Pyodide training path
-// ─────────────────────────────────────────────────────────────────────────────
-async function trainWithPyodide() {
-    const code = document.getElementById('code').value;
-    if (!code.trim()) {
-        appendLiveOutput("Code is empty — write some Python first.", "error");
-        return;
-    }
-
-    if (!pyodideReady) {
-        if (!pyodideFailed) {
-            appendLiveOutput("Waiting for Pyodide to finish loading…", "stderr");
-            await initPyodide();
-        }
-        if (!pyodideReady) {
-            appendLiveOutput(
-                "Pyodide is not ready. Switch to the Server sandbox engine above.",
-                "error"
-            );
-            return;
-        }
-    }
-
-    const trainBtn = document.getElementById('train-btn');
-    trainBtn.disabled = true;
-    trainBtn.textContent = "Training…";
-    setKernelStatus('kernel: training…', 'running');
-    clearLiveOutput();
-    appendLiveOutput("[pyodide] starting training…", "stderr");
-
-    let stdout = "", stderr = "";
-    pyodide.setStdout({ batched: (s) => { stdout += s; appendLiveOutput(s, "stdout"); } });
-    pyodide.setStderr({ batched: (s) => { stderr += s; appendLiveOutput(s, "stderr"); } });
-
-    const startTime = performance.now();
-
-    try {
-        // Run user code — the trained model ends up in pyodide.globals.model
-        await pyodide.runPythonAsync(code);
-
-        const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
-        appendLiveOutput(`\n[pyodide] training finished in ${elapsed}s`, "success");
-
-        // Verify the model variable exists.
-        const hasModel = pyodide.runPython("'model' in globals()");
-        if (!hasModel) {
-            appendLiveOutput(
-                "[error] Your code did not assign anything to a variable named 'model'.",
-                "error"
-            );
-            setKernelStatus('kernel: ready (no model var)', 'error');
-            return;
-        }
-
-        // Pickle the model in-browser using joblib, then base64-encode.
-        appendLiveOutput("[pyodide] pickling model…", "stderr");
-        const pickleB64 = pyodide.runPython(`
-import joblib, base64, io
-buf = io.BytesIO()
-joblib.dump(model, buf, compress=3)
-base64.b64encode(buf.getvalue()).decode('ascii')
-`);
-
-        const sizeKb = Math.round(pickleB64.length * 3 / 4 / 1024);
-        appendLiveOutput(`[pyodide] pickled model: ${sizeKb} KB`, "success");
-
-        // Recover model class for the UI.
-        let modelClass = "Unknown";
-        try {
-            modelClass = pyodide.runPython("type(model).__name__");
-        } catch (_) {}
-
-        // Try to grab metric variables the user may have left.
-        const metrics = {};
-        for (const key of ["accuracy", "acc", "f1_score", "f1", "rmse", "r2_score", "r2", "mae"]) {
-            try {
-                const v = pyodide.runPython(`float(globals().get('${key}')) if '${key}' in globals() and isinstance(globals()['${key}'], (int, float)) else None`);
-                if (v !== null && !isNaN(v)) {
-                    const canonical = {acc: 'accuracy', f1: 'f1_score', r2: 'r2_score'}[key] || key;
-                    metrics[canonical] = v;
-                }
-            } catch (_) {}
-        }
-
-        // Upload the pickle to the server to be saved as an MLModel.
-        appendLiveOutput("[pyodide] uploading pickle to server…", "stderr");
-
-        const modelName = document.getElementById('model_name').value.trim();
-        const description = document.getElementById('description').value.trim();
-        const framework = document.getElementById('framework').value;
-
-        const res = await fetch('/api/convert/upload-pickle', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model_name: modelName,
-                description: description,
-                framework: framework,
-                pickle_base64: pickleB64,
-                model_class_hint: modelClass,
-                stdout: stdout.slice(-20000),
-                stderr: stderr.slice(-20000),
-                metrics: metrics,
-            }),
-        });
-
-        if (res.status === 401) {
-            appendLiveOutput("[error] Authentication required — please log in.", "error");
-            setKernelStatus('kernel: ready (auth failed)', 'error');
-            return;
-        }
-        if (!res.ok) {
-            const errText = await res.text();
-            appendLiveOutput(`[error] Server rejected upload: ${res.status} ${errText}`, "error");
-            setKernelStatus('kernel: ready (upload failed)', 'error');
-            return;
-        }
-
-        const data = await res.json();
-        appendLiveOutput(
-            `\n[success] Model saved as MLModel #${data.id} ` +
-            `(${data.model_name}, ${data.framework}, ${data.size_kb} KB)`,
-            "success"
-        );
-        appendLiveOutput(`[success] Detected class: ${data.model_class}`, "success");
-        appendLiveOutput(`[redirect] /models/${data.id}`, "stderr");
-
-        // Redirect to the model detail page after a short delay.
-        setTimeout(() => {
-            window.location.href = `/models/${data.id}`;
-        }, 1200);
-
-    } catch (err) {
-        const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
-        appendLiveOutput(`\n[error] Training failed after ${elapsed}s:`, "error");
-        appendLiveOutput(err.message || String(err), "error");
-        setKernelStatus('kernel: ready (training failed)', 'error');
-    } finally {
-        const trainBtn = document.getElementById('train-btn');
-        trainBtn.disabled = false;
-        trainBtn.textContent = "⚡ Train & Convert";
-        if (pyodideReady) setKernelStatus('kernel: ready', 'ready');
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Server sandbox training path — submit the HTML form
-// ─────────────────────────────────────────────────────────────────────────────
-function trainWithServer() {
-    const code = document.getElementById('code').value;
-    if (!code.trim()) {
-        appendLiveOutput("Code is empty — write some Python first.", "error");
-        return;
-    }
-    // The server path is the original HTML form POST to /convert.
-    // We just submit the form. The browser will navigate to /models/{id}
-    // on success, or re-render /convert with an error message on failure.
-    appendLiveOutput("[server] submitting code to server sandbox (300s limit)…", "stderr");
-
-    // Build a hidden form and submit it — preserves the existing /convert
-    // POST flow, no JS fetch needed.
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '/convert';
-    form.style.display = 'none';
-
-    const addField = (name, value) => {
-        const input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = name;
-        input.value = value;
-        form.appendChild(input);
-    };
-    addField('model_name', document.getElementById('model_name').value);
-    addField('description', document.getElementById('description').value);
-    addField('framework', document.getElementById('framework').value);
-    addField('code', code);
-
-    document.body.appendChild(form);
-
-    const trainBtn = document.getElementById('train-btn');
-    trainBtn.disabled = true;
-    trainBtn.textContent = "Submitting…";
-    setKernelStatus('kernel: server running (up to 300s)…', 'running');
-
-    form.submit();
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Dispatch
-// ─────────────────────────────────────────────────────────────────────────────
-async function onTrainClick() {
-    if (isTraining) return;
-    isTraining = true;
-    try {
-        if (engine === 'pyodide') {
-            await trainWithPyodide();
-        } else {
-            trainWithServer();
-        }
-    } finally {
-        isTraining = false;
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-//  Boot
-// ─────────────────────────────────────────────────────────────────────────────
-(function boot() {
-    // Pre-fill model_name based on the default sample code (Iris RF).
-    if (!document.getElementById('model_name').value) {
-        document.getElementById('model_name').value = 'Iris RandomForest';
-    }
-    // Kick off Pyodide load in the background (default engine).
-    initPyodide();
-})();
-</script>
 {% endblock %}
