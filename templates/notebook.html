@@ -906,20 +906,75 @@ async function runCell(cellId) {
   }
 }
 
+// Helper: robust fetch with timeout + HTML-response detection.
+// When the kernel worker crashes (OOM on heavy imports like tensorflow)
+// or the proxy times out, the server returns an HTML 502/504 page instead
+// of JSON. Without this guard, `res.json()` throws "Unexpected token '<'"
+// which is confusing. We surface a clear, actionable message instead.
+async function _fetchJson(url, opts, timeoutMs) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs || 90000);
+  let res;
+  try {
+    res = await fetch(url, Object.assign({}, opts, { signal: ctrl.signal }));
+  } catch (e) {
+    clearTimeout(timer);
+    if (e.name === 'AbortError') {
+      throw new Error('Request timed out after ' + ((timeoutMs||90000)/1000) + 's. The server may be busy or restarting. Try Reset Kernel.');
+    }
+    throw new Error('Network error: ' + e.message + '. Check your connection and that you are logged in.');
+  }
+  clearTimeout(timer);
+
+  // 401 → not logged in (cookie expired or never set)
+  if (res.status === 401) {
+    return { __httpStatus: 401, ok: false, stderr: 'Authentication required — your session may have expired. Refresh the page and log in again.', stdout: '', figures: [], elapsed_ms: 0 };
+  }
+
+  // Detect HTML responses (proxy 502/504 when worker crashed/OOMed)
+  const ct = res.headers.get('content-type') || '';
+  if (!ct.includes('application/json')) {
+    // Read body as text and check what kind of error it is
+    const bodyText = await res.text();
+    let hint = '';
+    if (res.status === 502 || res.status === 504 || bodyText.includes('<!DOCTYPE') || bodyText.includes('<html')) {
+      hint = 'Server returned HTML (likely a 502/504 from the proxy). The kernel worker may have crashed (e.g. OOM on a heavy import like tensorflow). Click "Reset Kernel" and try a smaller operation first.';
+    } else if (res.status === 500) {
+      hint = 'Server returned 500. The kernel worker may have crashed. Click "Reset Kernel" to recover.';
+    } else if (res.status === 0 || bodyText === '') {
+      hint = 'Empty response from server (network reset or worker crash). Click "Reset Kernel" to recover.';
+    } else {
+      hint = 'Server returned status ' + res.status + ' with non-JSON body (' + (ct || 'unknown content type') + ').';
+    }
+    return { __httpStatus: res.status, ok: false, stderr: hint, stdout: '', figures: [], elapsed_ms: 0 };
+  }
+
+  // Empty body
+  const text = await res.text();
+  if (!text) {
+    return { __httpStatus: res.status, ok: false, stderr: 'Server returned an empty response (worker may have crashed). Click "Reset Kernel" to recover.', stdout: '', figures: [], elapsed_ms: 0 };
+  }
+
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch (e) {
+    return { __httpStatus: res.status, ok: false, stderr: 'Server returned malformed JSON: ' + e.message + '. The worker may be in a bad state. Click "Reset Kernel" to recover.', stdout: '', figures: [], elapsed_ms: 0 };
+  }
+  data.__httpStatus = res.status;
+  return data;
+}
+
 async function runCellServer(cell) {
-  const res = await fetch('/api/notebook/cell', {
+  const data = await _fetchJson('/api/notebook/cell', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       code: cell.source,
-      timeout_seconds: 300,
+      timeout_seconds: 120,
       cell_id: cell.id,
     }),
-  });
-  if (res.status === 401) {
-    return { ok: false, stdout: '', stderr: 'Authentication required — please log in.', figures: [], elapsed_ms: 0 };
-  }
-  const data = await res.json();
+  }, 90000);
   return {
     ok: data.ok,
     stdout: data.stdout || '',
@@ -1079,12 +1134,11 @@ async function installPackage(pkg, cellId) {
   document.querySelectorAll(`.install-btn`).forEach(b => { b.disabled = true; b.textContent = 'installing…'; });
   setKernelStatus('installing ' + pkg + '…', 'running');
   try {
-    const res = await fetch('/api/notebook/install', {
+    const data = await _fetchJson('/api/notebook/install', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ package: pkg, timeout_seconds: 300 }),
-    });
-    const data = await res.json();
+      body: JSON.stringify({ package: pkg, timeout_seconds: 240 }),
+    }, 240000);
     if (data.ok) {
       setKernelStatus('installed ' + pkg, 'ready');
       // Re-run the cell that triggered the suggestion
@@ -1109,7 +1163,15 @@ async function resetKernel() {
   if (!confirm('Reset kernel? All variables will be cleared.')) return;
   setKernelStatus('resetting…', 'running');
   try {
-    await fetch('/api/notebook/reset', { method: 'POST' });
+    // Use no-cors-style fallback: even if response is HTML, we don't care —
+    // we just need the server to drop the session.
+    try {
+      await fetch('/api/notebook/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+    } catch (e) { /* ignore — server may be mid-crash */ }
     setKernelStatus('kernel ready (reset)', 'ready');
     // Clear all outputs
     cells.forEach(c => { c.output = null; });
@@ -1241,9 +1303,8 @@ print("[pyodide] ready — np, pd, sklearn, scipy, matplotlib, joblib imported."
 async function refreshKernelInfo() {
   if (currentEngine !== 'server') return;
   try {
-    const res = await fetch('/api/notebook/health');
-    if (!res.ok) return;
-    const data = await res.json();
+    const data = await _fetchJson('/api/notebook/health', {}, 10000);
+    if (!data || data.__httpStatus !== 200) return;
     document.getElementById('info-cells').textContent = data.cell_count || 0;
     document.getElementById('info-pkgs').textContent = (data.installed_packages || []).length;
     const uptime = data.session_age_seconds || 0;
