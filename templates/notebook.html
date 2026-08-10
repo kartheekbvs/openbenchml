@@ -766,7 +766,45 @@
 {% block content %}
 <div class="page-header" style="margin-bottom: 0.75rem; display: flex; align-items: center; gap: 1rem;">
     <h1 style="margin: 0;">&#128221; Notebook</h1>
+    {% if hf_spaces_url %}
+    <button id="open-on-hf-btn" class="toolbar-btn primary" style="font-size: 0.85rem;"
+            onclick="openNotebookOnHF()" title="Open this notebook on the high-memory compute server">
+        &#9889; Open on Compute
+    </button>
+    <span style="font-size: 0.74rem; color: var(--text-secondary);">Render · light tasks</span>
+    {% endif %}
 </div>
+
+{% if hf_spaces_url %}
+<script>
+// Cross-domain redirect: mint a one-time bridge token from Render, then
+// redirect to HF Spaces where the heavy notebook kernel runs (16 GB RAM).
+async function openNotebookOnHF() {
+  const btn = document.getElementById('open-on-hf-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '&#8987; Redirecting…'; }
+  try {
+    const r = await fetch('/api/auth/bridge_token');
+    if (r.status === 401) {
+      alert('You must be logged in. Refreshing the page…');
+      window.location.reload();
+      return;
+    }
+    if (!r.ok) {
+      const err = await r.text();
+      alert('Could not start compute session: ' + err.slice(0, 200));
+      if (btn) { btn.disabled = false; btn.innerHTML = '&#9889; Open on Compute'; }
+      return;
+    }
+    const data = await r.json();
+    // Send the user to HF with the one-time token
+    window.location.href = data.url;
+  } catch (e) {
+    alert('Network error: ' + e.message);
+    if (btn) { btn.disabled = false; btn.innerHTML = '&#9889; Open on Compute'; }
+  }
+}
+</script>
+{% endif %}
 
 <!-- ─── View tabs: Notebook | Terminal (Files moved to left sidebar) ─ -->
 <div class="view-tabs">

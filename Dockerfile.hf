@@ -1,0 +1,61 @@
+# ─── Hugging Face Spaces Dockerfile ──────────────────────────────────────────
+# Optimized for HF Spaces: 16 GB RAM, 2 vCPU, port 7860, persistent /data
+#
+# Differences from the production Dockerfile:
+#   1. Port 7860 (HF Spaces hard-coded default)
+#   2. Single uvicorn worker (no need for 2 on free CPU tier; saves RAM)
+#   3. SQLite DB lives at /data/openbenchml.db (HF persistent volume)
+#   4. Notebook file workspace at /data/notebook_files/ (persisted across restarts)
+#   5. Runs as user 1000 (HF Spaces requirement — no root)
+
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    HF_SPACES=1 \
+    PORT=7860
+
+WORKDIR /app
+
+# System deps — git needed for `!git clone` in notebooks
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python deps
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# App code
+COPY . .
+
+# HF Spaces mounts /data as persistent storage (10 GB).
+# Symlink our SQLite DB + notebook files there so user data survives restarts.
+RUN mkdir -p /data/notebook_files /data/uploads /data/logs && \
+    ln -sf /data/openbenchml.db /app/openbenchml.db && \
+    ln -sf /data/notebook_files /tmp/notebook_files && \
+    ln -sf /data/uploads /app/uploads && \
+    ln -sf /data/logs /app/logs && \
+    chmod -R 777 /data /app
+
+# HF Spaces requires port 7860
+EXPOSE 7860
+
+# Health check on HF port
+HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+    CMD curl -f http://localhost:7860/health || exit 1
+
+# HF Spaces runs as user 1000 by default — but our container is root, so we
+# explicitly set user 1000 (matches HF's expectation and our chmod above).
+USER 1000
+
+# Single worker: HF free CPU has 2 cores, running 2 workers doubles the RAM
+# footprint for no real throughput gain on a low-traffic notebook service.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "7860", \
+     "--workers", "1", "--loop", "uvloop", "--http", "httptools", \
+     "--proxy-headers", "--forwarded-allow-ips", "*"]

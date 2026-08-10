@@ -611,11 +611,18 @@ async def notebook_page(
     # Touch the session to create it
     session = _get_or_create_session(user.id)
 
+    # Cross-domain bridge: if HF_SPACES_URL is set, the notebook page shows
+    # an "Open on Compute" button that redirects the user to HF Spaces (16 GB RAM)
+    # via the /api/auth/bridge_token endpoint.
+    import os
+    hf_spaces_url = os.environ.get("HF_SPACES_URL", "").rstrip("/") or None
+
     return templates.TemplateResponse("notebook.html", {
         "request": request,
         "user": user,
         "sample_code": SAMPLE_CODE,
         "session_id": f"sess-{user.id}-{int(session.created_at)}",
+        "hf_spaces_url": hf_spaces_url,
     })
 
 
