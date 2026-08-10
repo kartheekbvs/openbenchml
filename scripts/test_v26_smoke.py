@@ -1,4 +1,4 @@
-"""v2.6 smoke test: verify notebook.py imports cleanly and the new guards work."""
+"""Smoke test: verify notebook.py imports cleanly and the OOM guards work."""
 import sys, os
 sys.path.insert(0, "/home/z/my-project")
 
@@ -57,4 +57,4 @@ assert len(result["stdout"]) < 2_000_000, f"stdout should be truncated, got {len
 assert "truncated at 1 MB" in result["stdout"], "should contain truncation marker"
 print(f"[7] stdout truncated to {len(result['stdout'])} bytes (was 5MB) OK")
 
-print("\n=== All v2.6 smoke tests passed ===")
+print("\n=== All smoke tests passed ===")

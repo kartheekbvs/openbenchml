@@ -1,6 +1,6 @@
 """
-OpenBenchML Notebook v2.0 — Colab-style multi-cell notebook
-============================================================
+OpenBenchML Notebook — Colab-style multi-cell notebook
+======================================================
 
 Endpoints:
     GET  /notebook                    → render the new Colab-style UI
@@ -138,19 +138,19 @@ def _dir_size_bytes(p: Path) -> int:
 # Each session has its own Python namespace dict that persists across cells.
 # Evicted after 30 min of inactivity to keep memory bounded.
 
-# v2.6 memory-hardening: Render's free/starter tier OOMs at ~512 MB RSS.
+# Memory-hardening: Render's free/starter tier OOMs at ~512 MB RSS.
 # 50 concurrent sessions × ~30 MB each (numpy/pandas/sklearn imports) =
 # 1.5 GB just for namespaces, before any user code runs. Drop to 12.
 SESSION_TTL_SECONDS = 15 * 60  # 15 minutes (was 30) — free RAM sooner
 _MAX_SESSIONS = 12  # was 50 — Render OOM protection
 
-# v2.6 OOM guard: refuse new cell runs when server RSS > this threshold.
+# OOM guard: refuse new cell runs when server RSS > this threshold.
 # 700 MB leaves headroom for the OS + Render supervisor on a 512 MB / 1 GB
 # instance (Render kills the process at the actual limit, but proactively
 # refusing at 700 MB gives users a friendly error instead of a SIGKILL).
 _SERVER_RSS_LIMIT_BYTES = 700 * 1024 * 1024
 
-# v2.6 OOM guard: cap stdout/stderr capture per cell so a runaway `print`
+# OOM guard: cap stdout/stderr capture per cell so a runaway `print`
 # loop can't fill the server's RAM with a 500 MB string.
 _MAX_OUTPUT_BYTES = 1 * 1024 * 1024  # 1 MB per cell
 
@@ -230,7 +230,7 @@ def _get_or_create_session(user_id: int) -> _SessionState:
         return _USER_SESSIONS[user_id]
 
 
-# v2.6: Background reaper — evict expired sessions every 3 minutes even
+# Background reaper — evict expired sessions every 3 minutes even
 # if no new requests come in. This prevents idle sessions from holding
 # RAM indefinitely on a low-traffic deployment (the original lazy-eviction
 # only ran when a NEW user requested a session, so a quiet site could
@@ -432,7 +432,7 @@ _ALLOWED_SHELL_COMMANDS = {
     "pip", "python", "python3", "ls", "pwd", "whoami", "date",
     "echo", "cat", "head", "tail", "wc", "grep", "find", "df",
     "du", "free", "uname", "env", "which", "tree",
-    # ── File / repo workflow (v2.5) ─────────────────────────────────────────
+    # ── File / repo workflow ─────────────────────────────────────────
     # git  → clone repos into the user workspace (e.g. HF datasets/models)
     # wget, curl → download files (curl is allowlisted but `| sh` is blocked)
     # unzip, tar → extract downloaded archives
@@ -462,7 +462,7 @@ def _execute_shell_command(cmd_str: str, timeout_seconds: int = 60, cwd: str = "
     if not cmd_str:
         return {"stdout": "", "stderr": "Empty command.", "returncode": 1, "ok": False}
 
-    # v2.6 OOM protection: auto-prefix `git clone` with `--depth 1 --filter=blob:none`
+    # OOM protection: auto-prefix `git clone` with `--depth 1 --filter=blob:none`
     # so we don't download full history. For GLM-5.2 (multi-GB repo), this cuts
     # disk + RAM usage by 80%+ during clone. The repo files are still fully usable
     # in cells — config.json, model weights, tokenizer files, etc. — we just skip
@@ -476,7 +476,7 @@ def _execute_shell_command(cmd_str: str, timeout_seconds: int = 60, cwd: str = "
                          cmd_str, count=1, flags=re.IGNORECASE)
         logger.info("Injected --depth 1 --filter=blob:none into git clone: %s", cmd_str)
 
-    # v2.6 OOM protection: cap clone/wget/curl timeouts so a stuck download
+    # OOM protection: cap clone/wget/curl timeouts so a stuck download
     # doesn't hold a worker thread for the full 120s.
     if cmd_str.split()[0] in ("git", "wget", "curl") and timeout_seconds > 90:
         timeout_seconds = 90
@@ -517,7 +517,7 @@ def _execute_shell_command(cmd_str: str, timeout_seconds: int = 60, cwd: str = "
             cwd=cwd,
             env={**_safe_env()},
         )
-        # v2.6 OOM protection: truncate stdout/stderr so a `find /` or
+        # OOM protection: truncate stdout/stderr so a `find /` or
         # `git clone -v` can't fill RAM with megabytes of log text.
         out = result.stdout or ""
         err = result.stderr or ""
@@ -586,7 +586,7 @@ def _extract_figures_from_namespace(namespace: Dict[str, Any]) -> List[str]:
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
 
-SAMPLE_CODE = """# Welcome to OpenBenchML Notebook v2.0 — Colab-style!
+SAMPLE_CODE = """# Welcome to OpenBenchML Notebook!
 # Variables persist across cells. Run cells in order, or out of order — your call.
 
 x = 42
@@ -733,7 +733,7 @@ async def notebook_cell_api(
             "cell_id": payload.cell_id,
         }
 
-    # v2.6 OOM guard: refuse new cell runs when server RAM is over budget.
+    # OOM guard: refuse new cell runs when server RAM is over budget.
     # This gives users a friendly error instead of triggering a Render SIGKILL.
     mem_err = _check_memory_budget()
     if mem_err:
@@ -912,7 +912,7 @@ async def notebook_suggest_api(
     }
 
 
-# ─── File workspace API (v2.5) ──────────────────────────────────────────────
+# ─── File workspace API ───────────────────────────────────────────────────
 # These endpoints power the VS Code-style file explorer in the notebook UI.
 # Files land in /tmp/notebook_files/{user_id}/ which is also the CWD for
 # cell execution (!shell and Python code), so anything uploaded or cloned
@@ -1149,7 +1149,7 @@ async def notebook_clear_files_api(
     return {"ok": True, "cleared": cleared}
 
 
-# ─── Notebook export (v2.7) ──────────────────────────────────────────────────
+# ─── Notebook export ───────────────────────────────────────────────────────
 # Download the user's notebook as .ipynb (Jupyter JSON), .py (percent-format
 # script with `# %%` cell separators), or .html (self-contained static page).
 
@@ -1303,7 +1303,7 @@ async def notebook_download_api(
     raise HTTPException(status_code=400, detail=f"Unknown format: {fmt}")
 
 
-# ─── Code autocomplete (v2.7) ────────────────────────────────────────────────
+# ─── Code autocomplete ─────────────────────────────────────────────────────
 # Use Jedi to introspect the user's session namespace + standard library
 # and return completion candidates for the token at the cursor.
 
@@ -1478,7 +1478,7 @@ async def notebook_complete_api(
             "prefix": prefix, "token": token}
 
 
-# ─── Installed packages (v2.7) ───────────────────────────────────────────────
+# ─── Installed packages ────────────────────────────────────────────────────
 # Surfaces `session.installed_packages` to the UI so users can see what they've
 # `!pip install`ed. Explains why pip installs don't appear in the Files tab.
 

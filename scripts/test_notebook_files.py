@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-End-to-end test for the v2.5 file workspace + git clone + cell↔file bridge.
+End-to-end test for the file workspace + git clone + cell<->file bridge.
 
 Verifies:
   1. Upload a CSV file via POST /api/notebook/files/upload
@@ -12,7 +12,7 @@ Verifies:
      (small public repo) — files appear in the file list
   7. Download the uploaded CSV — content matches what was uploaded
   8. Delete the file — it's gone from the list
-  9. Verify the Files tab HTML is present in /notebook page
+  9. Verify the Files sidebar HTML is present in /notebook page
 """
 import sys, os, io, time, json, re
 sys.path.insert(0, '/home/z/my-project')
@@ -57,15 +57,16 @@ r = client.get('/api/auth/me')
 assert r.status_code == 200, "auth failed"
 print(f"  auth OK")
 
-# ─── Step 2: Verify Files tab is in the rendered page ──────────────────────
-print("\n=== Step 2: GET /notebook — verify Files tab HTML ===")
+# ─── Step 2: Verify Files sidebar is in the rendered page ──────────────────
+print("\n=== Step 2: GET /notebook — verify Files sidebar HTML ===")
 r = client.get('/notebook')
 assert r.status_code == 200
-for marker in ['tab-files', 'panel-files', 'files-drop-zone', 'refreshFiles',
-               'uploadFiles', 'deleteFile', 'v2.6 OOM-hardened',
+for marker in ['nb-sidebar', 'nb-sidebar-rail', 'nb-sidebar-expanded',
+               'toggleSidebar', 'files-drop-zone', 'refreshFiles',
+               'uploadFiles', 'deleteFile',
                '!git clone https://huggingface.co/zai-org/GLM-5.2']:
     assert marker in r.text, f"missing marker in /notebook HTML: {marker!r}"
-print(f"  all {10} HTML markers present")
+print(f"  all {9} HTML markers present")
 
 # ─── Step 3: Upload a CSV ──────────────────────────────────────────────────
 print("\n=== Step 3: Upload CSV ===")
@@ -204,7 +205,7 @@ print(f"  test.csv removed from file list")
 
 # ─── Done ──────────────────────────────────────────────────────────────────
 print("\n" + "=" * 60)
-print("ALL v2.5 FILE WORKSPACE TESTS PASSED")
+print("ALL FILE WORKSPACE TESTS PASSED")
 print("=" * 60)
 print("""
 Summary of what now works:

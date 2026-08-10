@@ -368,7 +368,7 @@
     font-weight: 600;
   }
 
-  /* ─── Files explorer (v2.5) ───────────────────────────────────── */
+  /* ─── Files explorer ───────────────────────────────────────── */
   .files-toolbar {
     display: flex; align-items: center; gap: 0.5rem;
     padding: 0.75rem 1rem;
@@ -550,17 +550,39 @@
   }
   .terminal-action-btn:hover { background: rgba(160, 192, 0, 0.2); }
 
-  /* ─── v2.7: Colab-style left sidebar layout ──────────────────── */
+  /* ─── Colab-style left sidebar layout ──────────────────────── */
   .nb-app {
     display: grid;
     grid-template-columns: 280px 1fr;
     gap: 1rem;
     align-items: start;
   }
-  .nb-app.sidebar-collapsed { grid-template-columns: 36px 1fr; }
-  .nb-app.sidebar-collapsed .nb-sidebar-content { display: none; }
-  .nb-app.sidebar-collapsed .nb-sidebar { padding: 0.4rem 0; }
-  .nb-app.sidebar-collapsed .nb-sidebar-toggle { margin: 0 auto; }
+  /* Collapsed state: narrow rail with a single folder button */
+  .nb-app.sidebar-collapsed { grid-template-columns: 44px 1fr; }
+  .nb-app.sidebar-collapsed .nb-sidebar-expanded { display: none; }
+  .nb-app.sidebar-collapsed .nb-sidebar-rail { display: flex; }
+
+  /* Rail button (visible only when sidebar is collapsed) */
+  .nb-sidebar-rail {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+    position: sticky;
+    top: 1rem;
+  }
+  .nb-sidebar-rail:hover { color: var(--accent); border-color: var(--accent); }
+  .nb-sidebar-rail .rail-label {
+    font-size: 0.62rem; writing-mode: vertical-rl; letter-spacing: 0.06em;
+    color: var(--text-secondary); text-transform: uppercase;
+  }
 
   .nb-sidebar {
     background: var(--bg-elevated);
@@ -572,6 +594,14 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+  }
+  /* Expanded panel wrapper — visible when sidebar is open */
+  .nb-sidebar-expanded {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
   }
   .nb-sidebar-header {
     display: flex; align-items: center; gap: 0.5rem;
@@ -654,7 +684,7 @@
     padding: 0 4px; border-radius: 3px;
   }
 
-  /* ─── v2.7: Download dropdown ────────────────────────────────── */
+  /* ─── Download dropdown ────────────────────────────────────── */
   .download-dropdown { position: relative; display: inline-block; }
   .download-dropdown-menu {
     display: none;
@@ -685,7 +715,7 @@
     padding: 0 6px; border-radius: 3px;
   }
 
-  /* ─── v2.7: Autocomplete popup ───────────────────────────────── */
+  /* ─── Autocomplete popup ───────────────────────────────────── */
   .autocomplete-popup {
     position: absolute;
     background: #0d1117;
@@ -736,8 +766,6 @@
 {% block content %}
 <div class="page-header" style="margin-bottom: 0.75rem; display: flex; align-items: center; gap: 1rem;">
     <h1 style="margin: 0;">&#128221; Notebook</h1>
-    <span style="font-size: 0.72rem; color: var(--accent); padding: 0.1rem 0.5rem; background: rgba(160,192,0,0.12); border-radius: 4px;">v2.7</span>
-    <span style="font-size: 0.78rem; color: var(--text-secondary);">Multi-cell · persistent kernel · autocomplete</span>
 </div>
 
 <!-- ─── View tabs: Notebook | Terminal (Files moved to left sidebar) ─ -->
@@ -755,9 +783,16 @@
 
   <!-- ╔══════════════ LEFT SIDEBAR (Colab-style) ══════════════╗ -->
   <aside class="nb-sidebar">
+    <!-- Collapsed rail: a single folder-icon button that expands the sidebar -->
+    <button class="nb-sidebar-rail" onclick="toggleSidebar()" title="Open Files panel">
+      &#128193;
+      <span class="rail-label">Files</span>
+    </button>
+    <!-- Expanded panel -->
+    <div class="nb-sidebar-expanded">
     <div class="nb-sidebar-header">
       <span class="title">&#128193; Files</span>
-      <button class="nb-sidebar-toggle" onclick="toggleSidebar()" title="Collapse sidebar">&#9776;</button>
+      <button class="nb-sidebar-toggle" onclick="toggleSidebar()" title="Close sidebar">&#10005;</button>
     </div>
     <div class="nb-sidebar-content">
 
@@ -823,6 +858,7 @@
       </div>
 
     </div>
+    </div>
   </aside>
 
   <!-- ╔══════════════ MAIN CONTENT ══════════════════════════════╗ -->
@@ -875,8 +911,7 @@
         </div>
         <div class="toolbar-divider"></div>
         <div class="engine-selector">
-          <span style="color: var(--text-secondary);">Engine:</span>
-          <select id="engine-select" onchange="switchEngine(this.value)">
+          <select id="engine-select" onchange="switchEngine(this.value)" title="Execution engine">
             <option value="server" selected>Server</option>
             <option value="pyodide">Pyodide</option>
           </select>
@@ -943,7 +978,7 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════
-//  OpenBenchML Notebook v2.1 — Colab-style multi-cell notebook + real terminal
+//  OpenBenchML Notebook — multi-cell notebook + real terminal
 // ═══════════════════════════════════════════════════════════════════════════
 
 let cells = [];          // [{id, type: 'code'|'text', source: str, output: {stdout,stderr,figures,ok}}]
@@ -1294,7 +1329,7 @@ function onEditorKeydown(e, cell) {
   }
 }
 
-// ── v2.7: Autocomplete (Jedi-backed, with curated fallback) ────────────────
+// ── Autocomplete (Jedi-backed, with curated fallback) ──────────────────────
 let _acPopup = null;
 let _acRequestId = 0;
 let _acDebounceTimer = null;
@@ -1466,7 +1501,7 @@ async function runCell(cellId) {
       setKernelStatus('kernel: last error', 'error');
     }
     refreshKernelInfo();
-    // v2.7: After running a cell, refresh the sidebar Files list (in case
+    // After running a cell, refresh the sidebar Files list (in case
     // the cell did `!git clone`, `!wget`, or wrote a file via open()) and
     // the Packages list (in case the cell did `!pip install`).
     if (cell.source && cell.source.startsWith('!')) {
@@ -1933,7 +1968,7 @@ document.addEventListener('keydown', (e) => {
   setTimeout(() => {
     refreshKernelInfo();
     setInterval(refreshKernelInfo, 15000);  // refresh every 15s
-    // v2.7: load sidebar contents on boot
+    // Load sidebar contents on boot
     refreshFiles();
     refreshPackages();
   }, 500);
@@ -1974,9 +2009,10 @@ function switchView(view) {
   }
 }
 
-// ─── v2.7: Sidebar collapse ─────────────────────────────────────────────────
+// ─── Sidebar collapse ───────────────────────────────────────────────────────
 function toggleSidebar() {
   const app = document.getElementById('nb-app');
+  if (!app) return;
   app.classList.toggle('sidebar-collapsed');
   // Save preference
   try { localStorage.setItem('nb-sidebar-collapsed', app.classList.contains('sidebar-collapsed') ? '1' : '0'); } catch(e) {}
@@ -1989,7 +2025,7 @@ function toggleSidebar() {
   } catch(e) {}
 })();
 
-// ─── v2.7: Download dropdown ────────────────────────────────────────────────
+// ─── Download dropdown ───────────────────────────────────────────────────────
 function toggleDownloadMenu() {
   const dd = document.getElementById('download-dropdown');
   dd.classList.toggle('open');
@@ -2039,7 +2075,7 @@ async function downloadNotebook(format) {
   }
 }
 
-// ─── v2.7: Packages panel ───────────────────────────────────────────────────
+// ─── Packages panel ─────────────────────────────────────────────────────────
 async function refreshPackages() {
   try {
     const r = await fetch('/api/notebook/packages');
@@ -2058,7 +2094,7 @@ async function refreshPackages() {
   } catch (e) { /* silent */ }
 }
 
-// ─── Files explorer (v2.5) ──────────────────────────────────────────────────
+// ─── Files explorer ──────────────────────────────────────────────────────────
 // VS Code-style file panel: upload, list, download, delete.
 // Files live in /tmp/notebook_files/{user_id}/ on the server, which is also
 // the CWD for cell execution — so anything you upload or `!git clone` is
