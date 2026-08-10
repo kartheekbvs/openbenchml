@@ -362,9 +362,141 @@
   }
   .view-tab .tab-badge {
     font-size: 0.7rem; padding: 0.1rem 0.4rem;
-    background: rgba(160, 192, 0, 0.15); color: var(--accent);
-    border-radius: 999px; font-weight: 600;
+    background: rgba(160, 192, 0, 0.18);
+    color: var(--accent);
+    border-radius: 10px;
+    font-weight: 600;
   }
+
+  /* ─── Files explorer (v2.5) ───────────────────────────────────── */
+  .files-toolbar {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px 8px 0 0;
+    flex-wrap: wrap;
+  }
+  .files-toolbar .toolbar-title {
+    font-weight: 600; color: var(--text-primary); margin-right: auto;
+    display: flex; align-items: center; gap: 0.4rem;
+  }
+  .files-toolbar .quota-text {
+    font-size: 0.78rem; color: var(--text-secondary);
+  }
+  .files-drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 8px;
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    margin: 1rem 0;
+  }
+  .files-drop-zone:hover, .files-drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(160, 192, 0, 0.06);
+    color: var(--text-primary);
+  }
+  .files-drop-zone .drop-icon {
+    font-size: 2.2rem; display: block; margin-bottom: 0.5rem;
+  }
+  .files-drop-zone .drop-hint {
+    font-size: 0.82rem; margin-top: 0.3rem; color: var(--text-secondary);
+  }
+  .files-list {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-primary);
+    overflow: hidden;
+  }
+  .files-list .file-row {
+    display: flex; align-items: center; gap: 0.6rem;
+    padding: 0.55rem 0.85rem;
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+  }
+  .files-list .file-row:last-child { border-bottom: none; }
+  .files-list .file-row:hover { background: var(--bg-elevated); }
+  .files-list .file-row .file-icon {
+    font-size: 1.05rem; width: 1.4rem; text-align: center;
+  }
+  .files-list .file-row .file-name {
+    flex: 1; font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.85rem; color: var(--text-primary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .files-list .file-row .file-size {
+    font-size: 0.74rem; color: var(--text-secondary);
+    font-family: monospace; min-width: 70px; text-align: right;
+  }
+  .files-list .file-row .file-modified {
+    font-size: 0.72rem; color: var(--text-secondary);
+    min-width: 130px; text-align: right;
+  }
+  .files-list .file-row .file-actions {
+    display: flex; gap: 0.25rem;
+  }
+  .files-list .file-row.is-dir .file-name { color: var(--accent); font-weight: 600; }
+  .files-list .file-row .file-children {
+    font-size: 0.74rem; color: var(--text-secondary);
+    padding-left: 2rem; width: 100%; display: none;
+  }
+  .files-list .file-row.expanded .file-children { display: block; }
+  .files-list .file-row .file-children .child-row {
+    display: flex; gap: 0.6rem; padding: 0.3rem 0;
+    border-top: 1px dashed var(--border);
+  }
+  .files-list .file-row .file-children .child-row .child-name {
+    flex: 1; font-family: monospace; font-size: 0.8rem;
+  }
+  .files-list .empty-state {
+    padding: 2.5rem 1rem; text-align: center; color: var(--text-secondary);
+  }
+  .files-actions-btn {
+    padding: 0.3rem 0.7rem;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.78rem;
+    transition: all 0.1s;
+  }
+  .files-actions-btn:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border-color: var(--accent);
+  }
+  .files-actions-btn.primary {
+    background: var(--accent); color: #0a0e14; border-color: var(--accent);
+    font-weight: 600;
+  }
+  .files-actions-btn.primary:hover { background: var(--accent-bright); }
+  .files-actions-btn.danger:hover {
+    color: var(--danger-bright); border-color: var(--danger);
+    background: rgba(239, 68, 68, 0.08);
+  }
+  .file-hint-banner {
+    padding: 0.7rem 0.9rem;
+    background: rgba(160, 192, 0, 0.06);
+    border: 1px solid rgba(160, 192, 0, 0.25);
+    border-radius: 6px;
+    font-size: 0.82rem;
+    color: var(--text-primary);
+    margin: 0.75rem 0;
+    line-height: 1.55;
+  }
+  .file-hint-banner code {
+    background: rgba(160, 192, 0, 0.12);
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.82em;
+    color: var(--accent);
+  }
+  .file-hint-banner strong { color: var(--accent); }
   .view-panel { display: none; }
   .view-panel.active { display: block; }
 
@@ -422,7 +554,7 @@
 
 {% block content %}
 <div class="page-header" style="margin-bottom: 1rem;">
-    <h1>&#128221; Python Notebook <span style="font-size: 0.7em; color: var(--accent); padding: 0.1rem 0.5rem; background: rgba(160,192,0,0.12); border-radius: 4px; vertical-align: middle;">v2.4 resilient-fetch</span></h1>
+    <h1>&#128221; Python Notebook <span style="font-size: 0.7em; color: var(--accent); padding: 0.1rem 0.5rem; background: rgba(160,192,0,0.12); border-radius: 4px; vertical-align: middle;">v2.5 files + git clone</span></h1>
     <p class="text-muted">
         Multi-cell, persistent kernel, shell commands, package recommendations.
         Variables persist across cells — just like Colab.
@@ -434,7 +566,9 @@
     <p>
         <strong>Multi-cell:</strong> add as many code cells as you want. Variables persist between cells.
         <strong>Shell commands:</strong> prefix a line with <code>!</code> to run shell — <code>!pip install xgboost</code>,
-        <code>!ls</code>, <code>!python --version</code>.
+        <code>!ls</code>, <code>!python --version</code>, <code>!git clone https://huggingface.co/...</code>.
+        <strong>&#128193; Files tab:</strong> upload CSV/JSON/parquet, drag-and-drop, then read them in cells with
+        <code>pd.read_csv('file.csv')</code>. Files from <code>!git clone</code> appear here automatically.
         <strong>Magics:</strong> <code>%whos</code>, <code>%time &lt;stmt&gt;</code>, <code>%reset</code>, <code>%pip install &lt;pkg&gt;</code>.
         <strong>Package hints:</strong> if your code imports a missing package, we suggest the install command.
         <strong>Inline plots:</strong> matplotlib figures render inline automatically.
@@ -442,10 +576,13 @@
     </p>
 </div>
 
-<!-- ─── View tabs: Notebook | Terminal ─────────────────────────── -->
+<!-- ─── View tabs: Notebook | Files | Terminal ─────────────────── -->
 <div class="view-tabs">
     <button class="view-tab active" id="tab-notebook" onclick="switchView('notebook')">
         &#128221; Notebook <span class="tab-badge">cells</span>
+    </button>
+    <button class="view-tab" id="tab-files" onclick="switchView('files')">
+        &#128193; Files <span class="tab-badge" id="files-badge" style="display: none;">0</span>
     </button>
     <button class="view-tab" id="tab-terminal" onclick="switchView('terminal')">
         &#128187; Terminal <span class="tab-badge" id="terminal-badge" style="display: none;">live</span>
@@ -566,6 +703,45 @@
   </div>
 </div>
 </div><!-- /panel-notebook -->
+
+<!-- ─── Files view (VS Code-style explorer, v2.5) ──────────────── -->
+<div class="view-panel" id="panel-files">
+  <div class="files-toolbar">
+    <span class="toolbar-title">&#128193; My Files</span>
+    <span class="quota-text" id="files-quota">— / —</span>
+    <button class="files-actions-btn primary" onclick="document.getElementById('file-input').click()">
+      &#8679; Upload
+    </button>
+    <button class="files-actions-btn" onclick="refreshFiles()" title="Refresh list">&#8635;</button>
+    <button class="files-actions-btn danger" onclick="clearAllFiles()" title="Delete all files">&#128465; Clear all</button>
+    <input type="file" id="file-input" style="display: none;" multiple
+           onchange="uploadFiles(this.files)">
+  </div>
+
+  <div class="file-hint-banner">
+    <strong>&#128161; How to use these files in cells:</strong>
+    Upload a CSV / JSON / parquet file here, then in a notebook cell run:
+    <code>df = pd.read_csv('filename.csv')</code>.
+    Files are scoped to <em>your</em> workspace and persist for the session.
+    <br>
+    <strong>&#129516; Clone a repo (HuggingFace, GitHub):</strong> in a cell, run
+    <code>!git clone https://huggingface.co/zai-org/GLM-5.2</code> — files appear
+    here automatically and are readable as <code>open('GLM-5.2/config.json').read()</code>.
+    <br>
+    <strong>&#128229; Download:</strong> click any file's &#8681; button. Files are scoped to your account.
+  </div>
+
+  <div class="files-drop-zone" id="files-drop-zone"
+       onclick="document.getElementById('file-input').click()">
+    <span class="drop-icon">&#128229;</span>
+    <div><strong>Drop files here</strong> or click to browse</div>
+    <div class="drop-hint">Max 100 MB per file · CSV, JSON, parquet, txt, py, ipynb, …</div>
+  </div>
+
+  <div class="files-list" id="files-list">
+    <div class="empty-state">Loading…</div>
+  </div>
+</div><!-- /panel-files -->
 
 <!-- ─── Terminal view (xterm.js + WebSocket) ───────────────────── -->
 <div class="view-panel" id="panel-terminal">
@@ -1374,6 +1550,10 @@ function switchView(view) {
   document.getElementById('tab-' + view).classList.add('active');
   document.getElementById('panel-' + view).classList.add('active');
 
+  if (view === 'files') {
+    // Auto-load file list when switching to the Files tab
+    refreshFiles();
+  }
   if (view === 'terminal') {
     // Auto-connect on first view
     if (!xterm && !xtermConnecting) {
@@ -1387,6 +1567,262 @@ function switchView(view) {
     }
   }
 }
+
+// ─── Files explorer (v2.5) ──────────────────────────────────────────────────
+// VS Code-style file panel: upload, list, download, delete.
+// Files live in /tmp/notebook_files/{user_id}/ on the server, which is also
+// the CWD for cell execution — so anything you upload or `!git clone` is
+// immediately usable in cells via pd.read_csv('file.csv') etc.
+
+let _filesBusy = false;
+
+async function refreshFiles() {
+  if (_filesBusy) return;
+  _filesBusy = true;
+  const list = document.getElementById('files-list');
+  if (!list) return;
+  try {
+    const data = await _fetchJson('/api/notebook/files', {}, 10000);
+    if (data.ok === false && data.__httpStatus === 401) {
+      list.innerHTML = '<div class="empty-state">Authentication required. Refresh the page and log in.</div>';
+      return;
+    }
+    if (!data.ok) {
+      list.innerHTML = '<div class="empty-state">Failed to load files: ' +
+                      escapeHtml(data.stderr || 'Unknown error') + '</div>';
+      return;
+    }
+    // Update quota
+    const quota = document.getElementById('files-quota');
+    if (quota) {
+      quota.textContent = data.total_size_human + ' / ' + data.quota_human + ' used';
+    }
+    const badge = document.getElementById('files-badge');
+    if (badge) {
+      badge.textContent = String(data.count);
+      badge.style.display = data.count > 0 ? 'inline-block' : 'none';
+    }
+    if (!data.files || data.files.length === 0) {
+      list.innerHTML = '<div class="empty-state">' +
+        '<div style="font-size: 2.2rem; margin-bottom: 0.5rem;">&#128193;</div>' +
+        '<div>No files yet. Upload one above, or run ' +
+        '<code style="background: rgba(160,192,0,0.12); padding: 0.1rem 0.4rem; border-radius: 3px;">' +
+        '!git clone https://huggingface.co/zai-org/GLM-5.2</code> in a cell.</div>' +
+        '</div>';
+      return;
+    }
+    list.innerHTML = data.files.map(f => _renderFileRow(f)).join('');
+  } catch (e) {
+    list.innerHTML = '<div class="empty-state">Network error: ' + escapeHtml(e.message) + '</div>';
+  } finally {
+    _filesBusy = false;
+  }
+}
+
+function _renderFileRow(f) {
+  const icon = f.is_dir ? '&#128193;' : _fileIcon(f.name);
+  const childrenHtml = (f.is_dir && f.children && f.children.length > 0) ?
+    '<div class="file-children">' +
+      f.children.map(c => _renderChildRow(c)).join('') +
+    '</div>' : '';
+  return `
+    <div class="file-row ${f.is_dir ? 'is-dir' : ''}" data-path="${escapeHtml(f.path)}">
+      <span class="file-icon">${icon}</span>
+      <span class="file-name" ${f.is_dir ? `onclick="this.parentElement.classList.toggle('expanded')" style="cursor: pointer;"` : ''}>${escapeHtml(f.name)}</span>
+      <span class="file-size">${f.size_human}</span>
+      <span class="file-modified">${_fmtDate(f.modified)}</span>
+      <span class="file-actions">
+        ${!f.is_dir ? `<button class="files-actions-btn" onclick="downloadFile('${escapeHtml(f.path)}')" title="Download">&#8681;</button>` : ''}
+        <button class="files-actions-btn" onclick="insertFileHint('${escapeHtml(f.path)}', ${f.is_dir})" title="Insert code snippet in last cell">&#128203;</button>
+        <button class="files-actions-btn danger" onclick="deleteFile('${escapeHtml(f.path)}')" title="Delete">&#128465;</button>
+      </span>
+      ${childrenHtml}
+    </div>
+  `;
+}
+
+function _renderChildRow(c) {
+  const icon = c.is_dir ? '&#128193;' : _fileIcon(c.name);
+  return `
+    <div class="child-row">
+      <span class="file-icon">${icon}</span>
+      <span class="child-name">${escapeHtml(c.name)}</span>
+      <span class="file-size">${c.size_human}</span>
+      <span class="file-actions">
+        ${!c.is_dir ? `<button class="files-actions-btn" onclick="downloadFile('${escapeHtml(c.path)}')" title="Download">&#8681;</button>` : ''}
+        <button class="files-actions-btn danger" onclick="deleteFile('${escapeHtml(c.path)}')" title="Delete">&#128465;</button>
+      </span>
+    </div>
+  `;
+}
+
+function _fileIcon(name) {
+  const ext = (name.split('.').pop() || '').toLowerCase();
+  if (['csv', 'tsv'].includes(ext)) return '&#128202;';
+  if (['json', 'geojson'].includes(ext)) return '&#128220;';
+  if (['py', 'pyc'].includes(ext)) return '&#128013;';
+  if (['ipynb'].includes(ext)) return '&#128211;';
+  if (['txt', 'md', 'log'].includes(ext)) return '&#128196;';
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) return '&#128247;';
+  if (['zip', 'tar', 'gz', 'bz2'].includes(ext)) return '&#128230;';
+  if (['parquet', 'feather', 'pickle'].includes(ext)) return '&#129518;';
+  return '&#128196;';
+}
+
+function _fmtDate(iso) {
+  if (!iso) return '—';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  } catch (e) { return iso.slice(0, 19).replace('T', ' '); }
+}
+
+async function uploadFiles(fileList) {
+  if (!fileList || !fileList.length) return;
+  const list = document.getElementById('files-list');
+  for (const file of fileList) {
+    const formData = new FormData();
+    formData.append('file', file);
+    // Show progress row
+    const progressRow = document.createElement('div');
+    progressRow.className = 'file-row';
+    progressRow.innerHTML = `
+      <span class="file-icon">&#8987;</span>
+      <span class="file-name">Uploading ${escapeHtml(file.name)}…</span>
+      <span class="file-size">${(file.size / 1024).toFixed(1)} KB</span>
+      <span class="file-modified">—</span>
+      <span class="file-actions"></span>
+    `;
+    list.prepend(progressRow);
+    try {
+      const r = await fetch('/api/notebook/files/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await r.json();
+      if (r.ok && data.ok) {
+        progressRow.innerHTML = `
+          <span class="file-icon" style="color: var(--success-bright);">&#10003;</span>
+          <span class="file-name">Uploaded ${escapeHtml(file.name)} — ${data.size_human}</span>
+          <span class="file-size">${data.size_human}</span>
+          <span class="file-modified">just now</span>
+          <span class="file-actions"></span>
+        `;
+        setTimeout(() => { progressRow.remove(); refreshFiles(); }, 800);
+      } else {
+        progressRow.innerHTML = `
+          <span class="file-icon" style="color: var(--danger-bright);">&#10007;</span>
+          <span class="file-name">Failed: ${escapeHtml(file.name)} — ${escapeHtml(data.detail || 'Unknown error')}</span>
+          <span class="file-size">—</span>
+          <span class="file-modified">—</span>
+          <span class="file-actions"></span>
+        `;
+      }
+    } catch (e) {
+      progressRow.innerHTML = `
+        <span class="file-icon" style="color: var(--danger-bright);">&#10007;</span>
+        <span class="file-name">Network error: ${escapeHtml(e.message)}</span>
+        <span class="file-size">—</span>
+        <span class="file-modified">—</span>
+        <span class="file-actions"></span>
+      `;
+    }
+  }
+  // Reset input so the same file can be re-selected
+  document.getElementById('file-input').value = '';
+}
+
+function downloadFile(path) {
+  // Use a hidden anchor to trigger the download with cookies attached
+  const a = document.createElement('a');
+  a.href = '/api/notebook/files/' + encodeURIComponent(path);
+  a.download = '';
+  a.style.display = 'none';
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => a.remove(), 1000);
+}
+
+async function deleteFile(path) {
+  if (!confirm('Delete ' + path + '? This cannot be undone.')) return;
+  try {
+    const r = await fetch('/api/notebook/files/' + encodeURIComponent(path), {
+      method: 'DELETE',
+    });
+    const data = await r.json();
+    if (r.ok && data.ok) {
+      refreshFiles();
+    } else {
+      alert('Delete failed: ' + (data.detail || 'Unknown error'));
+    }
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+async function clearAllFiles() {
+  if (!confirm('Delete ALL files in your workspace? This cannot be undone.')) return;
+  try {
+    const r = await fetch('/api/notebook/files/clear', { method: 'POST' });
+    const data = await r.json();
+    if (r.ok && data.ok) {
+      refreshFiles();
+    } else {
+      alert('Clear failed: ' + (data.detail || 'Unknown error'));
+    }
+  } catch (e) {
+    alert('Network error: ' + e.message);
+  }
+}
+
+function insertFileHint(path, isDir) {
+  // Find or create a code cell at the end and insert a hint snippet
+  let lastCell = cells[cells.length - 1];
+  if (!lastCell || lastCell.type !== 'code' || lastCell.source.trim()) {
+    lastCell = addCodeCell('', lastCell ? lastCell.id : null);
+  }
+  if (isDir) {
+    lastCell.source = `import os\nfor f in os.listdir('${path}'):\n    print(f)`;
+  } else if (path.toLowerCase().endsWith('.csv')) {
+    lastCell.source = `df = pd.read_csv('${path}')\nprint(df.shape)\ndf.head()`;
+  } else if (path.toLowerCase().endsWith('.json')) {
+    lastCell.source = `import json\nwith open('${path}') as f:\n    data = json.load(f)\nprint(type(data), len(data) if hasattr(data, '__len__') else '')`;
+  } else {
+    lastCell.source = `with open('${path}') as f:\n    content = f.read()\nprint(content[:500])`;
+  }
+  rerenderAll();
+  selectCell(lastCell.id);
+  // Switch back to notebook view so the user sees the inserted snippet
+  switchView('notebook');
+  const ed = document.querySelector(`#cell-wrap-${lastCell.id} .cell-editor`);
+  if (ed) ed.focus();
+}
+
+// Drag-and-drop on the drop zone
+(function() {
+  // Wait for DOM ready
+  document.addEventListener('DOMContentLoaded', () => {
+    const dz = document.getElementById('files-drop-zone');
+    if (!dz) return;
+    ['dragenter', 'dragover'].forEach(evt => {
+      dz.addEventListener(evt, e => {
+        e.preventDefault(); e.stopPropagation();
+        dz.classList.add('drag-over');
+      });
+    });
+    ['dragleave', 'drop'].forEach(evt => {
+      dz.addEventListener(evt, e => {
+        e.preventDefault(); e.stopPropagation();
+        dz.classList.remove('drag-over');
+      });
+    });
+    dz.addEventListener('drop', e => {
+      if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) {
+        uploadFiles(e.dataTransfer.files);
+      }
+    });
+  });
+})();
 
 function initTerminal() {
   if (xterm) return;

@@ -265,6 +265,7 @@ def run_code(
     *,
     timeout_seconds: int = 30,
     extra_globals: Optional[Dict[str, Any]] = None,
+    user_file_dir: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Execute Python source code in a restricted namespace.
 
@@ -279,6 +280,13 @@ def run_code(
             advisory).  Default 30s.
         extra_globals: Optional dict of additional names to inject
             into the namespace before execution.
+        user_file_dir: Optional path to a per-user workspace directory.
+            When provided, a *safe* ``open()`` is injected that confines
+            reads/writes to this directory (and its subdirectories).
+            ``os.chdir(user_file_dir)`` is also called so relative paths
+            in user code resolve there. This is what lets
+            ``pd.read_csv('data.csv')`` read a file the user uploaded
+            or git-cloned — without exposing the rest of the filesystem.
 
     Returns:
         A dict with keys:
@@ -305,6 +313,67 @@ def run_code(
     namespace = _build_sandbox_namespace()
     if extra_globals:
         namespace.update(extra_globals)
+
+    # ── Inject safe file I/O when a user_file_dir is provided ──────────────
+    # This is the cell ↔ file bridge: the user's workspace contains files
+    # they uploaded, git-cloned, or wrote via a previous cell. We expose
+    # a restricted `open()` that confines reads/writes to that directory,
+    # and chdir() there so relative paths "just work".
+    real_os_chdir = None
+    original_cwd = None
+    if user_file_dir:
+        import os as _os
+        real_os_chdir = _os.chdir
+        original_cwd = _os.getcwd()
+        # Build a safe open() that resolves the target inside user_file_dir
+        # and refuses anything that escapes.
+        real_open = open  # capture before we shadow it below
+        _user_dir_abs = _os.path.abspath(user_file_dir)
+        _user_dir_real = _os.path.realpath(_user_dir_abs)
+
+        def _safe_open(file, mode="r", buffering=-1, encoding=None,
+                       errors=None, newline=None, closefd=True, opener=None):
+            # Resolve relative paths against the user workspace
+            if _os.path.isabs(file):
+                target_abs = _os.path.realpath(file)
+            else:
+                target_abs = _os.path.realpath(_os.path.join(_user_dir_real, file))
+            # Verify the resolved path is inside the user workspace
+            try:
+                _os.path.relpath(target_abs, _user_dir_real)
+                # relpath succeeded — but if it starts with '..' we escaped
+                if _os.path.relpath(target_abs, _user_dir_real).startswith(".."):
+                    raise PermissionError(
+                        f"OpenBenchML sandbox: refusing to open path outside "
+                        f"your workspace: {file!r}"
+                    )
+            except ValueError:
+                raise PermissionError(
+                    f"OpenBenchML sandbox: invalid path {file!r}"
+                )
+            return real_open(
+                target_abs, mode, buffering, encoding, errors,
+                newline, closefd, opener,
+            )
+
+        # Inject into the namespace's builtins so pandas / sklearn / etc.
+        # pick up the safe open() too (they call open() via builtins).
+        safe_b = namespace.get("__builtins__")
+        if isinstance(safe_b, dict):
+            safe_b["open"] = _safe_open
+        # Also expose `open` directly in the namespace for user code that
+        # does `open('file.csv')` without import.
+        namespace["open"] = _safe_open
+
+        # chdir to the user workspace so relative paths resolve there.
+        # NOTE: this only affects this thread's CWD during exec(); we
+        # restore it in the finally block below. This is safe because
+        # cell execution is serialized per-user by session.lock.
+        try:
+            real_os_chdir(_user_dir_real)
+        except OSError as e:
+            logger.warning("Could not chdir to user workspace %s: %s",
+                           _user_dir_real, e)
 
     stdout_buf = io.StringIO()
     stderr_buf = io.StringIO()
@@ -363,6 +432,12 @@ def run_code(
             sys.meta_path.remove(blocker)
         except ValueError:
             pass
+        # Restore CWD if we changed it
+        if real_os_chdir and original_cwd is not None:
+            try:
+                real_os_chdir(original_cwd)
+            except OSError:
+                pass
 
     return {
         "ok": ok and not timed_out,

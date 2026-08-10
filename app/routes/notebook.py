@@ -59,8 +59,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import APIRouter, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi import (
+    APIRouter, Depends, HTTPException, Request, UploadFile, File,
+    WebSocket, WebSocketDisconnect,
+)
+from fastapi.responses import JSONResponse, FileResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -73,6 +76,61 @@ from app.services.code_runner_service import run_code
 logger = logging.getLogger(__name__)
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
+
+# ─── Per-user file workspace ─────────────────────────────────────────────────
+# Each user gets /tmp/notebook_files/{user_id}/ as their working directory.
+# Files uploaded via the UI, git-cloned via !shell, or written by cell code
+# (with the safe open() injected by run_code) all land here. This is the
+# bridge between the terminal, the cell executor, and the file explorer.
+
+_NOTEBOOK_FILE_ROOT = Path("/tmp/notebook_files")
+_NOTEBOOK_FILE_ROOT.mkdir(parents=True, exist_ok=True)
+# Cap per-user workspace at 500MB so a single user can't fill the disk.
+_USER_FILE_QUOTA_BYTES = 500 * 1024 * 1024
+# Block dotfiles and weird names that could escape via .., symlinks, etc.
+_UNSAFE_NAME_PATTERN = re.compile(r"^(\.\.|/|~|\0)|(\.\.|/|\0)$|\.\./|^\.")
+
+
+def _get_user_file_dir(user_id: int) -> Path:
+    """Return the user's workspace directory, creating it if needed."""
+    d = _NOTEBOOK_FILE_ROOT / str(user_id)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _safe_resolve(user_dir: Path, name: str) -> Path:
+    """Resolve `name` inside `user_dir`, rejecting path-escape attempts.
+
+    Allows subdirectories (e.g. `repo/file.csv` after a git clone) but
+    refuses absolute paths, parent traversal, and dotfiles.
+    """
+    if not name or _UNSAFE_NAME_PATTERN.search(name):
+        raise HTTPException(status_code=400, detail=f"Unsafe file name: {name!r}")
+    # Resolve and verify it stays inside user_dir
+    target = (user_dir / name).resolve()
+    user_dir_resolved = user_dir.resolve()
+    try:
+        target.relative_to(user_dir_resolved)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Path escapes user workspace.")
+    return target
+
+
+def _dir_size_bytes(p: Path) -> int:
+    """Total size of all files under p, recursively."""
+    if not p.exists():
+        return 0
+    if p.is_file():
+        return p.stat().st_size
+    total = 0
+    for child in p.rglob("*"):
+        if child.is_file():
+            try:
+                total += child.stat().st_size
+            except OSError:
+                pass
+    return total
+
 
 # ─── Session store ────────────────────────────────────────────────────────────
 # Map: user_id → SessionState
@@ -289,6 +347,13 @@ _ALLOWED_SHELL_COMMANDS = {
     "pip", "python", "python3", "ls", "pwd", "whoami", "date",
     "echo", "cat", "head", "tail", "wc", "grep", "find", "df",
     "du", "free", "uname", "env", "which", "tree",
+    # ── File / repo workflow (v2.5) ─────────────────────────────────────────
+    # git  → clone repos into the user workspace (e.g. HF datasets/models)
+    # wget, curl → download files (curl is allowlisted but `| sh` is blocked)
+    # unzip, tar → extract downloaded archives
+    # mkdir, cp, mv, touch, rm → basic file ops (rm -rf /  still blocked)
+    "git", "wget", "curl", "unzip", "tar",
+    "mkdir", "cp", "mv", "touch", "rm",
 }
 
 _BLOCKED_SHELL_PATTERNS = [
@@ -303,7 +368,7 @@ _BLOCKED_SHELL_PATTERNS = [
 ]
 
 
-def _execute_shell_command(cmd_str: str, timeout_seconds: int = 60) -> Dict[str, Any]:
+def _execute_shell_command(cmd_str: str, timeout_seconds: int = 60, cwd: str = "/tmp") -> Dict[str, Any]:
     """Execute a sandboxed shell command (after the `!` prefix).
 
     Returns dict with stdout, stderr, returncode.
@@ -336,14 +401,16 @@ def _execute_shell_command(cmd_str: str, timeout_seconds: int = 60) -> Dict[str,
         }
 
     try:
-        # Run in /tmp so file ops are sandboxed there
+        # Run in the user's workspace so !git clone / !wget / file ops land
+        # in /tmp/notebook_files/{user_id}/ where cells can read them via
+        # the safe open() injected by run_code.
         result = subprocess.run(
             cmd_str,
             shell=True,
             capture_output=True,
             text=True,
             timeout=timeout_seconds,
-            cwd="/tmp",
+            cwd=cwd,
             env={**_safe_env()},
         )
         return {
@@ -541,6 +608,7 @@ async def notebook_cell_api(
         raise HTTPException(status_code=401, detail="Authentication required")
 
     session = _get_or_create_session(user.id)
+    user_file_dir = _get_user_file_dir(user.id)
     code = payload.code.strip()
 
     if not code:
@@ -566,7 +634,13 @@ async def notebook_cell_api(
                 parts = shell_cmd.split(maxsplit=2)
                 if len(parts) >= 3:
                     shell_cmd = f"pip install --break-system-packages {parts[2]}"
-            shell_result = _execute_shell_command(shell_cmd, timeout_seconds=min(payload.timeout_seconds, 120))
+            # Run in the user's workspace so !git clone / !wget / file ops
+            # land in /tmp/notebook_files/{user_id}/ where cells can read them.
+            shell_result = _execute_shell_command(
+                shell_cmd,
+                timeout_seconds=min(payload.timeout_seconds, 120),
+                cwd=str(user_file_dir),
+            )
 
             # Track pip installs
             if shell_cmd.startswith("pip install") and shell_result["ok"]:
@@ -603,10 +677,15 @@ async def notebook_cell_api(
             }
 
         # ── Python code path ──
+        # Pass user_file_dir so run_code can inject a safe open() and Path
+        # that confine file I/O to this directory. This is the bridge that
+        # lets `pd.read_csv('data.csv')` read a file the user uploaded or
+        # git-cloned — without exposing the rest of the filesystem.
         result = run_code(
             code,
             timeout_seconds=payload.timeout_seconds,
             extra_globals=session.namespace,
+            user_file_dir=str(user_file_dir),
         )
 
         # Persist user-defined vars back into the session
@@ -704,6 +783,243 @@ async def notebook_suggest_api(
         "suggestions": suggestions,
         "count": len(suggestions),
     }
+
+
+# ─── File workspace API (v2.5) ──────────────────────────────────────────────
+# These endpoints power the VS Code-style file explorer in the notebook UI.
+# Files land in /tmp/notebook_files/{user_id}/ which is also the CWD for
+# cell execution (!shell and Python code), so anything uploaded or cloned
+# is immediately usable via pd.read_csv('file.csv') etc.
+
+def _fmt_size(n: int) -> str:
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024:
+            return f"{n:.1f} {unit}" if unit != "B" else f"{n} B"
+        n /= 1024
+    return f"{n:.1f} TB"
+
+
+@router.get("/api/notebook/files")
+async def notebook_list_files_api(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """List files in the user's workspace (recursive, max 2 levels deep)."""
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    user_dir = _get_user_file_dir(user.id)
+    files = []
+    try:
+        for child in sorted(user_dir.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+            if child.name.startswith("."):
+                continue
+            try:
+                stat = child.stat()
+            except OSError:
+                continue
+            entry = {
+                "name": child.name,
+                "path": child.name,
+                "is_dir": child.is_dir(),
+                "size": stat.st_size if child.is_file() else 0,
+                "size_human": _fmt_size(stat.st_size) if child.is_file() else "—",
+                "modified": datetime.utcfromtimestamp(stat.st_mtime).isoformat() + "Z",
+            }
+            if child.is_dir():
+                # List immediate children so the UI can show folder contents
+                children = []
+                try:
+                    for sub in sorted(child.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower())):
+                        if sub.name.startswith("."):
+                            continue
+                        try:
+                            sub_stat = sub.stat()
+                        except OSError:
+                            continue
+                        children.append({
+                            "name": sub.name,
+                            "path": f"{child.name}/{sub.name}",
+                            "is_dir": sub.is_dir(),
+                            "size": sub_stat.st_size if sub.is_file() else 0,
+                            "size_human": _fmt_size(sub_stat.st_size) if sub.is_file() else "—",
+                            "modified": datetime.utcfromtimestamp(sub_stat.st_mtime).isoformat() + "Z",
+                        })
+                except OSError:
+                    pass
+                entry["children"] = children
+                entry["child_count"] = len(children)
+            files.append(entry)
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list files: {e}")
+
+    total_size = _dir_size_bytes(user_dir)
+    return {
+        "ok": True,
+        "files": files,
+        "count": len(files),
+        "total_size": total_size,
+        "total_size_human": _fmt_size(total_size),
+        "quota": _USER_FILE_QUOTA_BYTES,
+        "quota_human": _fmt_size(_USER_FILE_QUOTA_BYTES),
+        "workspace": str(user_dir),
+    }
+
+
+@router.post("/api/notebook/files/upload")
+async def notebook_upload_file_api(
+    request: Request,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Upload a single file to the user's workspace.
+
+    Files are stored at the root of /tmp/notebook_files/{user_id}/.
+    Names must be filesystem-safe (no slashes, no dotfiles, no `..`).
+    Quota check: total workspace size is capped at _USER_FILE_QUOTA_BYTES.
+    """
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    user_dir = _get_user_file_dir(user.id)
+
+    # Validate filename
+    name = (file.filename or "").strip()
+    if not name or _UNSAFE_NAME_PATTERN.search(name) or "/" in name or "\\" in name:
+        raise HTTPException(status_code=400, detail=f"Unsafe filename: {name!r}")
+
+    # Quota check
+    current_size = _dir_size_bytes(user_dir)
+    # We don't know file size yet without reading it; cap individual upload at 100MB
+    MAX_UPLOAD = 100 * 1024 * 1024
+    if current_size + MAX_UPLOAD > _USER_FILE_QUOTA_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Workspace quota would be exceeded "
+                   f"(current: {_fmt_size(current_size)}, "
+                   f"quota: {_fmt_size(_USER_FILE_QUOTA_BYTES)})",
+        )
+
+    target = user_dir / name
+    bytes_written = 0
+    try:
+        with open(target, "wb") as f:
+            while True:
+                chunk = await file.read(64 * 1024)
+                if not chunk:
+                    break
+                bytes_written += len(chunk)
+                if bytes_written > MAX_UPLOAD:
+                    f.close()
+                    target.unlink(missing_ok=True)
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large (max {MAX_UPLOAD // (1024*1024)} MB per upload)",
+                    )
+                f.write(chunk)
+    except HTTPException:
+        raise
+    except Exception as e:
+        target.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
+
+    stat = target.stat()
+    return {
+        "ok": True,
+        "filename": name,
+        "path": name,
+        "size": stat.st_size,
+        "size_human": _fmt_size(stat.st_size),
+        "modified": datetime.utcfromtimestamp(stat.st_mtime).isoformat() + "Z",
+        "hint": f"In a cell, run: pd.read_csv('{name}')  or  open('{name}').read()",
+    }
+
+
+@router.get("/api/notebook/files/{path:path}")
+async def notebook_download_file_api(
+    path: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Download a file from the user's workspace."""
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    user_dir = _get_user_file_dir(user.id)
+    target = _safe_resolve(user_dir, path)
+    if not target.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+    if target.is_dir():
+        raise HTTPException(status_code=400, detail=f"Path is a directory: {path}")
+
+    # Guess media type
+    import mimetypes
+    media_type, _ = mimetypes.guess_type(target.name)
+    if not media_type:
+        media_type = "application/octet-stream"
+
+    return FileResponse(
+        path=str(target),
+        media_type=media_type,
+        filename=target.name,
+    )
+
+
+@router.delete("/api/notebook/files/{path:path}")
+async def notebook_delete_file_api(
+    path: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Delete a file or directory from the user's workspace."""
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    user_dir = _get_user_file_dir(user.id)
+    target = _safe_resolve(user_dir, path)
+    if not target.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+
+    try:
+        if target.is_dir():
+            # Use shutil.rmtree — but shutil is blocked in user code, not here.
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"Delete failed: {e}")
+
+    return {"ok": True, "deleted": path}
+
+
+@router.post("/api/notebook/files/clear")
+async def notebook_clear_files_api(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Clear ALL files in the user's workspace. Use with caution."""
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    user_dir = _get_user_file_dir(user.id)
+    cleared = 0
+    for child in user_dir.iterdir():
+        if child.name.startswith("."):
+            continue
+        try:
+            if child.is_dir():
+                shutil.rmtree(child)
+            else:
+                child.unlink()
+            cleared += 1
+        except OSError:
+            pass
+    return {"ok": True, "cleared": cleared}
 
 
 @router.post("/api/notebook/reset")
