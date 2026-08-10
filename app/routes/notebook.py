@@ -410,14 +410,11 @@ def _extract_figures_from_namespace(namespace: Dict[str, Any]) -> List[str]:
 SAMPLE_CODE = """# Welcome to OpenBenchML Notebook v2.0 — Colab-style!
 # Variables persist across cells. Run cells in order, or out of order — your call.
 
-import numpy as np
-import pandas as pd
-from sklearn.datasets import load_iris
-
-iris = load_iris(as_frame=True)
-df = iris.frame
-print(f"Loaded iris: {df.shape[0]} rows, {df.shape[1]} columns")
-print(df.head())
+x = 42
+y = [1, 2, 3, 4, 5]
+print(f"x = {x}")
+print(f"y = {y}")
+print(f"sum(y) = {sum(y)}")
 """
 
 
