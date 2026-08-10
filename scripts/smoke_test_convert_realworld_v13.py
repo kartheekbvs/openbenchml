@@ -30,7 +30,7 @@ import base64
 import uuid
 import time
 
-ROOT = "/home/z/my-project/download/openbenchml"
+ROOT = "/home/z/my-project"
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 
