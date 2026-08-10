@@ -4,513 +4,1067 @@
 
 {% block extra_css %}
 <style>
-  .notebook-grid {
-    display: grid;
-    grid-template-columns: 1.5fr 1fr;
-    gap: 1.5rem;
-    align-items: start;
-  }
-  @media (max-width: 1024px) {
-    .notebook-grid { grid-template-columns: 1fr; }
-  }
-  .code-editor {
-    width: 100%;
-    min-height: 360px;
-    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-    font-size: 13px;
-    line-height: 1.55;
-    padding: 14px;
+  /* ─── Colab-style notebook layout ─────────────────────────────── */
+  .notebook-toolbar {
+    display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;
+    padding: 0.75rem 1rem;
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    background: #0d1117;
-    color: #e6edf3;
-    resize: vertical;
-    tab-size: 4;
+    border-radius: 10px 10px 0 0;
+    border-bottom: none;
   }
-  .code-editor:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(160, 192, 0, 0.15);
+  .notebook-toolbar .toolbar-section {
+    display: flex; gap: 0.35rem; align-items: center;
   }
-  .output-pane {
-    background: #0d1117;
-    color: #e6edf3;
-    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
-    font-size: 12.5px;
-    line-height: 1.55;
-    padding: 14px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    min-height: 360px;
-    max-height: 480px;
-    overflow: auto;
-    white-space: pre-wrap;
-    word-break: break-word;
+  .notebook-toolbar .toolbar-divider {
+    width: 1px; height: 24px; background: var(--border); margin: 0 0.4rem;
   }
-  .output-stderr { color: #ff7b72; }
-  .output-stdout { color: #e6edf3; }
-  .output-meta {
-    font-size: 0.8rem;
-    color: #8b949e;
-    border-top: 1px solid #21262d;
-    margin-top: 8px;
-    padding-top: 8px;
-  }
-  .run-btn-row {
-    display: flex;
-    gap: 0.5rem;
-    align-items: center;
-    margin-top: 0.75rem;
-  }
-  .status-pill {
-    font-size: 0.78rem;
-    padding: 0.2rem 0.7rem;
-    border-radius: 999px;
-    font-weight: 600;
-    background: rgba(160, 192, 0, 0.12);
-    color: var(--accent);
-  }
-  .status-pill.ok      { background: rgba(160, 192, 0, 0.15);  color: #a0c000; }
-  .status-pill.error   { background: rgba(239, 68, 68, 0.15);  color: #ef4444; }
-  .status-pill.running { background: rgba(234, 179, 8, 0.15);  color: #eab308; }
-  .preset-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 0.5rem;
-  }
-  .preset-btn {
-    padding: 0.6rem 0.7rem;
+  .toolbar-btn {
+    padding: 0.4rem 0.75rem;
     background: rgba(160, 192, 0, 0.06);
-    border: 1px solid rgba(160, 192, 0, 0.2);
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
     color: var(--text-primary);
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 500;
+    font-family: inherit;
     transition: all 0.15s;
-    text-align: left;
+    display: inline-flex; align-items: center; gap: 0.35rem;
   }
-  .preset-btn:hover {
+  .toolbar-btn:hover:not(:disabled) {
     background: rgba(160, 192, 0, 0.15);
     border-color: var(--accent);
   }
-  .preset-btn .preset-name { font-weight: 600; display: block; }
-  .preset-btn .preset-desc { font-size: 0.78rem; color: var(--text-secondary); }
+  .toolbar-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .toolbar-btn.primary {
+    background: var(--accent); color: #1a1a1a; border-color: var(--accent);
+  }
+  .toolbar-btn.primary:hover:not(:disabled) {
+    box-shadow: var(--shadow-glow);
+  }
+  .toolbar-btn.danger {
+    color: var(--danger-bright);
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+  .toolbar-btn.danger:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.1);
+  }
+
+  .kernel-pill {
+    margin-left: auto;
+    font-size: 0.75rem; padding: 0.3rem 0.7rem; border-radius: 999px;
+    font-weight: 600; background: rgba(160, 192, 0, 0.12);
+    color: var(--accent); border: 1px solid rgba(160, 192, 0, 0.3);
+    display: flex; align-items: center; gap: 0.35rem;
+  }
+  .kernel-pill .pulse {
+    width: 7px; height: 7px; border-radius: 50%; background: currentColor;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; } 50% { opacity: 1; }
+  }
+  .kernel-pill.ready    { background: rgba(16, 185, 129, 0.12); color: var(--success-bright); border-color: rgba(16, 185, 129, 0.35); }
+  .kernel-pill.ready .pulse { animation: none; }
+  .kernel-pill.running  { background: rgba(234, 179, 8, 0.12);  color: #eab308; border-color: rgba(234, 179, 8, 0.35); }
+  .kernel-pill.error    { background: rgba(239, 68, 68, 0.12);   color: var(--danger-bright); border-color: rgba(239, 68, 68, 0.35); }
+  .kernel-pill.error .pulse { animation: none; }
+
+  /* ─── Notebook canvas ─────────────────────────────────────────── */
+  .notebook-canvas {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 0 0 10px 10px;
+    padding: 1rem 1.5rem 3rem;
+    min-height: 60vh;
+  }
+
+  /* ─── Cell ────────────────────────────────────────────────────── */
+  .cell {
+    margin: 0.5rem 0;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    position: relative;
+  }
+  .cell.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(160, 192, 0, 0.1);
+  }
+  .cell.running {
+    border-color: #eab308;
+    box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.1);
+  }
+  .cell-header {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.35rem 0.6rem 0.35rem 0.4rem;
+    font-size: 0.75rem; color: var(--text-secondary);
+    background: rgba(160, 192, 0, 0.02);
+    border-radius: 8px 8px 0 0;
+  }
+  .cell-header .cell-label {
+    font-family: monospace; font-weight: 600;
+    color: var(--accent); padding: 0.1rem 0.45rem;
+    background: rgba(160, 192, 0, 0.1); border-radius: 4px;
+  }
+  .cell-header .cell-actions {
+    margin-left: auto; display: flex; gap: 0.2rem;
+  }
+  .cell-action-btn {
+    padding: 0.2rem 0.45rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.78rem;
+    transition: all 0.1s;
+  }
+  .cell-action-btn:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border-color: var(--border);
+  }
+  .cell-action-btn.run-btn:hover {
+    color: var(--accent);
+    background: rgba(160, 192, 0, 0.1);
+  }
+  .cell-action-btn.danger:hover {
+    color: var(--danger-bright);
+    background: rgba(239, 68, 68, 0.1);
+  }
+
+  .cell-editor {
+    width: 100%;
+    min-height: 60px;
+    padding: 12px 14px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.55;
+    background: #0d1117;
+    color: #e6edf3;
+    border: none;
+    border-radius: 0 0 8px 8px;
+    resize: vertical;
+    outline: none;
+    tab-size: 4;
+    -moz-tab-size: 4;
+    display: block;
+  }
+  .cell-editor:focus {
+    box-shadow: inset 0 0 0 2px rgba(160, 192, 0, 0.3);
+  }
+
+  .cell-output {
+    margin-top: 0;
+    padding: 12px 14px;
+    background: #0a0e14;
+    color: #e6edf3;
+    border-top: 1px solid #21262d;
+    border-radius: 0 0 8px 8px;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+    display: none;
+    max-height: 480px;
+    overflow: auto;
+  }
+  .cell-output.has-content { display: block; }
+  .cell-output .stream-stdout  { color: #e6edf3; }
+  .cell-output .stream-stderr  { color: #ff7b72; }
+  .cell-output .stream-error   { color: #ff7b72; font-weight: 600; }
+  .cell-output .stream-success { color: var(--success-bright); font-weight: 600; }
+  .cell-output .stream-meta {
+    color: #8b949e; font-size: 0.78rem;
+    border-top: 1px solid #21262d; margin-top: 6px; padding-top: 6px;
+  }
+  .cell-output .figure {
+    margin: 8px 0; text-align: center;
+  }
+  .cell-output .figure img {
+    max-width: 100%; border: 1px solid #404040; border-radius: 6px;
+    background: #fff;
+  }
+
+  /* ─── Suggestions popup ───────────────────────────────────────── */
+  .suggest-box {
+    margin-top: 6px; padding: 8px 10px;
+    background: rgba(234, 179, 8, 0.08);
+    border: 1px solid rgba(234, 179, 8, 0.35);
+    border-radius: 6px;
+    font-size: 0.82rem; color: #eab308;
+  }
+  .suggest-box .suggest-title {
+    font-weight: 600; margin-bottom: 4px;
+  }
+  .suggest-box .suggest-item {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 4px 0; color: var(--text-primary);
+  }
+  .suggest-box .suggest-item code {
+    background: rgba(160, 192, 0, 0.12);
+    color: var(--accent);
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.78rem;
+  }
+  .suggest-box .suggest-item .install-btn {
+    margin-left: auto;
+    padding: 0.2rem 0.6rem;
+    background: var(--accent); color: #1a1a1a;
+    border: none; border-radius: 4px;
+    font-size: 0.75rem; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  .suggest-box .suggest-item .install-btn:hover { box-shadow: var(--shadow-glow); }
+  .suggest-box .suggest-item .install-btn:disabled { opacity: 0.5; cursor: wait; }
+
+  /* ─── Add cell buttons ────────────────────────────────────────── */
+  .add-cell-row {
+    display: flex; gap: 0.5rem; justify-content: center;
+    margin-top: 1rem; padding-top: 1rem;
+    border-top: 1px dashed var(--border);
+  }
+  .add-cell-btn {
+    padding: 0.5rem 1.1rem;
+    background: rgba(160, 192, 0, 0.08);
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.85rem; font-weight: 500;
+    font-family: inherit;
+    transition: all 0.15s;
+  }
+  .add-cell-btn:hover {
+    background: rgba(160, 192, 0, 0.15);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* ─── Sidebar (kernel info) ───────────────────────────────────── */
+  .notebook-layout {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 1.5rem;
+    align-items: start;
+  }
+  @media (max-width: 1200px) {
+    .notebook-layout { grid-template-columns: 1fr; }
+  }
+  .kernel-sidebar {
+    position: sticky; top: 1rem;
+  }
+  .kernel-sidebar .card { margin-bottom: 1rem; }
+  .kernel-sidebar .var-list {
+    font-family: monospace; font-size: 0.78rem;
+    max-height: 280px; overflow-y: auto;
+  }
+  .kernel-sidebar .var-list .var-row {
+    display: flex; justify-content: space-between;
+    padding: 0.2rem 0;
+    border-bottom: 1px dashed var(--border-light);
+  }
+  .kernel-sidebar .var-list .var-name { color: var(--accent); }
+  .kernel-sidebar .var-list .var-type { color: var(--text-secondary); font-size: 0.72rem; }
+  .kernel-sidebar .empty-state {
+    font-size: 0.82rem; color: var(--text-secondary); padding: 0.5rem 0;
+  }
+
+  /* ─── Welcome banner ──────────────────────────────────────────── */
+  .welcome-banner {
+    padding: 1rem 1.25rem;
+    background: rgba(160, 192, 0, 0.06);
+    border: 1px solid rgba(160, 192, 0, 0.2);
+    border-radius: 10px;
+    margin-bottom: 1rem;
+  }
+  .welcome-banner h3 {
+    margin: 0 0 0.4rem 0; color: var(--accent);
+    font-size: 1.05rem;
+  }
+  .welcome-banner p {
+    margin: 0; color: var(--text-secondary); font-size: 0.88rem; line-height: 1.55;
+  }
+  .welcome-banner code {
+    background: rgba(160, 192, 0, 0.12);
+    color: var(--accent);
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.82rem;
+  }
+
+  /* ─── Engine selector (kept for Pyodide fallback) ─────────────── */
+  .engine-selector {
+    display: flex; gap: 0.4rem; align-items: center;
+    padding: 0.5rem 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: 6px;
+    font-size: 0.8rem;
+  }
+  .engine-selector select {
+    background: var(--bg-elevated); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 0.2rem 0.4rem; font-family: inherit; font-size: 0.8rem;
+  }
+
+  /* Pyodide loading bar */
+  .pyodide-loader {
+    margin-top: 0.5rem; padding: 0.5rem 0.75rem;
+    background: rgba(234, 179, 8, 0.08);
+    border: 1px solid rgba(234, 179, 8, 0.3);
+    border-radius: 6px;
+    color: #eab308; font-size: 0.82rem;
+    display: none;
+  }
+  .pyodide-loader.active { display: block; }
+  .pyodide-loader .progress-bar {
+    margin-top: 6px; height: 4px; background: var(--bg-elevated);
+    border-radius: 2px; overflow: hidden;
+  }
+  .pyodide-loader .progress-bar .progress-fill {
+    height: 100%; background: #eab308;
+    width: 0%; transition: width 0.3s;
+    animation: indeterminate 1.5s ease-in-out infinite;
+  }
+  @keyframes indeterminate {
+    0% { width: 0%; margin-left: 0; }
+    50% { width: 60%; margin-left: 20%; }
+    100% { width: 0%; margin-left: 100%; }
+  }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="page-header" style="margin-bottom: 1.25rem;">
-    <h1>&#128221; Python Notebook</h1>
+<div class="page-header" style="margin-bottom: 1rem;">
+    <h1>&#128221; Python Notebook <span style="font-size: 0.7em; color: var(--accent); padding: 0.1rem 0.5rem; background: rgba(160,192,0,0.12); border-radius: 4px; vertical-align: middle;">v2.0 Colab-style</span></h1>
     <p class="text-muted">
-        Run Python code — no install needed. <code>np</code>, <code>pd</code>,
-        <code>sklearn</code> are pre-imported. Choose your engine below.
+        Multi-cell, persistent kernel, shell commands, package recommendations.
+        Variables persist across cells — just like Colab.
     </p>
 </div>
 
-<!-- ── Engine selector: 3 options ─────────────────────────────────── -->
-<div class="card" style="margin-bottom: 1.25rem;">
-    <div class="card-body" style="padding: 1rem;">
-        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
-            <strong style="margin-right: 0.5rem; color: var(--text-secondary);">Engine:</strong>
-            <button class="btn btn-primary" id="engine-sandbox-btn" onclick="setEngine('sandbox')">
-                &#128421; Server Sandbox
-            </button>
-            <button class="btn btn-secondary" id="engine-pyodide-btn" onclick="setEngine('pyodide')">
-                &#9889; Pyodide (browser)
-            </button>
-            <a class="btn btn-secondary" href="https://jupyterlite.github.io/demo/lab/index.html" target="_blank" rel="noopener">
-                &#128218; Open JupyterLab
-            </a>
-        </div>
-        <p style="margin: 0.75rem 0 0 0; font-size: 0.82rem; color: var(--text-secondary);" id="engine-description">
-            <strong>Server Sandbox</strong> — code runs on the OpenBenchML server. Best for sklearn / xgboost / heavy models. 300s timeout.
-        </p>
-    </div>
+<div class="welcome-banner">
+    <h3>&#9889; What's new in v2.0</h3>
+    <p>
+        <strong>Multi-cell:</strong> add as many code cells as you want. Variables persist between cells.
+        <strong>Shell commands:</strong> prefix a line with <code>!</code> to run shell — <code>!pip install xgboost</code>,
+        <code>!ls</code>, <code>!python --version</code>.
+        <strong>Magics:</strong> <code>%whos</code>, <code>%time &lt;stmt&gt;</code>, <code>%reset</code>, <code>%pip install &lt;pkg&gt;</code>.
+        <strong>Package hints:</strong> if your code imports a missing package, we suggest the install command.
+        <strong>Inline plots:</strong> matplotlib figures render inline automatically.
+    </p>
 </div>
 
-<!-- ── Sandbox editor (default, always visible) ───────────────────── -->
-<div id="sandbox-panel">
-<div class="notebook-grid">
-    <!-- ── Editor + Run button ──────────────────────────────────────── -->
-    <div class="card">
-        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="margin: 0;">Code cell</h3>
-            <span id="status-pill" class="status-pill">idle</span>
-        </div>
-        <form id="notebook-form" onsubmit="return runNotebook(event);">
-            <div class="form-group" style="margin-top: 1rem;">
-                <textarea id="code" class="code-editor" spellcheck="false"
-                          autocomplete="off" autocorrect="off" autocapitalize="off">{{ sample_code }}</textarea>
-            </div>
-            <div class="run-btn-row">
-                <button type="submit" class="btn btn-primary" id="run-btn">&#9654; Run</button>
-                <button type="button" class="btn btn-secondary" onclick="clearOutput()">Clear output</button>
-                <label style="font-size: 0.85rem; color: var(--text-secondary); margin-left: auto;">
-                    Timeout:
-                    <select id="timeout" style="padding: 0.25rem;">
-                        <option value="10">10s</option>
-                        <option value="30" selected>30s</option>
-                        <option value="60">60s</option>
-                        <option value="120">120s</option>
-                        <option value="300">300s</option>
-                    </select>
-                </label>
-            </div>
-        </form>
+<div class="notebook-layout">
+  <!-- ─── Main notebook column ─────────────────────────────────── -->
+  <div>
+    <!-- Toolbar -->
+    <div class="notebook-toolbar">
+      <div class="toolbar-section">
+        <button class="toolbar-btn primary" id="run-all-btn" onclick="runAllCells()" title="Run all cells (Ctrl+Shift+Enter)">
+          &#9654;&#9654; Run all
+        </button>
+        <button class="toolbar-btn" id="run-selected-btn" onclick="runSelectedCell()" title="Run selected cell (Shift+Enter)">
+          &#9654; Run
+        </button>
+      </div>
+      <div class="toolbar-divider"></div>
+      <div class="toolbar-section">
+        <button class="toolbar-btn" onclick="addCodeCell()" title="Add code cell below">
+          + Code
+        </button>
+        <button class="toolbar-btn" onclick="addTextCell()" title="Add markdown cell below">
+          + Text
+        </button>
+      </div>
+      <div class="toolbar-divider"></div>
+      <div class="toolbar-section">
+        <button class="toolbar-btn" onclick="moveSelectedCellUp()" title="Move cell up">
+          &#9650;
+        </button>
+        <button class="toolbar-btn" onclick="moveSelectedCellDown()" title="Move cell down">
+          &#9660;
+        </button>
+        <button class="toolbar-btn danger" onclick="deleteSelectedCell()" title="Delete cell">
+          &#128465;
+        </button>
+      </div>
+      <div class="toolbar-divider"></div>
+      <div class="toolbar-section">
+        <button class="toolbar-btn" onclick="resetKernel()" title="Clear all variables">
+          &#10227; Reset kernel
+        </button>
+      </div>
+      <div class="toolbar-divider"></div>
+      <div class="engine-selector">
+        <span style="color: var(--text-secondary);">Engine:</span>
+        <select id="engine-select" onchange="switchEngine(this.value)">
+          <option value="server" selected>&#128421; Server (persistent kernel)</option>
+          <option value="pyodide">&#9889; Pyodide (browser)</option>
+        </select>
+      </div>
+      <span id="kernel-pill" class="kernel-pill ready">
+        <span class="pulse"></span>
+        <span id="kernel-pill-text">kernel ready</span>
+      </span>
     </div>
 
-    <!-- ── Output pane ──────────────────────────────────────────────── -->
-    <div class="card">
-        <div class="card-header"><h3>Output</h3></div>
-        <div id="output" class="output-pane" style="margin: 1rem;">
-<span style="color: #8b949e;">// Run some code to see the output here.</span>
-        </div>
+    <!-- Pyodide loader (only shown when engine=pyodide and not ready) -->
+    <div id="pyodide-loader" class="pyodide-loader">
+      <div id="pyodide-loader-text">Loading Pyodide runtime…</div>
+      <div class="progress-bar"><div class="progress-fill"></div></div>
     </div>
-</div>
 
-<!-- ── Preset snippets ──────────────────────────────────────────────── -->
-<div class="card" style="margin-top: 1.5rem;">
-    <div class="card-header"><h3>&#128218; Try these presets</h3></div>
-    <div class="card-body">
-        <p style="color: var(--text-secondary); margin-top: 0;">
-            Click any preset to load it into the editor. Each one is a complete, runnable example.
-        </p>
-        <div class="preset-grid">
-            <button class="preset-btn" onclick="loadPreset('iris-explore')">
-                <span class="preset-name">Iris: explore the dataset</span>
-                <span class="preset-desc">Load Iris, print shapes &amp; classes</span>
-            </button>
-            <button class="preset-btn" onclick="loadPreset('train-rf')">
-                <span class="preset-name">Train a RandomForest</span>
-                <span class="preset-desc">Train + score on Iris test split</span>
-            </button>
-            <button class="preset-btn" onclick="loadPreset('confusion-matrix')">
-                <span class="preset-name">Confusion matrix</span>
-                <span class="preset-desc">Visualize classifier errors</span>
-            </button>
-            <button class="preset-btn" onclick="loadPreset('regression')">
-                <span class="preset-name">Diabetes regression</span>
-                <span class="preset-desc">Linear vs Ridge on Diabetes</span>
-            </button>
-            <button class="preset-btn" onclick="loadPreset('cross-val')">
-                <span class="preset-name">5-fold cross-validation</span>
-                <span class="preset-desc">Compare 3 classifiers on Wine</span>
-            </button>
-            <button class="preset-btn" onclick="loadPreset('compare-datasets')">
-                <span class="preset-name">Survey all datasets</span>
-                <span class="preset-desc">Print shapes of every built-in</span>
-            </button>
-        </div>
+    <!-- Notebook canvas -->
+    <div class="notebook-canvas" id="notebook-canvas">
+      <!-- Cells are injected here by JS -->
     </div>
-</div>
-</div><!-- /sandbox-panel -->
 
-<!-- ── Pyodide panel (hidden by default) ───────────────────────────── -->
-<div id="pyodide-panel" style="display: none;">
-    <div class="card">
-        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
-            <h3 style="margin: 0;">Pyodide Code Cell (in-browser)</h3>
-            <span id="py-status-pill" class="status-pill">loading…</span>
-        </div>
-        <div class="card-body" style="padding: 1rem;">
-            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0;">
-                Code runs entirely in your browser via Pyodide (CPython compiled to WASM).
-                <code>np</code>, <code>pd</code>, <code>sklearn</code>, <code>matplotlib</code> are auto-imported.
-                No server round-trip — true Jupyter-like state.
-            </p>
-            <textarea id="py-code" class="code-editor" spellcheck="false" style="min-height: 200px;"
-                      autocomplete="off" autocorrect="off" autocapitalize="off">{{ sample_code }}</textarea>
-            <div class="run-btn-row">
-                <button class="btn btn-primary" id="py-run-btn" onclick="runPyodide()" disabled>&#9654; Run</button>
-                <button class="btn btn-secondary" onclick="document.getElementById('py-output').innerHTML=''">Clear</button>
-                <span id="py-loading-text" style="font-size: 0.82rem; color: var(--text-secondary); margin-left: auto;">Loading Pyodide + packages…</span>
-            </div>
-            <div id="py-output" class="output-pane" style="margin-top: 1rem; min-height: 200px;">
-<span style="color: #8b949e;">// Pyodide is loading. This takes ~15-30 seconds on first load.</span>
-            </div>
-        </div>
+    <!-- Add cell row at bottom -->
+    <div class="add-cell-row">
+      <button class="add-cell-btn" onclick="addCodeCell()">+ Code</button>
+      <button class="add-cell-btn" onclick="addTextCell()">+ Text</button>
     </div>
+  </div>
+
+  <!-- ─── Kernel sidebar ───────────────────────────────────────── -->
+  <div class="kernel-sidebar">
+    <div class="card">
+      <div class="card-header">
+        <h3 style="margin: 0; font-size: 0.95rem;">&#129518; Kernel state</h3>
+      </div>
+      <div class="card-body" style="padding: 0.75rem;">
+        <div id="kernel-info" style="font-size: 0.78rem; color: var(--text-secondary); line-height: 1.6;">
+          <div><strong>Engine:</strong> <span id="info-engine">server</span></div>
+          <div><strong>Cells run:</strong> <span id="info-cells">0</span></div>
+          <div><strong>Uptime:</strong> <span id="info-uptime">0s</span></div>
+          <div><strong>Installed pkgs:</strong> <span id="info-pkgs">0</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h3 style="margin: 0; font-size: 0.95rem;">&#128218; Variables</h3>
+      </div>
+      <div class="card-body" style="padding: 0.75rem;">
+        <div id="var-list" class="var-list">
+          <div class="empty-state">No variables yet. Run a cell to define some.</div>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <h3 style="margin: 0; font-size: 0.95rem;">&#128161; Quick tips</h3>
+      </div>
+      <div class="card-body" style="padding: 0.75rem; font-size: 0.78rem; color: var(--text-secondary); line-height: 1.55;">
+        <div style="margin-bottom: 0.4rem;"><code>!pip install xgboost</code></div>
+        <div style="margin-bottom: 0.4rem;"><code>%time model.fit(X, y)</code></div>
+        <div style="margin-bottom: 0.4rem;"><code>%whos</code> — list all variables</div>
+        <div style="margin-bottom: 0.4rem;"><code>%reset</code> — clear kernel</div>
+        <div>Press <code>Shift+Enter</code> in a cell to run it.</div>
+      </div>
+    </div>
+  </div>
 </div>
 
 {% endblock %}
 
 {% block extra_js %}
 <script>
-// ─── Preset code snippets ───────────────────────────────────────────
-const PRESETS = {
-  'iris-explore': `from sklearn.datasets import load_iris
+// ═══════════════════════════════════════════════════════════════════════════
+//  OpenBenchML Notebook v2.0 — Colab-style multi-cell notebook
+// ═══════════════════════════════════════════════════════════════════════════
 
-X, y = load_iris(return_X_y=True)
-print(f"Samples: {X.shape[0]}")
-print(f"Features: {X.shape[1]}")
-print(f"Classes: {sorted(set(y))}")
-print()
-print("First 5 rows:")
-print(X[:5])
-print()
-print("First 5 labels:")
-print(y[:5])
-`,
-
-  'train-rf': `from sklearn.datasets import load_iris
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, classification_report
-
-X, y = load_iris(return_X_y=True)
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
-
-model = RandomForestClassifier(n_estimators=50, random_state=42)
-model.fit(X_train, y_train)
-
-y_pred = model.predict(X_test)
-acc = accuracy_score(y_test, y_pred)
-print(f"Test accuracy: {acc:.4f}")
-print()
-print(classification_report(y_test, y_pred, target_names=['setosa','versicolor','virginica']))
-`,
-
-  'confusion-matrix': `from sklearn.datasets import load_breast_cancer
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import confusion_matrix
-
-X, y = load_breast_cancer(return_X_y=True)
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
-
-model = GradientBoostingClassifier(random_state=42)
-model.fit(X_train, y_train)
-y_pred = model.predict(X_test)
-
-cm = confusion_matrix(y_test, y_pred)
-print("Confusion matrix (rows=true, cols=pred):")
-print(cm)
-print()
-tn, fp, fn, tp = cm.ravel()
-print(f"True Negatives:  {tn}")
-print(f"False Positives: {fp}")
-print(f"False Negatives: {fn}")
-print(f"True Positives:  {tp}")
-print(f"Sensitivity:     {tp / (tp + fn):.4f}")
-print(f"Specificity:     {tn / (tn + fp):.4f}")
-`,
-
-  'regression': `from sklearn.datasets import load_diabetes
-from sklearn.linear_model import LinearRegression, Ridge
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score
-import numpy as np
-
-X, y = load_diabetes(return_X_y=True)
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
-)
-
-for name, model in [
-    ("LinearRegression", LinearRegression()),
-    ("Ridge(alpha=1.0)", Ridge(alpha=1.0)),
-    ("Ridge(alpha=10)",  Ridge(alpha=10.0)),
-]:
-    model.fit(X_train, y_train)
-    y_pred = model.predict(X_test)
-    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-    r2 = r2_score(y_test, y_pred)
-    print(f"{name:25s}  RMSE={rmse:.2f}  R2={r2:.4f}")
-`,
-
-  'cross-val': `from sklearn.datasets import load_wine
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.svm import SVC
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.model_selection import cross_val_score
-
-X, y = load_wine(return_X_y=True)
-
-models = {
-    "RandomForest": RandomForestClassifier(n_estimators=50, random_state=42),
-    "SVC(rbf)":    SVC(kernel="rbf", random_state=42),
-    "KNN(5)":      KNeighborsClassifier(n_neighbors=5),
-}
-
-for name, model in models.items():
-    scores = cross_val_score(model, X, y, cv=5, scoring="accuracy")
-    print(f"{name:15s}  acc = {scores.mean():.4f} ± {scores.std():.4f}")
-`,
-
-  'compare-datasets': `from sklearn.datasets import (
-    load_iris, load_wine, load_breast_cancer, load_digits,
-    load_diabetes, load_linnerud,
-)
-
-loaders = [
-    ("Iris",          load_iris),
-    ("Wine",          load_wine),
-    ("BreastCancer",  load_breast_cancer),
-    ("Digits",        load_digits),
-    ("Diabetes",      load_diabetes),
-    ("Linnerud",      load_linnerud),
-]
-
-print(f"{'Name':15s}  {'Samples':>7s}  {'Features':>8s}  {'Classes':>7s}")
-print("-" * 50)
-for name, fn in loaders:
-    b = fn()
-    n_samples, n_features = b.data.shape
-    n_classes = len(set(b.target))
-    print(f"{name:15s}  {n_samples:>7d}  {n_features:>8d}  {n_classes:>7d}")
-`,
-};
-
-function loadPreset(key) {
-  const code = PRESETS[key];
-  if (!code) return;
-  document.getElementById('code').value = code;
-  document.getElementById('code').focus();
-}
-
-function setStatus(label, kind) {
-  const pill = document.getElementById('status-pill');
-  pill.textContent = label;
-  pill.className = 'status-pill ' + (kind || '');
-}
-
-function clearOutput() {
-  document.getElementById('output').innerHTML =
-    '<span style="color: #8b949e;">// Output cleared.</span>';
-}
-
-async function runNotebook(event) {
-  event.preventDefault();
-  const code = document.getElementById('code').value;
-  const timeout = parseInt(document.getElementById('timeout').value, 10);
-  const runBtn = document.getElementById('run-btn');
-  const output = document.getElementById('output');
-
-  setStatus('running…', 'running');
-  runBtn.disabled = true;
-  output.innerHTML = '<span style="color: #8b949e;">// running…</span>';
-
-  try {
-    const res = await fetch('/api/notebook/run', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, timeout_seconds: timeout }),
-    });
-    const data = await res.json();
-
-    let html = '';
-    if (data.stdout) {
-      html += `<span class="output-stdout">${escapeHtml(data.stdout)}</span>`;
-    }
-    if (data.stderr) {
-      html += `<span class="output-stderr">${escapeHtml(data.stderr)}</span>`;
-    }
-    if (!data.stdout && !data.stderr) {
-      html += '<span style="color: #8b949e;">// (no output)</span>';
-    }
-    html += `<div class="output-meta">exit: ${data.ok ? 'OK' : 'ERROR'}${data.timed_out ? ' (TIMEOUT)' : ''}${data.error ? ' — ' + escapeHtml(data.error) : ''}</div>`;
-    output.innerHTML = html;
-
-    if (data.ok) {
-      setStatus('done', 'ok');
-    } else {
-      setStatus('error', 'error');
-    }
-  } catch (e) {
-    output.innerHTML = `<span class="output-stderr">Fetch error: ${escapeHtml(e.message)}</span>`;
-    setStatus('error', 'error');
-  } finally {
-    runBtn.disabled = false;
-  }
-  return false;
-}
-
-function escapeHtml(s) {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-// ─── Engine switching: sandbox / pyodide / jupyter ──────────────────
-let currentEngine = 'sandbox';
+let cells = [];          // [{id, type: 'code'|'text', source: str, output: {stdout,stderr,figures,ok}}]
+let selectedCellId = null;
+let cellCounter = 0;
+let currentEngine = 'server';   // 'server' | 'pyodide'
 let pyodideInstance = null;
 let pyodideReady = false;
 let pyodideLoading = false;
+let isRunning = false;
 
-function setEngine(eng) {
-    currentEngine = eng;
-    const sandboxPanel = document.getElementById('sandbox-panel');
-    const pyodidePanel = document.getElementById('pyodide-panel');
-    const desc = document.getElementById('engine-description');
-    const sandboxBtn = document.getElementById('engine-sandbox-btn');
-    const pyodideBtn = document.getElementById('engine-pyodide-btn');
-
-    if (eng === 'sandbox') {
-        sandboxPanel.style.display = '';
-        pyodidePanel.style.display = 'none';
-        sandboxBtn.className = 'btn btn-primary';
-        pyodideBtn.className = 'btn btn-secondary';
-        desc.innerHTML = '<strong>Server Sandbox</strong> — code runs on the OpenBenchML server. Best for sklearn / xgboost / heavy models. 300s timeout.';
-    } else if (eng === 'pyodide') {
-        sandboxPanel.style.display = 'none';
-        pyodidePanel.style.display = '';
-        sandboxBtn.className = 'btn btn-secondary';
-        pyodideBtn.className = 'btn btn-primary';
-        desc.innerHTML = '<strong>Pyodide (browser)</strong> — code runs in your browser via WASM. No server round-trip. np/pd/sklearn/matplotlib auto-imported.';
-        if (!pyodideReady && !pyodideLoading) {
-            loadPyodideEngine();
-        }
-    }
+// ─── Utility ────────────────────────────────────────────────────────────────
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-// ─── Pyodide loader (lazy — only loads when user clicks Pyodide) ────
-async function loadPyodideEngine() {
-    pyodideLoading = true;
-    const statusPill = document.getElementById('py-status-pill');
-    const runBtn = document.getElementById('py-run-btn');
-    const loadingText = document.getElementById('py-loading-text');
+function uid() {
+  return 'cell-' + (++cellCounter) + '-' + Math.random().toString(36).slice(2, 6);
+}
 
-    statusPill.textContent = 'loading…';
-    statusPill.className = 'status-pill running';
+function setKernelStatus(label, kind) {
+  const pill = document.getElementById('kernel-pill');
+  const text = document.getElementById('kernel-pill-text');
+  pill.className = 'kernel-pill ' + (kind || '');
+  text.textContent = label;
+}
 
+// ─── Cell management ────────────────────────────────────────────────────────
+function addCodeCell(source = '', afterCellId = null) {
+  const cell = {
+    id: uid(),
+    type: 'code',
+    source: source,
+    output: null,
+  };
+  insertCell(cell, afterCellId);
+  renderCell(cell);
+  selectCell(cell.id);
+  return cell;
+}
+
+function addTextCell(source = '', afterCellId = null) {
+  const cell = {
+    id: uid(),
+    type: 'text',
+    source: source,
+    output: null,
+  };
+  insertCell(cell, afterCellId);
+  renderCell(cell);
+  selectCell(cell.id);
+  return cell;
+}
+
+function insertCell(cell, afterCellId = null) {
+  if (!afterCellId) {
+    cells.push(cell);
+  } else {
+    const idx = cells.findIndex(c => c.id === afterCellId);
+    if (idx >= 0) cells.splice(idx + 1, 0, cell);
+    else cells.push(cell);
+  }
+}
+
+function deleteCell(cellId) {
+  const idx = cells.findIndex(c => c.id === cellId);
+  if (idx < 0) return;
+  cells.splice(idx, 1);
+  const el = document.getElementById('cell-wrap-' + cellId);
+  if (el) el.remove();
+  if (cells.length === 0) {
+    addCodeCell({{ sample_code | tojson }});
+  } else {
+    selectCell(cells[Math.max(0, idx - 1)].id);
+  }
+}
+
+function selectCell(cellId) {
+  selectedCellId = cellId;
+  document.querySelectorAll('.cell').forEach(el => el.classList.remove('selected'));
+  const el = document.getElementById('cell-wrap-' + cellId);
+  if (el) el.classList.add('selected');
+}
+
+function moveSelectedCellUp() {
+  if (!selectedCellId) return;
+  const idx = cells.findIndex(c => c.id === selectedCellId);
+  if (idx <= 0) return;
+  [cells[idx - 1], cells[idx]] = [cells[idx], cells[idx - 1]];
+  rerenderAll();
+}
+
+function moveSelectedCellDown() {
+  if (!selectedCellId) return;
+  const idx = cells.findIndex(c => c.id === selectedCellId);
+  if (idx < 0 || idx >= cells.length - 1) return;
+  [cells[idx + 1], cells[idx]] = [cells[idx], cells[idx + 1]];
+  rerenderAll();
+}
+
+function rerenderAll() {
+  const canvas = document.getElementById('notebook-canvas');
+  canvas.innerHTML = '';
+  cells.forEach(c => renderCell(c));
+}
+
+// ─── Cell rendering ─────────────────────────────────────────────────────────
+function renderCell(cell) {
+  const canvas = document.getElementById('notebook-canvas');
+  const wrap = document.createElement('div');
+  wrap.className = 'cell';
+  wrap.id = 'cell-wrap-' + cell.id;
+  if (cell.id === selectedCellId) wrap.classList.add('selected');
+
+  if (cell.type === 'text') {
+    wrap.innerHTML = renderTextCell(cell);
+  } else {
+    wrap.innerHTML = renderCodeCell(cell);
+  }
+  canvas.appendChild(wrap);
+
+  // Wire up the editor
+  if (cell.type === 'code') {
+    const editor = wrap.querySelector('.cell-editor');
+    editor.value = cell.source;
+    editor.addEventListener('input', () => { cell.source = editor.value; });
+    editor.addEventListener('focus', () => selectCell(cell.id));
+    editor.addEventListener('keydown', (e) => onEditorKeydown(e, cell));
+    // Render existing output if any
+    if (cell.output) renderOutput(cell);
+  } else if (cell.type === 'text') {
+    const editor = wrap.querySelector('.cell-editor');
+    if (editor) {
+      editor.value = cell.source;
+      editor.addEventListener('input', () => { cell.source = editor.value; });
+      editor.addEventListener('focus', () => selectCell(cell.id));
+    }
+  }
+}
+
+function renderCodeCell(cell) {
+  const label = 'In [' + (cells.indexOf(cell) + 1) + ']';
+  return `
+    <div class="cell-header">
+      <span class="cell-label">${label}</span>
+      <span class="cell-actions">
+        <button class="cell-action-btn run-btn" onclick="runCell('${cell.id}')" title="Run cell (Shift+Enter)">&#9654; Run</button>
+        <button class="cell-action-btn" onclick="addCodeCell('', '${cell.id}')" title="Add code cell below">+ Code</button>
+        <button class="cell-action-btn" onclick="addTextCell('', '${cell.id}')" title="Add text cell below">+ Text</button>
+        <button class="cell-action-btn" onclick="moveCellUp('${cell.id}')" title="Move up">&#9650;</button>
+        <button class="cell-action-btn" onclick="moveCellDown('${cell.id}')" title="Move down">&#9660;</button>
+        <button class="cell-action-btn danger" onclick="deleteCell('${cell.id}')" title="Delete cell">&#128465;</button>
+      </span>
+    </div>
+    <textarea class="cell-editor" spellcheck="false" autocomplete="off"
+              autocorrect="off" autocapitalize="off"
+              placeholder="# Python code, !shell command, or %magic"></textarea>
+    <div class="cell-output" id="output-${cell.id}"></div>
+  `;
+}
+
+function renderTextCell(cell) {
+  const label = 'Md [' + (cells.indexOf(cell) + 1) + ']';
+  return `
+    <div class="cell-header">
+      <span class="cell-label">${label}</span>
+      <span style="margin-left: 0.5rem; font-size: 0.72rem;">markdown</span>
+      <span class="cell-actions">
+        <button class="cell-action-btn" onclick="addCodeCell('', '${cell.id}')">+ Code</button>
+        <button class="cell-action-btn" onclick="addTextCell('', '${cell.id}')">+ Text</button>
+        <button class="cell-action-btn" onclick="moveCellUp('${cell.id}')">&#9650;</button>
+        <button class="cell-action-btn" onclick="moveCellDown('${cell.id}')">&#9660;</button>
+        <button class="cell-action-btn danger" onclick="deleteCell('${cell.id}')">&#128465;</button>
+      </span>
+    </div>
+    <textarea class="cell-editor" spellcheck="false" autocomplete="off"
+              style="min-height: 60px; background: var(--bg-secondary); color: var(--text-primary);"
+              placeholder="# Markdown — use **bold**, *italic*, `code`, etc."></textarea>
+  `;
+}
+
+function moveCellUp(id) {
+  const idx = cells.findIndex(c => c.id === id);
+  if (idx > 0) {
+    [cells[idx - 1], cells[idx]] = [cells[idx], cells[idx - 1]];
+    rerenderAll();
+    selectCell(id);
+  }
+}
+function moveCellDown(id) {
+  const idx = cells.findIndex(c => c.id === id);
+  if (idx >= 0 && idx < cells.length - 1) {
+    [cells[idx + 1], cells[idx]] = [cells[idx], cells[idx + 1]];
+    rerenderAll();
+    selectCell(id);
+  }
+}
+
+// ─── Editor keyboard shortcuts ──────────────────────────────────────────────
+function onEditorKeydown(e, cell) {
+  // Shift+Enter → run cell, focus next (or add new)
+  if (e.key === 'Enter' && e.shiftKey) {
+    e.preventDefault();
+    runCell(cell.id).then(() => {
+      const idx = cells.findIndex(c => c.id === cell.id);
+      if (idx === cells.length - 1) {
+        const newCell = addCodeCell('', cell.id);
+        setTimeout(() => {
+          const ed = document.querySelector(`#cell-wrap-${newCell.id} .cell-editor`);
+          if (ed) ed.focus();
+        }, 50);
+      } else {
+        const next = cells[idx + 1];
+        selectCell(next.id);
+        const ed = document.querySelector(`#cell-wrap-${next.id} .cell-editor`);
+        if (ed) ed.focus();
+      }
+    });
+    return;
+  }
+  // Ctrl+Enter → run cell, keep focus
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    e.preventDefault();
+    runCell(cell.id);
+    return;
+  }
+  // Alt+Enter → run cell, add new cell below
+  if (e.key === 'Enter' && e.altKey) {
+    e.preventDefault();
+    runCell(cell.id).then(() => {
+      const newCell = addCodeCell('', cell.id);
+      setTimeout(() => {
+        const ed = document.querySelector(`#cell-wrap-${newCell.id} .cell-editor`);
+        if (ed) ed.focus();
+      }, 50);
+    });
+    return;
+  }
+  // Tab → insert 4 spaces (not tab char)
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const ta = e.target;
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    ta.value = ta.value.slice(0, start) + '    ' + ta.value.slice(end);
+    ta.selectionStart = ta.selectionEnd = start + 4;
+    cell.source = ta.value;
+    return;
+  }
+}
+
+// ─── Run cells ──────────────────────────────────────────────────────────────
+async function runCell(cellId) {
+  if (isRunning) return false;
+  const cell = cells.find(c => c.id === cellId);
+  if (!cell) return false;
+
+  if (cell.type === 'text') {
+    // Text cells don't execute — just mark as rendered
+    cell.output = { ok: true, rendered: true };
+    return true;
+  }
+
+  if (!cell.source.trim()) {
+    renderOutput(cell, { ok: true, stdout: '', stderr: '', figures: [], elapsed_ms: 0 });
+    return true;
+  }
+
+  isRunning = true;
+  setKernelStatus('running…', 'running');
+  const wrap = document.getElementById('cell-wrap-' + cellId);
+  if (wrap) wrap.classList.add('running');
+  const runBtn = wrap && wrap.querySelector('.run-btn');
+  if (runBtn) { runBtn.disabled = true; runBtn.innerHTML = '&#8987; running…'; }
+
+  try {
+    let result;
+    if (currentEngine === 'pyodide') {
+      result = await runCellPyodide(cell);
+    } else {
+      result = await runCellServer(cell);
+    }
+    cell.output = result;
+    renderOutput(cell, result);
+    if (result.ok) {
+      setKernelStatus('kernel ready', 'ready');
+    } else {
+      setKernelStatus('kernel: last error', 'error');
+    }
+    refreshKernelInfo();
+    return result.ok;
+  } catch (e) {
+    cell.output = { ok: false, stdout: '', stderr: 'Fetch error: ' + e.message, figures: [], elapsed_ms: 0 };
+    renderOutput(cell, cell.output);
+    setKernelStatus('kernel: error', 'error');
+    return false;
+  } finally {
+    isRunning = false;
+    if (wrap) wrap.classList.remove('running');
+    if (runBtn) { runBtn.disabled = false; runBtn.innerHTML = '&#9654; Run'; }
+  }
+}
+
+async function runCellServer(cell) {
+  const res = await fetch('/api/notebook/cell', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      code: cell.source,
+      timeout_seconds: 300,
+      cell_id: cell.id,
+    }),
+  });
+  if (res.status === 401) {
+    return { ok: false, stdout: '', stderr: 'Authentication required — please log in.', figures: [], elapsed_ms: 0 };
+  }
+  const data = await res.json();
+  return {
+    ok: data.ok,
+    stdout: data.stdout || '',
+    stderr: data.stderr || '',
+    error: data.error,
+    figures: data.figures || [],
+    elapsed_ms: data.elapsed_ms || 0,
+    suggestions: data.suggestions || [],
+    shell_command: data.shell_command,
+    returncode: data.returncode,
+  };
+}
+
+async function runCellPyodide(cell) {
+  if (!pyodideReady) {
+    if (!pyodideLoading) loadPyodideEngine();
+    return { ok: false, stdout: '', stderr: 'Pyodide is still loading. Wait a few seconds and try again.', figures: [], elapsed_ms: 0 };
+  }
+  const code = cell.source;
+  // Shell commands in pyodide — limited support
+  if (code.startsWith('!')) {
+    return {
+      ok: false,
+      stdout: '',
+      stderr: 'Shell commands (!) are not supported in Pyodide engine. Switch to Server engine for shell access.',
+      figures: [],
+      elapsed_ms: 0,
+    };
+  }
+  if (code.startsWith('%')) {
+    return {
+      ok: false,
+      stdout: '',
+      stderr: 'Magics (%) are not supported in Pyodide engine. Switch to Server engine.',
+      figures: [],
+      elapsed_ms: 0,
+    };
+  }
+
+  const t0 = performance.now();
+  try {
+    pyodideInstance.runPython(`
+import sys, io
+__obml_stdout__ = io.StringIO()
+__obml_stderr__ = io.StringIO()
+__obml_old_stdout__ = sys.stdout
+__obml_old_stderr__ = sys.stderr
+sys.stdout = __obml_stdout__
+sys.stderr = __obml_stderr__
+`);
+    let errorMsg = null;
     try {
-        // Load Pyodide from jsdelivr CDN
-        loadingText.textContent = 'Loading Pyodide runtime from CDN…';
+      await pyodideInstance.runPythonAsync(code);
+    } catch (e) {
+      errorMsg = e.message;
+    }
+    const result = pyodideInstance.runPython(`
+sys.stdout = __obml_old_stdout__
+sys.stderr = __obml_old_stderr__
+(__obml_stdout__.getvalue(), __obml_stderr__.getvalue())
+`);
+    const stdout = result.toJs()[0];
+    const stderr = result.toJs()[1];
+    const figures = pyodideInstance.runPython('__obml_get_figures__()').toJs();
+    const elapsed_ms = Math.round(performance.now() - t0);
+    return {
+      ok: !errorMsg,
+      stdout: stdout,
+      stderr: stderr,
+      error: errorMsg,
+      figures: figures,
+      elapsed_ms: elapsed_ms,
+    };
+  } catch (e) {
+    return { ok: false, stdout: '', stderr: 'Pyodide error: ' + e.message, figures: [], elapsed_ms: 0 };
+  }
+}
+
+async function runAllCells() {
+  if (isRunning) return;
+  const btn = document.getElementById('run-all-btn');
+  btn.disabled = true;
+  btn.innerHTML = '&#8987; Running…';
+  setKernelStatus('running all cells…', 'running');
+  for (const cell of cells) {
+    if (cell.type === 'code' && cell.source.trim()) {
+      await runCell(cell.id);
+    }
+  }
+  btn.disabled = false;
+  btn.innerHTML = '&#9654;&#9654; Run all';
+  setKernelStatus('kernel ready', 'ready');
+}
+
+function runSelectedCell() {
+  if (selectedCellId) runCell(selectedCellId);
+}
+
+// ─── Render output ──────────────────────────────────────────────────────────
+function renderOutput(cell, result) {
+  const out = document.getElementById('output-' + cell.id);
+  if (!out) return;
+  if (!result) {
+    out.classList.remove('has-content');
+    out.innerHTML = '';
+    return;
+  }
+  let html = '';
+  if (result.stdout) {
+    html += `<span class="stream-stdout">${escapeHtml(result.stdout)}</span>`;
+  }
+  if (result.stderr) {
+    html += `<span class="stream-stderr">${escapeHtml(result.stderr)}</span>`;
+  }
+  if (result.error) {
+    html += `<span class="stream-error">${escapeHtml(result.error)}</span>`;
+  }
+  if (result.figures && result.figures.length > 0) {
+    for (const fig of result.figures) {
+      html += `<div class="figure"><img src="data:image/png;base64,${fig}" alt="matplotlib figure"></div>`;
+    }
+  }
+  // Suggestions popup for missing imports
+  if (result.suggestions && result.suggestions.length > 0) {
+    html += `<div class="suggest-box">
+      <div class="suggest-title">&#128161; Missing packages — install with one click:</div>
+      ${result.suggestions.map(s => `
+        <div class="suggest-item">
+          <code>${escapeHtml(s.import_name)}</code>
+          <span style="font-size: 0.78rem; color: var(--text-secondary);">→</span>
+          <code>!pip install ${escapeHtml(s.pip_name)}</code>
+          <button class="install-btn" onclick="installPackage('${escapeHtml(s.pip_name)}', '${cell.id}')">Install</button>
+        </div>
+      `).join('')}
+    </div>`;
+  }
+  // Meta line
+  if (result.shell_command) {
+    html += `<div class="stream-meta">shell: $ ${escapeHtml(result.shell_command)} — exit ${result.returncode} · ${result.elapsed_ms}ms</div>`;
+  } else if (result.elapsed_ms) {
+    const status = result.ok ? 'OK' : 'ERROR';
+    html += `<div class="stream-meta">${status} · ${result.elapsed_ms}ms</div>`;
+  }
+  if (!html) {
+    out.classList.remove('has-content');
+    out.innerHTML = '';
+  } else {
+    out.classList.add('has-content');
+    out.innerHTML = html;
+    out.scrollTop = out.scrollHeight;
+  }
+}
+
+// ─── Package install (calls /api/notebook/install) ─────────────────────────
+async function installPackage(pkg, cellId) {
+  // Disable all install buttons with this pkg
+  document.querySelectorAll(`.install-btn`).forEach(b => { b.disabled = true; b.textContent = 'installing…'; });
+  setKernelStatus('installing ' + pkg + '…', 'running');
+  try {
+    const res = await fetch('/api/notebook/install', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ package: pkg, timeout_seconds: 300 }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setKernelStatus('installed ' + pkg, 'ready');
+      // Re-run the cell that triggered the suggestion
+      if (cellId) {
+        setTimeout(() => runCell(cellId), 500);
+      }
+    } else {
+      setKernelStatus('install failed', 'error');
+      alert('Install failed:\n' + (data.stderr || 'Unknown error'));
+    }
+  } catch (e) {
+    setKernelStatus('install error', 'error');
+    alert('Network error: ' + e.message);
+  } finally {
+    document.querySelectorAll(`.install-btn`).forEach(b => { b.disabled = false; b.textContent = 'Install'; });
+    refreshKernelInfo();
+  }
+}
+
+// ─── Reset kernel ───────────────────────────────────────────────────────────
+async function resetKernel() {
+  if (!confirm('Reset kernel? All variables will be cleared.')) return;
+  setKernelStatus('resetting…', 'running');
+  try {
+    await fetch('/api/notebook/reset', { method: 'POST' });
+    setKernelStatus('kernel ready (reset)', 'ready');
+    // Clear all outputs
+    cells.forEach(c => { c.output = null; });
+    rerenderAll();
+    refreshKernelInfo();
+  } catch (e) {
+    setKernelStatus('reset failed', 'error');
+  }
+}
+
+// ─── Engine switching ───────────────────────────────────────────────────────
+function switchEngine(eng) {
+  currentEngine = eng;
+  document.getElementById('info-engine').textContent = eng;
+  if (eng === 'pyodide') {
+    document.getElementById('pyodide-loader').classList.add('active');
+    if (!pyodideReady && !pyodideLoading) loadPyodideEngine();
+    setKernelStatus('loading pyodide…', 'running');
+  } else {
+    document.getElementById('pyodide-loader').classList.remove('active');
+    setKernelStatus('kernel ready (server)', 'ready');
+  }
+}
+
+// ─── Pyodide loader ────────────────────────────────────────────────────────
+async function loadPyodideEngine() {
+  if (pyodideLoading || pyodideReady) return;
+  pyodideLoading = true;
+  const loaderText = document.getElementById('pyodide-loader-text');
+
+  // Multi-CDN fallback for reliability
+  const CDNS = [
+    'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js',
+    'https://unpkg.com/pyodide@0.26.4/dist/pyodide.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/pyodide/0.26.4/full/pyodide.js',
+  ];
+
+  try {
+    loaderText.textContent = 'Loading Pyodide runtime (trying CDN 1/3 — jsdelivr)…';
+    let loaded = false;
+    for (let i = 0; i < CDNS.length; i++) {
+      try {
         await new Promise((resolve, reject) => {
-            const s = document.createElement('script');
-            s.src = 'https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js';
-            s.onload = resolve;
-            s.onerror = () => reject(new Error('Failed to load Pyodide CDN'));
-            document.head.appendChild(s);
+          const s = document.createElement('script');
+          s.src = CDNS[i];
+          s.onload = resolve;
+          s.onerror = () => reject(new Error('CDN ' + CDNS[i] + ' failed'));
+          document.head.appendChild(s);
         });
+        loaded = true;
+        break;
+      } catch (e) {
+        loaderText.textContent = `CDN ${i + 1} failed, trying CDN ${i + 2}/3…`;
+      }
+    }
+    if (!loaded) throw new Error('All Pyodide CDNs failed.');
 
-        loadingText.textContent = 'Initializing Pyodide WASM runtime…';
-        pyodideInstance = await loadPyodide();
+    loaderText.textContent = 'Initializing Pyodide WASM runtime…';
+    pyodideInstance = await loadPyodide();
 
-        loadingText.textContent = 'Loading numpy, pandas, scikit-learn, matplotlib…';
-        await pyodideInstance.loadPackage(['numpy', 'pandas', 'scipy', 'scikit-learn', 'matplotlib']);
+    loaderText.textContent = 'Loading numpy, pandas, scikit-learn, matplotlib, scipy…';
+    await pyodideInstance.loadPackage(['numpy', 'pandas', 'scipy', 'scikit-learn', 'matplotlib', 'micropip', 'joblib']);
 
-        loadingText.textContent = 'Auto-importing np / pd / sklearn / plt…';
-        await pyodideInstance.runPythonAsync(`
+    loaderText.textContent = 'Auto-importing np / pd / sklearn / plt…';
+    await pyodideInstance.runPythonAsync(`
 import numpy as np
 import pandas as pd
 import sklearn
+import scipy
+import joblib
 import matplotlib
 matplotlib.use("AGG")
 import matplotlib.pyplot as plt
 import io, base64, sys
 
-# Patch sklearn dataset fetcher to use browser fetch() for remote datasets
+# Patch sklearn dataset fetcher for browser HTTPS
 try:
     from pyodide.http import open_url
     import sklearn.datasets._base as _sk_base
     import os, hashlib
-
     def _obml_fetch_remote(remote, dirname=None):
         if dirname is None:
             from sklearn.datasets._base import get_data_home
@@ -530,9 +1084,7 @@ try:
             if file_hash != checksum:
                 raise IOError(f"Checksum mismatch: expected {checksum}, got {file_hash}")
         return filename
-
     _sk_base._fetch_remote = _obml_fetch_remote
-    print("[pyodide] Patched sklearn dataset fetcher for browser HTTPS")
 except Exception as e:
     print(f"[pyodide] Warning: could not patch sklearn fetcher: {e}")
 
@@ -546,91 +1098,74 @@ def __obml_get_figures__():
         out.append(base64.b64encode(buf.read()).decode("ascii"))
         plt.close(fig)
     return out
+print("[pyodide] ready — np, pd, sklearn, scipy, matplotlib, joblib imported.")
 `);
 
-        pyodideReady = true;
-        pyodideLoading = false;
-        statusPill.textContent = 'ready';
-        statusPill.className = 'status-pill ok';
-        runBtn.disabled = false;
-        loadingText.textContent = 'Pyodide ready — np, pd, sklearn, matplotlib imported.';
-    } catch (err) {
-        pyodideLoading = false;
-        statusPill.textContent = 'error';
-        statusPill.className = 'status-pill error';
-        loadingText.innerHTML = '<span style="color: #ef4444;">Failed to load Pyodide: ' + escapeHtml(err.message) +
-            '</span><br><span style="font-size: 0.78rem;">Use Server Sandbox instead, or open JupyterLab.</span>';
-    }
+    pyodideReady = true;
+    pyodideLoading = false;
+    document.getElementById('pyodide-loader').classList.remove('active');
+    setKernelStatus('pyodide ready', 'ready');
+  } catch (err) {
+    pyodideLoading = false;
+    setKernelStatus('pyodide failed', 'error');
+    loaderText.innerHTML = '<span style="color: var(--danger-bright);">Pyodide failed to load: ' + escapeHtml(err.message) + '</span><br><span style="font-size: 0.78rem;">Switch back to Server engine — it works without any CDN.</span>';
+  }
 }
 
-async function runPyodide() {
-    if (!pyodideReady) return;
-    const code = document.getElementById('py-code').value;
-    const output = document.getElementById('py-output');
-    const statusPill = document.getElementById('py-status-pill');
-    const runBtn = document.getElementById('py-run-btn');
+// ─── Kernel info refresh ────────────────────────────────────────────────────
+async function refreshKernelInfo() {
+  if (currentEngine !== 'server') return;
+  try {
+    const res = await fetch('/api/notebook/health');
+    if (!res.ok) return;
+    const data = await res.json();
+    document.getElementById('info-cells').textContent = data.cell_count || 0;
+    document.getElementById('info-pkgs').textContent = (data.installed_packages || []).length;
+    const uptime = data.session_age_seconds || 0;
+    const mm = Math.floor(uptime / 60), ss = uptime % 60;
+    document.getElementById('info-uptime').textContent = mm > 0 ? `${mm}m ${ss}s` : `${ss}s`;
 
-    statusPill.textContent = 'running…';
-    statusPill.className = 'status-pill running';
-    runBtn.disabled = true;
-    output.innerHTML = '<span style="color: #8b949e;">// running…</span>';
-
-    try {
-        // Capture stdout/stderr
-        pyodideInstance.runPython(`
-import sys, io
-__obml_stdout__ = io.StringIO()
-__obml_stderr__ = io.StringIO()
-__obml_old_stdout__ = sys.stdout
-__obml_old_stderr__ = sys.stderr
-sys.stdout = __obml_stdout__
-sys.stderr = __obml_stderr__
-`);
-        let errorMsg = null;
-        try {
-            await pyodideInstance.runPythonAsync(code);
-        } catch (e) {
-            errorMsg = e.message;
-        }
-
-        // Restore stdout/stderr and get captured output
-        const result = pyodideInstance.runPython(`
-sys.stdout = __obml_old_stdout__
-sys.stderr = __obml_old_stderr__
-(__obml_stdout__.getvalue(), __obml_stderr__.getvalue())
-`);
-        const stdout = result.toJs()[0];
-        const stderr = result.toJs()[1];
-
-        // Get matplotlib figures
-        const figures = pyodideInstance.runPython('__obml_get_figures__()').toJs();
-
-        let html = '';
-        if (stdout) html += `<span class="output-stdout">${escapeHtml(stdout)}</span>`;
-        if (stderr) html += `<span class="output-stderr">${escapeHtml(stderr)}</span>`;
-        if (errorMsg) html += `<span class="output-stderr">${escapeHtml(errorMsg)}</span>`;
-        if (figures && figures.length > 0) {
-            for (const fig of figures) {
-                html += `<div style="margin: 8px 0; text-align: center;"><img src="data:image/png;base64,${fig}" style="max-width: 100%; border: 1px solid #404040; border-radius: 6px; background: #fff;"></div>`;
-            }
-        }
-        if (!html) html = '<span style="color: #8b949e;">// (no output)</span>';
-        output.innerHTML = html;
-
-        if (errorMsg) {
-            statusPill.textContent = 'error';
-            statusPill.className = 'status-pill error';
-        } else {
-            statusPill.textContent = 'done';
-            statusPill.className = 'status-pill ok';
-        }
-    } catch (e) {
-        output.innerHTML = `<span class="output-stderr">Error: ${escapeHtml(e.message)}</span>`;
-        statusPill.textContent = 'error';
-        statusPill.className = 'status-pill error';
-    } finally {
-        runBtn.disabled = false;
+    const varList = document.getElementById('var-list');
+    const vars = data.variables || [];
+    if (vars.length === 0) {
+      varList.innerHTML = '<div class="empty-state">No variables yet. Run a cell to define some.</div>';
+    } else {
+      varList.innerHTML = vars.map(v => {
+        // We don't have the type from this endpoint — just show the name
+        return `<div class="var-row"><span class="var-name">${escapeHtml(v)}</span></div>`;
+      }).join('');
     }
+  } catch (e) {
+    // silent
+  }
 }
+
+// ─── Keyboard shortcuts (notebook-level) ────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  // Ctrl+Shift+Enter → run all
+  if (e.key === 'Enter' && e.ctrlKey && e.shiftKey) {
+    e.preventDefault();
+    runAllCells();
+    return;
+  }
+  // Ctrl+M then D → delete selected cell (Colab-style chord)
+  // (Skip if user is typing in a textarea — those handle their own keys)
+  if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+  if (e.key === 'Delete' && selectedCellId) {
+    e.preventDefault();
+    deleteCell(selectedCellId);
+  }
+});
+
+// ─── Boot ───────────────────────────────────────────────────────────────────
+(function boot() {
+  // Start with one code cell containing the welcome code
+  addCodeCell({{ sample_code | tojson }});
+  // Auto-run the first cell to give the user some state
+  setTimeout(() => {
+    refreshKernelInfo();
+    setInterval(refreshKernelInfo, 15000);  // refresh every 15s
+  }, 500);
+})();
 </script>
 {% endblock %}

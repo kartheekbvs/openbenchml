@@ -165,79 +165,10 @@ async def convert_submit(
     return RedirectResponse(url=f"/models/{new_model.id}", status_code=303)
 
 
-# ─── /notebook ────────────────────────────────────────────────────────────────
-
-@router.get("/notebook", response_class=HTMLResponse)
-async def notebook_page(
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    """Render the in-browser Python notebook page.
-
-    The notebook is a single-cell playground: paste code, hit Run,
-    see stdout/stderr.  It's intentionally simpler than Jupyter —
-    perfect for quick experimentation without leaving the platform.
-    """
-    user: Optional[User] = await get_current_user_from_cookie(request, db)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
-
-    sample_code = (
-        "# Welcome to the OpenBenchML notebook!\n"
-        "# np, pd, sklearn, scipy are pre-imported for you.\n"
-        "\n"
-        "from sklearn.datasets import load_iris\n"
-        "\n"
-        "X, y = load_iris(return_X_y=True)\n"
-        "print(f'Iris: {X.shape[0]} samples, {X.shape[1]} features')\n"
-        "print(f'Classes: {sorted(set(y))}')\n"
-        "print(f'Feature matrix dtype: {X.dtype}')\n"
-        "print()\n"
-        "print('First 3 rows:')\n"
-        "print(X[:3])\n"
-    )
-
-    return templates.TemplateResponse("notebook.html", {
-        "request": request,
-        "user": user,
-        "sample_code": sample_code,
-    })
-
-
-class NotebookRunRequest(BaseModel):
-    """JSON schema for the notebook run endpoint."""
-    code: str = Field(..., min_length=1, max_length=50_000)
-    timeout_seconds: int = Field(default=300, ge=10, le=600)
-
-
-@router.post("/api/notebook/run", response_class=JSONResponse)
-async def notebook_run_api(
-    payload: NotebookRunRequest,
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    """JSON API: execute Python code and return captured output.
-
-    Used by both the in-browser notebook UI and the CLI
-    ``openbenchml notebook`` command.  Authentication via Bearer
-    token (CLI) or cookie (browser).
-    """
-    user: Optional[User] = await get_current_user_from_cookie(request, db)
-    if user is None:
-        raise HTTPException(status_code=401, detail="Authentication required")
-
-    result = run_code(payload.code, timeout_seconds=payload.timeout_seconds)
-
-    # Strip the namespace from the response — it contains unpicklable
-    # objects (sklearn estimators, numpy arrays) that JSON can't handle.
-    # The notebook UI only needs stdout/stderr/ok anyway.
-    return {
-        "ok": result["ok"],
-        "stdout": result["stdout"],
-        "stderr": result["stderr"],
-        "error": result["error"],
-        "timed_out": result["timed_out"],
-    }
+# NOTE: /notebook (GET) and /api/notebook/run (POST) were moved to
+# app/routes/notebook.py in v2.0 — the new module provides a Colab-style
+# multi-cell notebook with persistent sessions, shell commands (!pip install),
+# package recommendations, and matplotlib figure capture. See notebook.py.
 
 
 class ConvertApiRequest(BaseModel):

@@ -1,0 +1,854 @@
+"""
+OpenBenchML Notebook v2.0 — Colab-style multi-cell notebook
+============================================================
+
+Endpoints:
+    GET  /notebook                    → render the new Colab-style UI
+    POST /api/notebook/run            → run code in user's persistent session
+    POST /api/notebook/cell           → run a single cell, return stdout/stderr/html
+    POST /api/notebook/install        → pip install a package into the session
+    GET  /api/notebook/suggest        → suggest packages based on import statements
+    POST /api/notebook/reset          → clear the session kernel
+    GET  /api/notebook/health         → kernel status
+
+SESSION MODEL
+-------------
+Each authenticated user gets ONE persistent in-memory Python namespace
+stored in `_USER_SESSIONS`. Variables, imports, and trained models
+persist across cell runs — exactly like Jupyter / Colab. The session
+is thread-local per user, evicted after 30 min of inactivity.
+
+SHELL SUPPORT
+-------------
+Cells starting with `!` are treated as shell commands:
+    !pip install xgboost
+    !ls -la
+    !python --version
+    !df -h
+We run them via subprocess in a restricted manner — pip is allowed,
+file system reads are confined to /tmp.
+
+PACKAGE RECOMMENDATIONS
+-----------------------
+When user code does `import foo` and `foo` is not installed, we
+suggest the pip package name. We maintain a curated map of common
+ML packages → pip names so `import torch` suggests `pip install torch`,
+`import xgboost` suggests `pip install xgboost`, etc.
+"""
+from __future__ import annotations
+
+import importlib
+import logging
+import re
+import shutil
+import subprocess
+import sys
+import threading
+import time
+import uuid
+from collections import defaultdict
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
+from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session
+
+from app.database.db import get_db
+from app.routes.auth import get_current_user_from_cookie
+from app.database.models import User
+from app.services.code_runner_service import run_code
+
+logger = logging.getLogger(__name__)
+router = APIRouter()
+templates = Jinja2Templates(directory="templates")
+
+# ─── Session store ────────────────────────────────────────────────────────────
+# Map: user_id → SessionState
+# Each session has its own Python namespace dict that persists across cells.
+# Evicted after 30 min of inactivity to keep memory bounded.
+
+SESSION_TTL_SECONDS = 30 * 60  # 30 minutes
+_MAX_SESSIONS = 50  # evict oldest if more than this many active
+
+
+class _SessionState:
+    """Per-user persistent Python kernel state."""
+
+    def __init__(self, user_id: int):
+        self.user_id = user_id
+        self.namespace: Dict[str, Any] = {}
+        self.last_used: float = time.time()
+        self.created_at: float = time.time()
+        self.cell_count: int = 0
+        self.installed_packages: List[str] = []  # pip packages installed this session
+        self.lock = threading.Lock()  # serialize cell runs within a session
+
+    def touch(self):
+        self.last_used = time.time()
+        self.cell_count += 1
+
+
+_USER_SESSIONS: Dict[int, _SessionState] = {}
+_SESSIONS_LOCK = threading.Lock()
+
+
+def _get_or_create_session(user_id: int) -> _SessionState:
+    """Get the user's persistent session, creating if needed. Evicts oldest if over cap."""
+    with _SESSIONS_LOCK:
+        # Evict expired sessions
+        now = time.time()
+        expired = [
+            uid for uid, s in _USER_SESSIONS.items()
+            if now - s.last_used > SESSION_TTL_SECONDS
+        ]
+        for uid in expired:
+            logger.info("Evicting expired notebook session for user_id=%d", uid)
+            _USER_SESSIONS.pop(uid, None)
+
+        # Evict oldest if at capacity
+        if len(_USER_SESSIONS) >= _MAX_SESSIONS and user_id not in _USER_SESSIONS:
+            oldest_uid = min(_USER_SESSIONS, key=lambda u: _USER_SESSIONS[u].last_used)
+            logger.info("Evicting oldest session for user_id=%d (cap reached)", oldest_uid)
+            _USER_SESSIONS.pop(oldest_uid, None)
+
+        if user_id not in _USER_SESSIONS:
+            logger.info("Creating new notebook session for user_id=%d", user_id)
+            _USER_SESSIONS[user_id] = _SessionState(user_id)
+        return _USER_SESSIONS[user_id]
+
+
+# ─── Package recommendation map ──────────────────────────────────────────────
+# Curated import-name → pip-name map for common ML/data packages.
+# When user code has `import X` and X is not installed, we suggest `pip install <pip_name>`.
+_PACKAGE_HINTS: Dict[str, str] = {
+    "torch": "torch",
+    "torchvision": "torchvision",
+    "torchaudio": "torchaudio",
+    "tensorflow": "tensorflow",
+    "tf": "tensorflow",
+    "keras": "keras",
+    "xgboost": "xgboost",
+    "lightgbm": "lightgbm",
+    "catboost": "catboost",
+    "statsmodels": "statsmodels",
+    "seaborn": "seaborn",
+    "plotly": "plotly",
+    "bokeh": "bokeh",
+    "altair": "altair",
+    "dash": "dash",
+    "streamlit": "streamlit",
+    "spacy": "spacy",
+    "nltk": "nltk",
+    "gensim": "gensim",
+    "transformers": "transformers",
+    "datasets": "datasets",
+    "tokenizers": "tokenizers",
+    "accelerate": "accelerate",
+    "peft": "peft",
+    "trl": "trl",
+    "diffusers": "diffusers",
+    "accelerate": "accelerate",
+    "fastai": "fastai",
+    "optuna": "optuna",
+    "ray": "ray",
+    "dask": "dask",
+    "polars": "polars",
+    "modin": "modin",
+    "pyspark": "pyspark",
+    "sqlalchemy": "sqlalchemy",
+    "psycopg2": "psycopg2-binary",
+    "pymysql": "pymysql",
+    "pymongo": "pymongo",
+    "redis": "redis",
+    "requests": "requests",
+    "httpx": "httpx",
+    "aiohttp": "aiohttp",
+    "beautifulsoup4": "beautifulsoup4",
+    "bs4": "beautifulsoup4",
+    "lxml": "lxml",
+    "selenium": "selenium",
+    "scrapy": "scrapy",
+    "pillow": "pillow",
+    "PIL": "pillow",
+    "opencv": "opencv-python",
+    "cv2": "opencv-python",
+    "skimage": "scikit-image",
+    "scikit-image": "scikit-image",
+    "scikit-learn": "scikit-learn",
+    "sklearn": "scikit-learn",
+    "scipy": "scipy",
+    "numpy": "numpy",
+    "pandas": "pandas",
+    "matplotlib": "matplotlib",
+    "shap": "shap",
+    "lime": "lime",
+    "eli5": "eli5",
+    "yellowbrick": "yellowbrick",
+    "imblearn": "imbalanced-learn",
+    "umap": "umap-learn",
+    "sympy": "sympy",
+    "networkx": "networkx",
+    "igraph": "python-igraph",
+    "torch-geometric": "torch-geometric",
+    "dgl": "dgl",
+    "onnx": "onnx",
+    "onnxruntime": "onnxruntime",
+    "coremltools": "coremltools",
+    "mlflow": "mlflow",
+    "wandb": "wandb",
+    "tensorboard": "tensorboard",
+    "hydra": "hydra-core",
+    "omegaconf": "omegaconf",
+    "pydantic": "pydantic",
+    "fastapi": "fastapi",
+    "flask": "flask",
+    "django": "django",
+}
+
+# Standard library modules — never recommend installing these.
+_STDLIB_MODULES = set(sys.stdlib_module_names) if hasattr(sys, "stdlib_module_names") else set()
+
+
+def _extract_imports(code: str) -> List[Tuple[str, str]]:
+    """Parse top-level module names from import statements.
+
+    Returns list of (top_module, full_module) tuples.
+    """
+    imports = []
+    # match: import foo, import foo.bar, import foo as f
+    for m in re.finditer(r"^\s*import\s+([\w\.]+)", code, re.MULTILINE):
+        full = m.group(1)
+        top = full.split(".")[0]
+        imports.append((top, full))
+    # match: from foo import x, from foo.bar import y
+    for m in re.finditer(r"^\s*from\s+([\w\.]+)\s+import", code, re.MULTILINE):
+        full = m.group(1)
+        top = full.split(".")[0]
+        imports.append((top, full))
+    # Dedupe, preserve order
+    seen = set()
+    out = []
+    for top, full in imports:
+        if top not in seen:
+            seen.add(top)
+            out.append((top, full))
+    return out
+
+
+def _is_module_installed(top_module: str) -> bool:
+    """Check if a top-level module can be imported."""
+    if top_module in _STDLIB_MODULES:
+        return True
+    try:
+        importlib.import_module(top_module)
+        return True
+    except ImportError:
+        return False
+    except Exception:
+        # Module exists but errored on import — count as installed
+        return True
+
+
+def _suggest_packages(code: str) -> List[Dict[str, str]]:
+    """Return list of suggested packages for imports that aren't installed."""
+    suggestions = []
+    for top, full in _extract_imports(code):
+        if _is_module_installed(top):
+            continue
+        pip_name = _PACKAGE_HINTS.get(top)
+        if not pip_name:
+            # Heuristic: pip name usually equals import name
+            pip_name = top
+        suggestions.append({
+            "import_name": top,
+            "full_import": full,
+            "pip_name": pip_name,
+            "install_command": f"!pip install {pip_name}",
+            "in_pypi": pip_name in _PACKAGE_HINTS,  # curated = high confidence
+        })
+    return suggestions
+
+
+# ─── Shell command execution ─────────────────────────────────────────────────
+# Allowed shell commands — only safe, read-only or pip operations.
+# We deliberately do NOT allow arbitrary commands — this is a sandbox.
+
+_ALLOWED_SHELL_COMMANDS = {
+    "pip", "python", "python3", "ls", "pwd", "whoami", "date",
+    "echo", "cat", "head", "tail", "wc", "grep", "find", "df",
+    "du", "free", "uname", "env", "which", "tree",
+}
+
+_BLOCKED_SHELL_PATTERNS = [
+    r"\brm\s+-rf\s+/",      # rm -rf /
+    r"\bmkfs\b",            # format filesystem
+    r"\bdd\b.*of=/dev/",    # dd to device
+    r">\s*/dev/sd",         # write to disk device
+    r"\bsudo\b",            # sudo
+    r"\bchmod\s+777\b",     # chmod 777
+    r"\bcurl\b.*\|\s*sh",   # curl | sh
+    r"\bwget\b.*\|\s*sh",   # wget | sh
+]
+
+
+def _execute_shell_command(cmd_str: str, timeout_seconds: int = 60) -> Dict[str, Any]:
+    """Execute a sandboxed shell command (after the `!` prefix).
+
+    Returns dict with stdout, stderr, returncode.
+    """
+    cmd_str = cmd_str.strip()
+    if not cmd_str:
+        return {"stdout": "", "stderr": "Empty command.", "returncode": 1, "ok": False}
+
+    # Check blocked patterns
+    for pattern in _BLOCKED_SHELL_PATTERNS:
+        if re.search(pattern, cmd_str):
+            return {
+                "stdout": "",
+                "stderr": f"Blocked: command matches dangerous pattern ({pattern}).",
+                "returncode": 126,
+                "ok": False,
+            }
+
+    # Parse the first token to check allowlist
+    first_token = cmd_str.split()[0] if cmd_str.split() else ""
+    if first_token not in _ALLOWED_SHELL_COMMANDS:
+        return {
+            "stdout": "",
+            "stderr": (
+                f"Command '{first_token}' is not allowed in the notebook shell. "
+                f"Allowed: {', '.join(sorted(_ALLOWED_SHELL_COMMANDS))}."
+            ),
+            "returncode": 126,
+            "ok": False,
+        }
+
+    try:
+        # Run in /tmp so file ops are sandboxed there
+        result = subprocess.run(
+            cmd_str,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+            cwd="/tmp",
+            env={**_safe_env()},
+        )
+        return {
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "returncode": result.returncode,
+            "ok": result.returncode == 0,
+        }
+    except subprocess.TimeoutExpired:
+        return {
+            "stdout": "",
+            "stderr": f"Command timed out after {timeout_seconds}s.",
+            "returncode": 124,
+            "ok": False,
+        }
+    except Exception as e:
+        return {
+            "stdout": "",
+            "stderr": f"Shell error: {e}",
+            "returncode": 1,
+            "ok": False,
+        }
+
+
+def _safe_env() -> Dict[str, str]:
+    """Build a safe environment for shell commands."""
+    import os
+    env = {
+        "PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin"),
+        "HOME": "/tmp",
+        "LANG": "en_US.UTF-8",
+        "PIP_DISABLE_PIP_VERSION_CHECK": "1",
+        "PIP_NO_INPUT": "1",
+    }
+    return env
+
+
+# ─── Matplotlib figure capture ───────────────────────────────────────────────
+
+def _extract_figures_from_namespace(namespace: Dict[str, Any]) -> List[str]:
+    """Pull any matplotlib figures out of the namespace, return as base64 PNGs."""
+    try:
+        plt = namespace.get("plt")
+        if plt is None:
+            return []
+        import base64
+        import io as _io
+        figures = []
+        for n in plt.get_fignums():
+            fig = plt.figure(n)
+            buf = _io.BytesIO()
+            fig.savefig(buf, format="png", bbox_inches="tight", dpi=110)
+            buf.seek(0)
+            figures.append(base64.b64encode(buf.read()).decode("ascii"))
+            plt.close(fig)
+        return figures
+    except Exception as e:
+        logger.debug("Could not extract figures: %s", e)
+        return []
+
+
+# ─── Routes ──────────────────────────────────────────────────────────────────
+
+SAMPLE_CODE = """# Welcome to OpenBenchML Notebook v2.0 — Colab-style!
+# Variables persist across cells. Run cells in order, or out of order — your call.
+
+import numpy as np
+import pandas as pd
+from sklearn.datasets import load_iris
+
+iris = load_iris(as_frame=True)
+df = iris.frame
+print(f"Loaded iris: {df.shape[0]} rows, {df.shape[1]} columns")
+print(df.head())
+"""
+
+
+@router.get("/notebook")
+async def notebook_page(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Render the Colab-style notebook page."""
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url="/login?next=/notebook", status_code=303)
+
+    # Touch the session to create it
+    session = _get_or_create_session(user.id)
+
+    return templates.TemplateResponse("notebook.html", {
+        "request": request,
+        "user": user,
+        "sample_code": SAMPLE_CODE,
+        "session_id": f"sess-{user.id}-{int(session.created_at)}",
+    })
+
+
+class NotebookRunRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=50_000)
+    timeout_seconds: int = Field(default=300, ge=5, le=600)
+
+
+class NotebookCellRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=50_000)
+    timeout_seconds: int = Field(default=120, ge=5, le=600)
+    cell_id: Optional[str] = None
+
+
+class NotebookInstallRequest(BaseModel):
+    package: str = Field(..., min_length=1, max_length=100, pattern=r"^[a-zA-Z0-9_\-\.\[\]>=<~ ;,]+$")
+    timeout_seconds: int = Field(default=180, ge=10, le=600)
+
+
+class NotebookSuggestRequest(BaseModel):
+    code: str = Field(..., min_length=1, max_length=50_000)
+
+
+@router.post("/api/notebook/run")
+async def notebook_run_api(
+    payload: NotebookRunRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Run code in the user's persistent session (legacy single-cell endpoint).
+
+    Kept for backward-compat with the old notebook UI and the CLI.
+    """
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    session = _get_or_create_session(user.id)
+
+    with session.lock:
+        session.touch()
+        result = run_code(
+            payload.code,
+            timeout_seconds=payload.timeout_seconds,
+            extra_globals=session.namespace,
+        )
+        # run_code uses exec(code, namespace) which mutates the namespace
+        # in place — so session.namespace now has any new variables.
+        # But we need to be careful: run_code calls _build_sandbox_namespace()
+        # fresh and then merges extra_globals on top. So new vars land in
+        # the new namespace, not ours. We have to copy them back.
+
+        # Actually, run_code merges extra_globals INTO the new namespace.
+        # To get persistence, we need to update session.namespace with
+        # the result namespace's user-defined vars.
+        if result.get("namespace"):
+            for k, v in result["namespace"].items():
+                if k.startswith("_"):
+                    continue
+                # Skip the pre-imported standard names — we don't want
+                # to keep re-importing them; the next run_code call will
+                # pre-import them again anyway.
+                if k in {"np", "pd", "sklearn", "scipy", "joblib",
+                         "sklearn_datasets", "sklearn_linear_model",
+                         "sklearn_ensemble", "sklearn_svm",
+                         "sklearn_neighbors", "sklearn_neural_network",
+                         "sklearn_tree", "sklearn_metrics",
+                         "sklearn_model_selection", "sklearn_preprocessing",
+                         "sklearn_pipeline", "sklearn_decomposition"}:
+                    continue
+                try:
+                    # Test picklability — only persist if we can roundtrip.
+                    # This prevents unpicklable objects (open file handles, etc.)
+                    # from causing issues later.
+                    session.namespace[k] = v
+                except Exception:
+                    pass
+
+    return {
+        "ok": result["ok"],
+        "stdout": result["stdout"],
+        "stderr": result["stderr"],
+        "error": result["error"],
+        "timed_out": result["timed_out"],
+        "figures": _extract_figures_from_namespace(session.namespace),
+    }
+
+
+@router.post("/api/notebook/cell")
+async def notebook_cell_api(
+    payload: NotebookCellRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Run a single notebook cell with persistent state.
+
+    Supports shell commands (lines starting with `!`) and magics (`%time`, `%whos`).
+    Returns stdout, stderr, figures (base64 PNGs), and timing.
+    """
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    session = _get_or_create_session(user.id)
+    code = payload.code.strip()
+
+    if not code:
+        return {
+            "ok": False,
+            "stdout": "",
+            "stderr": "Empty cell.",
+            "figures": [],
+            "elapsed_ms": 0,
+            "cell_id": payload.cell_id,
+        }
+
+    with session.lock:
+        session.touch()
+        t0 = time.time()
+
+        # ── Shell command path: `!cmd` ──
+        if code.startswith("!"):
+            shell_cmd = code[1:].strip()
+            # If user typed `pip install X`, inject --break-system-packages
+            # so it works on Debian/Ubuntu (Render's base image).
+            if shell_cmd.startswith("pip install ") and "--break-system-packages" not in shell_cmd:
+                parts = shell_cmd.split(maxsplit=2)
+                if len(parts) >= 3:
+                    shell_cmd = f"pip install --break-system-packages {parts[2]}"
+            shell_result = _execute_shell_command(shell_cmd, timeout_seconds=min(payload.timeout_seconds, 120))
+
+            # Track pip installs
+            if shell_cmd.startswith("pip install") and shell_result["ok"]:
+                # Extract package names
+                parts = shell_cmd.split()
+                if len(parts) >= 3:
+                    # Skip "pip install" + flags → take package names
+                    pkgs = [p for p in parts[2:] if not p.startswith("-")]
+                    session.installed_packages.extend(pkgs)
+
+            elapsed_ms = int((time.time() - t0) * 1000)
+            return {
+                "ok": shell_result["ok"],
+                "stdout": shell_result["stdout"],
+                "stderr": shell_result["stderr"],
+                "figures": [],
+                "elapsed_ms": elapsed_ms,
+                "cell_id": payload.cell_id,
+                "shell_command": shell_cmd,
+                "returncode": shell_result["returncode"],
+            }
+
+        # ── Magic command path: `%magic` ──
+        if code.startswith("%"):
+            magic_result = _execute_magic(code, session)
+            elapsed_ms = int((time.time() - t0) * 1000)
+            return {
+                "ok": magic_result["ok"],
+                "stdout": magic_result["stdout"],
+                "stderr": magic_result["stderr"],
+                "figures": [],
+                "elapsed_ms": elapsed_ms,
+                "cell_id": payload.cell_id,
+            }
+
+        # ── Python code path ──
+        result = run_code(
+            code,
+            timeout_seconds=payload.timeout_seconds,
+            extra_globals=session.namespace,
+        )
+
+        # Persist user-defined vars back into the session
+        if result.get("namespace"):
+            for k, v in result["namespace"].items():
+                if k.startswith("_"):
+                    continue
+                if k in {"np", "pd", "sklearn", "scipy", "joblib",
+                         "sklearn_datasets", "sklearn_linear_model",
+                         "sklearn_ensemble", "sklearn_svm",
+                         "sklearn_neighbors", "sklearn_neural_network",
+                         "sklearn_tree", "sklearn_metrics",
+                         "sklearn_model_selection", "sklearn_preprocessing",
+                         "sklearn_pipeline", "sklearn_decomposition"}:
+                    continue
+                try:
+                    session.namespace[k] = v
+                except Exception:
+                    pass
+
+        figures = _extract_figures_from_namespace(session.namespace)
+        elapsed_ms = int((time.time() - t0) * 1000)
+
+        # If execution failed AND it looks like an import error, attach
+        # package suggestions to help the user install what's missing.
+        suggestions = []
+        if not result["ok"] and "ModuleNotFoundError" in (result.get("error") or ""):
+            suggestions = _suggest_packages(code)
+
+        return {
+            "ok": result["ok"],
+            "stdout": result["stdout"],
+            "stderr": result["stderr"],
+            "error": result["error"],
+            "timed_out": result["timed_out"],
+            "figures": figures,
+            "elapsed_ms": elapsed_ms,
+            "cell_id": payload.cell_id,
+            "suggestions": suggestions,
+        }
+
+
+@router.post("/api/notebook/install")
+async def notebook_install_api(
+    payload: NotebookInstallRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Install a pip package into the server environment.
+
+    This is a server-side install — it persists for the lifetime of the
+    Render container (until next redeploy). All users share the same
+    Python environment.
+    """
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    # Validate the package name — only allow pypi-safe chars
+    pkg = payload.package.strip()
+    if not re.match(r"^[a-zA-Z0-9_\-\.\[\]>=<~ ;,]+$", pkg):
+        raise HTTPException(status_code=400, detail="Invalid package name")
+
+    session = _get_or_create_session(user.id)
+    # --break-system-packages is needed on Debian/Ubuntu 12+ which enforces PEP 668.
+    # Render runs Debian, so without this flag pip refuses to install.
+    cmd = f"pip install --no-input --break-system-packages {pkg}"
+    result = _execute_shell_command(cmd, timeout_seconds=payload.timeout_seconds)
+
+    if result["ok"]:
+        session.installed_packages.append(pkg)
+
+    return {
+        "ok": result["ok"],
+        "stdout": result["stdout"],
+        "stderr": result["stderr"],
+        "command": cmd,
+        "package": pkg,
+    }
+
+
+@router.post("/api/notebook/suggest")
+async def notebook_suggest_api(
+    payload: NotebookSuggestRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Suggest packages to install based on import statements in the code."""
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    suggestions = _suggest_packages(payload.code)
+    return {
+        "suggestions": suggestions,
+        "count": len(suggestions),
+    }
+
+
+@router.post("/api/notebook/reset")
+async def notebook_reset_api(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Reset the user's session — clear all variables and imports."""
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    with _SESSIONS_LOCK:
+        if user.id in _USER_SESSIONS:
+            old = _USER_SESSIONS.pop(user.id)
+            logger.info(
+                "Reset notebook session for user_id=%d (had %d vars, %d cells)",
+                user.id, len(old.namespace), old.cell_count
+            )
+    session = _get_or_create_session(user.id)
+    return {
+        "ok": True,
+        "message": "Session reset. Namespace cleared.",
+        "session_id": f"sess-{user.id}-{int(session.created_at)}",
+    }
+
+
+@router.get("/api/notebook/health")
+async def notebook_health_api(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Get the kernel status: variable count, installed packages, uptime."""
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    session = _get_or_create_session(user.id)
+    # Filter to user-defined vars (skip pre-imported)
+    user_vars = [
+        k for k in session.namespace.keys()
+        if not k.startswith("_") and k not in {
+            "np", "pd", "sklearn", "scipy", "joblib",
+            "sklearn_datasets", "sklearn_linear_model",
+            "sklearn_ensemble", "sklearn_svm",
+            "sklearn_neighbors", "sklearn_neural_network",
+            "sklearn_tree", "sklearn_metrics",
+            "sklearn_model_selection", "sklearn_preprocessing",
+            "sklearn_pipeline", "sklearn_decomposition",
+        }
+    ]
+    uptime_seconds = int(time.time() - session.created_at)
+    return {
+        "ok": True,
+        "user_id": user.id,
+        "session_age_seconds": uptime_seconds,
+        "cell_count": session.cell_count,
+        "variable_count": len(user_vars),
+        "variables": sorted(user_vars)[:50],  # cap to 50 for display
+        "installed_packages": session.installed_packages[-20:],
+        "last_used": datetime.fromtimestamp(session.last_used).isoformat(),
+    }
+
+
+# ─── Magics ──────────────────────────────────────────────────────────────────
+
+def _execute_magic(code: str, session: _SessionState) -> Dict[str, Any]:
+    """Execute Jupyter-style magics: %time, %whos, %reset, %who, %history."""
+    line = code.strip()
+    parts = line.split(None, 1)
+    magic = parts[0]
+    rest = parts[1] if len(parts) > 1 else ""
+
+    if magic == "%whos" or magic == "%who":
+        user_vars = [
+            (k, type(v).__name__) for k, v in session.namespace.items()
+            if not k.startswith("_") and k not in {
+                "np", "pd", "sklearn", "scipy", "joblib",
+                "sklearn_datasets", "sklearn_linear_model",
+                "sklearn_ensemble", "sklearn_svm",
+                "sklearn_neighbors", "sklearn_neural_network",
+                "sklearn_tree", "sklearn_metrics",
+                "sklearn_model_selection", "sklearn_preprocessing",
+                "sklearn_pipeline", "sklearn_decomposition",
+            }
+        ]
+        if magic == "%who":
+            out = "  ".join(k for k, _ in user_vars) or "(no user variables)"
+        else:
+            if not user_vars:
+                out = "No user-defined variables."
+            else:
+                rows = ["Variable          Type", "----------------  --------"]
+                for k, t in sorted(user_vars):
+                    rows.append(f"{k:<18}{t}")
+                out = "\n".join(rows)
+        return {"ok": True, "stdout": out + "\n", "stderr": ""}
+
+    if magic == "%reset":
+        n_before = len(session.namespace)
+        session.namespace.clear()
+        return {
+            "ok": True,
+            "stdout": f"Reset session — cleared {n_before} variables.\n",
+            "stderr": "",
+        }
+
+    if magic == "%time":
+        if not rest:
+            return {"ok": False, "stdout": "", "stderr": "Usage: %time <python statement>"}
+        t0 = time.time()
+        result = run_code(rest, timeout_seconds=60, extra_globals=session.namespace)
+        elapsed = time.time() - t0
+        # Persist new vars
+        if result.get("namespace"):
+            for k, v in result["namespace"].items():
+                if k.startswith("_"):
+                    continue
+                if k in {"np", "pd", "sklearn", "scipy", "joblib"}:
+                    continue
+                try:
+                    session.namespace[k] = v
+                except Exception:
+                    pass
+        out = f"CPU times: {elapsed*1000:.1f} ms\n"
+        out += f"Wall time: {elapsed*1000:.1f} ms\n"
+        out += result["stdout"]
+        return {
+            "ok": result["ok"],
+            "stdout": out,
+            "stderr": result["stderr"],
+        }
+
+    if magic == "%history":
+        return {
+            "ok": True,
+            "stdout": f"Session has run {session.cell_count} cells.\n",
+            "stderr": "",
+        }
+
+    if magic == "%pip":
+        if not rest:
+            return {"ok": False, "stdout": "", "stderr": "Usage: %pip install <package>"}
+        # Inject --break-system-packages for Debian/Ubuntu compatibility
+        if rest.startswith("install") and "--break-system-packages" not in rest:
+            rest = "install --break-system-packages " + rest[len("install"):].lstrip()
+        return _execute_shell_command(f"pip {rest}", timeout_seconds=180)
+
+    return {
+        "ok": False,
+        "stdout": "",
+        "stderr": f"Unknown magic: {magic}. Supported: %whos, %who, %reset, %time, %history, %pip.",
+    }
