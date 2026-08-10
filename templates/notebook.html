@@ -766,7 +766,7 @@
 {% block content %}
 <div class="page-header" style="margin-bottom: 0.75rem; display: flex; align-items: center; gap: 1rem;">
     <h1 style="margin: 0;">&#128221; Notebook</h1>
-    {% if hf_spaces_url %}
+    {% if notebook_server_url %}
     <button id="open-on-hf-btn" class="toolbar-btn primary" style="font-size: 0.85rem;"
             onclick="openNotebookOnHF()" title="Open this notebook on the high-memory compute server">
         &#9889; Open on Compute
@@ -775,7 +775,7 @@
     {% endif %}
 </div>
 
-{% if hf_spaces_url %}
+{% if notebook_server_url %}
 <script>
 // Cross-domain redirect: mint a one-time bridge token from Render, then
 // redirect to HF Spaces where the heavy notebook kernel runs (16 GB RAM).

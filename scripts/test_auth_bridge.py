@@ -13,7 +13,7 @@ sys.path.insert(0, '/home/z/my-project')
 os.environ['SECRET_KEY'] = 'test-secret-key-for-bridge-test-shared'
 os.environ['DATABASE_URL'] = 'sqlite:///./test_bridge.db'
 os.environ['SESSION_SECRET'] = 'test-session-secret'
-os.environ['HF_SPACES_URL'] = 'https://openbenchml-hf.fake.hf.space'
+os.environ['NOTEBOOK_SERVER_URL'] = 'https://openbenchml-oracle.fake.example.com'
 
 # Clean test DB
 import pathlib
@@ -40,7 +40,7 @@ r = client.get('/api/auth/bridge_token')
 assert r.status_code == 200, f"bridge_token failed: {r.status_code} {r.text}"
 data = r.json()
 print(f"  token issued, url={data['url'][:80]}...")
-assert data['url'].startswith('https://openbenchml-hf.fake.hf.space/auth/bridge?token=')
+assert data['url'].startswith('https://openbenchml-oracle.fake.example.com/auth/bridge?token=')
 assert data['expires_in_seconds'] == 300
 bridge_url = data['url']
 
@@ -143,7 +143,7 @@ r = client.get('/api/auth/bridge_status')
 assert r.status_code == 200
 status = r.json()
 print(f"  status: {status}")
-assert status['can_issue'] is True, "should be able to issue (HF_SPACES_URL set)"
+assert status['can_issue'] is True, "should be able to issue (NOTEBOOK_SERVER_URL set)"
 assert status['can_consume'] is True, "should always be able to consume"
 assert status['bridge_token_ttl_seconds'] == 300
 

@@ -83,11 +83,11 @@ async def issue_bridge_token(
     returned `url` (which points at the HF Space's /auth/bridge route).
     """
     import os, uuid
-    hf_url = os.environ.get("HF_SPACES_URL", "").rstrip("/")
-    if not hf_url:
+    notebook_url = os.environ.get("NOTEBOOK_SERVER_URL", "").rstrip("/")
+    if not notebook_url:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="HF_SPACES_URL is not configured on the server. The notebook "
+            detail="NOTEBOOK_SERVER_URL is not configured on the server. The notebook "
                    "is running on Render only.",
         )
 
@@ -107,7 +107,7 @@ async def issue_bridge_token(
 
     return BridgeTokenResponse(
         token=token,
-        url=f"{hf_url}/auth/bridge?token={token}&redirect=/notebook",
+        url=f"{notebook_url}/auth/bridge?token={token}&redirect=/notebook",
         expires_in_seconds=BRIDGE_TOKEN_TTL_SECONDS,
     )
 
@@ -230,7 +230,7 @@ async def bridge_status():
     """
     import os
     return {
-        "can_issue": bool(os.environ.get("HF_SPACES_URL")),
+        "can_issue": bool(os.environ.get("NOTEBOOK_SERVER_URL")),
         "can_consume": True,  # always — the /auth/bridge route is always mounted
         "bridge_token_ttl_seconds": BRIDGE_TOKEN_TTL_SECONDS,
     }
