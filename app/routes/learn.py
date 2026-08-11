@@ -498,6 +498,46 @@ LEARN_TREE = [
                 "explanation": "Template literals (backticks) are JS's answer to f-strings. They support multi-line strings and ${expression} interpolation. They're the standard way to build HTML strings in vanilla JS. The footgun: if the literal contains a backtick (e.g. inside a placeholder attribute), the parser terminates the string early and the whole script crashes. Always escape user-provided content with escapeHtml() before interpolating it into a template literal — otherwise you have both an XSS hole AND a crash bug.",
                 "used_in": "Every JS-heavy template (notebook, competition_detail, realtime) uses template literals for HTML generation.",
             },
+            {
+                "slug": "html-forms",
+                "title": "HTML forms & inputs",
+                "summary": "<form> collects user input. input, textarea, select, button — name attribute becomes the form field key.",
+                "code": "<form method='post' action='/signin' enctype='multipart/form-data'>\n  <input type='text' name='username' placeholder='Name'>\n  <input type='number' name='id' placeholder='ID'>\n  <input type='file' name='file'>\n  <button type='submit'>Login</button>\n</form>",
+                "explanation": "A <form> wraps input controls and sends them to the server on submit. Each input's name= attribute becomes the key in the submitted payload. method='post' sends the data in the request body (use POST for anything that changes server state). enctype='multipart/form-data' is required when the form contains a file input — it lets the browser send binary data as multi-part chunks. Without it, file uploads silently fail. Use <label for='id'> to bind text to inputs for accessibility. The input types (text, email, number, date, file, password, checkbox, radio) trigger different keyboards on mobile and different validation rules.",
+                "used_in": "templates/login.html, register.html, upload.html, competition_form.html — every form follows this pattern.",
+            },
+            {
+                "slug": "js-events",
+                "title": "DOM events & addEventListener",
+                "summary": "click, input, submit, keydown — every user interaction fires an event you can listen to.",
+                "code": "// click — button press\ndocument.getElementById('login')\n  .addEventListener('click', (e) => {\n    e.preventDefault();  // stop form submit\n    console.log('clicked', e.type);\n  });\n\n// input — fires on every keystroke\ndocument.getElementById('g2')\n  .addEventListener('input', (e) => {\n    document.getElementById('g3').textContent = e.target.value;\n  });",
+                "explanation": "Every user interaction (click, type, scroll, hover, submit) fires a DOM event. addEventListener(type, callback) runs your callback when that event happens. The callback receives an Event object with details: e.target (the element that fired), e.type (the event name), e.preventDefault() (stop the default action — critical for forms so they don't reload the page). The 'input' event fires on every keystroke in a text field — perfect for live previews. The 'click' event fires on button press. The 'submit' event fires on form submit (use it instead of click on the button so Enter-to-submit works).",
+                "used_in": "Every interactive template. The notebook's Run button, the learn page's sidebar nav, the dashboard's tabs — all addEventListener.",
+            },
+            {
+                "slug": "js-timers",
+                "title": "setInterval & setTimeout",
+                "summary": "Schedule code to run later. setTimeout runs once; setInterval runs every N ms. Clear with clear*.",
+                "code": "// run once after 1 second\nsetTimeout(() => {\n  console.log('hello after 1s');\n}, 1000);\n\n// run every 1 second (live clock)\nsetInterval(() => {\n  document.getElementById('clock').textContent =\n    new Date().toLocaleTimeString();\n}, 1000);\n\n// stop an interval\nconst id = setInterval(..., 1000);\nclearInterval(id);",
+                "explanation": "setTimeout(fn, ms) runs fn once after ms milliseconds. setInterval(fn, ms) runs fn every ms milliseconds forever (until cleared). Both return an ID you can pass to clearTimeout / clearInterval to cancel. The classic use case for setInterval is a live clock: every 1000ms, read the current time and update the DOM. Other uses: polling an API every 30s ( WS heartbeat), debouncing search input (wait 300ms after the user stops typing), auto-saving a draft every 10s. Always clear intervals when the component unmounts — otherwise they keep running in the background and leak memory.",
+                "used_in": "templates/realtime.html — 30s WS heartbeat. The user's example HTML — 1s live clock. Notebook — 250ms output flush interval.",
+            },
+            {
+                "slug": "js-localstorage",
+                "title": "localStorage — persist data in the browser",
+                "summary": "Save key→value pairs that survive page reloads. 5MB per origin. Strings only — JSON.stringify objects.",
+                "code": "// save\nlocalStorage.setItem('theme', 'dark');\nlocalStorage.setItem('user', JSON.stringify({id: 1, name: 'Ada'}));\n\n// read\nconst theme = localStorage.getItem('theme');  // 'dark'\nconst user = JSON.parse(localStorage.getItem('user') || 'null');\n\n// remove\nlocalStorage.removeItem('theme');\nlocalStorage.clear();  // wipe everything",
+                "explanation": "localStorage is a per-origin key→value store that survives page reloads and browser restarts. It holds ~5MB per origin and only stores strings — so objects need JSON.stringify on write and JSON.parse on read. Use it for: theme preference, last-visited page, draft form content, offline todo list. Don't use it for: secrets (any JS can read it — XSS = leak), large data (use IndexedDB instead), or anything that needs to sync across devices (it's per-browser). The notebook could use localStorage to persist cell content across reloads so a refresh doesn't lose your work.",
+                "used_in": "Could be added to notebook.html to auto-save cell content. Currently underused in OpenBenchML.",
+            },
+            {
+                "slug": "css-responsive",
+                "title": "Responsive design & media queries",
+                "summary": "@media (max-width: 800px) { ... } — apply CSS only when the viewport matches. Mobile-first.",
+                "code": ".grid { display: grid; grid-template-columns: 1fr 320px; }\n\n@media (max-width: 800px) {\n  .grid { grid-template-columns: 1fr; }  /* stack on mobile */\n  .sidebar { display: none; }            /* hide on phone */\n}",
+                "explanation": "A media query applies CSS only when the viewport matches a condition. max-width: 800px means 'screens narrower than 800px' (phones, small tablets). The pattern: design the desktop layout first, then add media queries to simplify for mobile — collapse multi-column grids to single column, hide non-essential sidebars, increase touch-target sizes. OpenBenchML uses media queries on every multi-column layout: the competition detail grid, the notebook layout, the leaderboard table. Test by resizing your browser window — the layout should smoothly adapt, not break.",
+                "used_in": "Every multi-column template has @media queries. notebook.html, competition_detail.html, learn.html all collapse on mobile.",
+            },
         ],
     },
 
@@ -693,6 +733,261 @@ LEARN_TREE = [
                 "code": "from functools import lru_cache\n\n@lru_cache(maxsize=128)\ndef fib(n):\n    if n < 2: return n\n    return fib(n-1) + fib(n-2)\n\n# first call: slow (computes everything)\nfib(50)\n# second call: instant (cached)\nfib(50)",
                 "explanation": "Caching stores the result of an expensive function so future calls with the same arguments return instantly. functools.lru_cache is a decorator that does this automatically — least-recently-used eviction when the cache fills. The notebook could cache package recommendation results per session so re-running a cell with the same imports doesn't re-parse. The trade-off: caching uses memory, and it's only a win if the same inputs recur. Cache invalidation (knowing when the cached result is stale) is famously hard.",
                 "used_in": "Not heavily used in OpenBenchML yet — most routes hit the DB on every request. Could be added for hot paths like the leaderboard.",
+            },
+        ],
+    },
+
+    # ─── Mini Projects — hands-on, end-to-end ───────────────────────────
+    {
+        "category": "Mini Projects",
+        "slug": "projects",
+        "icon": "rocket",
+        "color": "#f0883e",
+        "blurb": "Complete, runnable mini-projects that tie frontend + FastAPI + Docker + ML together. Each project has multiple files and a step-by-step explanation.",
+        "concepts": [
+            {
+                "slug": "project-form-fetch-fastapi",
+                "title": "Form + Fetch + FastAPI Backend",
+                "summary": "A login form that POSTs to FastAPI, a button that GETs users, and a live clock — the exact pattern behind every auth flow.",
+                "files": [
+                    {
+                        "name": "index.html",
+                        "lang": "html",
+                        "code": "<!DOCTYPE html>\n<html>\n<head><title>Sign In</title></head>\n<body>\n  <form method='post' action='http://127.0.0.1:8000/signin' enctype='multipart/form-data'>\n    <input type='text' name='username' placeholder='Name'>\n    <input type='number' name='id' placeholder='ID'>\n    <input type='file' name='file'>\n    <button id='login'>Login</button>\n    <a href='http://127.0.0.1:8000/get-users'>Retrieve Users</a>\n  </form>\n  <h5 id='sample'>User data will appear here</h5>\n  <button id='g1'>Click To Get</button>\n  <input id='g2' placeholder='type something'>\n  <h3 id='g3'>YOUR INPUT</h3>\n  <h3 id='clock'>Clock</h3>\n\n  <script>\n    // Live clock — update every second\n    setInterval(() => {\n      document.getElementById('clock').textContent = new Date().toLocaleTimeString();\n    }, 1000);\n\n    // Live input mirror — fires on every keystroke\n    document.getElementById('g2').addEventListener('input', (e) => {\n      document.getElementById('g3').textContent = e.target.value;\n    });\n\n    // Fetch users from FastAPI\n    document.getElementById('g1').addEventListener('click', async (e) => {\n      e.preventDefault();\n      const res = await fetch('http://127.0.0.1:8000/get-users');\n      const data = await res.json();\n      const u = data[0];\n      document.getElementById('sample').innerHTML =\n        '<p>' + u.username + ' : ' + u.id + '</p>';\n    });\n  </script>\n</body>\n</html>",
+                    },
+                    {
+                        "name": "main.py",
+                        "lang": "python",
+                        "code": "from fastapi import FastAPI, UploadFile, File, Form\nfrom fastapi.middleware.cors import CORSMiddleware\nfrom pydantic import BaseModel\nimport uvicorn, shutil, os\n\napp = FastAPI()\n\n# Allow the browser to call this API from a different origin (file://)\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=['*'],\n    allow_methods=['*'],\n    allow_headers=['*'],\n)\n\n# In-memory user store (use a DB in real apps)\nUSERS = [\n    {'id': 1, 'username': 'Ada'},\n    {'id': 2, 'username': 'Linus'},\n]\n\n@app.get('/get-users')\nasync def get_users():\n    return USERS\n\n@app.post('/signin')\nasync def signin(\n    username: str = Form(...),\n    id: int = Form(...),\n    file: UploadFile = File(...),\n):\n    # Save uploaded file\n    os.makedirs('uploads', exist_ok=True)\n    with open(f'uploads/{file.filename}', 'wb') as f:\n        shutil.copyfileobj(file.file, f)\n    USERS.append({'id': id, 'username': username})\n    return {'status': 'ok', 'user': username, 'file': file.filename}\n\nif __name__ == '__main__':\n    uvicorn.run(app, host='0.0.0.0', port=8000)",
+                    },
+                    {
+                        "name": "run.sh",
+                        "lang": "bash",
+                        "code": "# Install FastAPI + uvicorn\npip install fastapi uvicorn python-multipart\n\n# Run the server\npython main.py\n\n# Open index.html in a browser (double-click the file)\n# Try: type a name in the form, upload a file, click Login\n# Then click 'Click To Get' to see the user list",
+                    },
+                ],
+                "explanation": "This is the foundational full-stack pattern. Step by step: (1) The HTML form collects username + id + file. method='post' sends it to /signin. enctype='multipart/form-data' is REQUIRED because the form has a file input — without it, the upload silently fails. (2) FastAPI's @app.post('/signin') receives the form fields via Form(...) and the file via UploadFile. shutil.copyfileobj streams the file to disk without loading it all into memory. (3) The 'Click To Get' button calls fetch('http://127.0.0.1:8000/get-users') which returns JSON. await res.json() parses it. (4) setInterval updates the clock every 1000ms. (5) The 'input' event listener mirrors the text field into the <h3> on every keystroke. CORS middleware is needed because the browser loads index.html from file:// but calls the API at http://127.0.0.1:8000 — different origins. Without CORS, the browser blocks the request.",
+                "used_in": "OpenBenchML's login.html + auth.py use this exact pattern: form POSTs to /login, FastAPI validates + sets a JWT cookie, the next page loads.",
+            },
+            {
+                "slug": "project-crud-api",
+                "title": "CRUD API with FastAPI + SQLAlchemy",
+                "summary": "Create, Read, Update, Delete users — the four operations every backend needs. SQLite + Pydantic + SQLAlchemy.",
+                "files": [
+                    {
+                        "name": "main.py",
+                        "lang": "python",
+                        "code": "from fastapi import FastAPI, HTTPException, Depends\nfrom pydantic import BaseModel\nfrom sqlalchemy import Column, Integer, String, create_engine\nfrom sqlalchemy.orm import sessionmaker, declarative_base, Session\nimport uvicorn\n\n# --- DB setup ---\nengine = create_engine('sqlite:///users.db', connect_args={'check_same_thread': False})\nSessionLocal = sessionmaker(bind=engine)\nBase = declarative_base()\n\nclass User(Base):\n    __tablename__ = 'users'\n    id = Column(Integer, primary_key=True)\n    name = Column(String, unique=True)\n    email = Column(String)\n\nBase.metadata.create_all(engine)\n\n# --- Pydantic schema ---\nclass UserIn(BaseModel):\n    name: str\n    email: str\n\nclass UserOut(BaseModel):\n    id: int\n    name: str\n    email: str\n    class Config: from_attributes = True\n\n# --- FastAPI ---\napp = FastAPI()\n\ndef get_db():\n    db = SessionLocal()\n    try: yield db\n    finally: db.close()\n\n@app.post('/users', response_model=UserOut)\ndef create(u: UserIn, db: Session = Depends(get_db)):\n    user = User(name=u.name, email=u.email)\n    db.add(user); db.commit(); db.refresh(user)\n    return user\n\n@app.get('/users', response_model=list[UserOut])\ndef list_all(db: Session = Depends(get_db)):\n    return db.query(User).all()\n\n@app.get('/users/{uid}', response_model=UserOut)\ndef read(uid: int, db: Session = Depends(get_db)):\n    u = db.query(User).filter(User.id == uid).first()\n    if not u: raise HTTPException(404, 'not found')\n    return u\n\n@app.put('/users/{uid}', response_model=UserOut)\ndef update(uid: int, body: UserIn, db: Session = Depends(get_db)):\n    u = db.query(User).filter(User.id == uid).first()\n    if not u: raise HTTPException(404)\n    u.name = body.name; u.email = body.email\n    db.commit(); db.refresh(u); return u\n\n@app.delete('/users/{uid}')\ndef delete(uid: int, db: Session = Depends(get_db)):\n    u = db.query(User).filter(User.id == uid).first()\n    if not u: raise HTTPException(404)\n    db.delete(u); db.commit(); return {'deleted': uid}\n\nif __name__ == '__main__':\n    uvicorn.run(app, host='0.0.0.0', port=8000)",
+                    },
+                    {
+                        "name": "test.sh",
+                        "lang": "bash",
+                        "code": "# Create a user\ncurl -X POST http://localhost:8000/users \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"name\":\"Ada\",\"email\":\"ada@x.com\"}'\n\n# List all users\ncurl http://localhost:8000/users\n\n# Get user 1\ncurl http://localhost:8000/users/1\n\n# Update user 1\ncurl -X PUT http://localhost:8000/users/1 \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"name\":\"Ada L\",\"email\":\"ada@y.com\"}'\n\n# Delete user 1\ncurl -X DELETE http://localhost:8000/users/1",
+                    },
+                ],
+                "explanation": "CRUD = Create, Read, Update, Delete — the four operations every data app needs. The pattern: (1) SQLAlchemy model maps a Python class to a DB table. Column(Integer, primary_key=True) marks the id. (2) Pydantic schemas (UserIn for input, UserOut for output) validate and serialise. from_attributes=True lets Pydantic read from ORM objects. (3) @app.post creates, @app.get reads, @app.put updates, @app.delete deletes. (4) Depends(get_db) gives each request its own DB session and closes it automatically. (5) HTTPException(404) returns a proper 404 with a JSON error body. (6) response_model=UserOut means FastAPI validates the response against the schema before sending — leaks nothing extra. Test with curl, the Swagger UI at /docs, or fetch() from a browser.",
+                "used_in": "OpenBenchML's models.py, datasets.py, competitions.py all follow this exact CRUD pattern with SQLAlchemy + Pydantic.",
+            },
+            {
+                "slug": "project-docker-fastapi",
+                "title": "Dockerize a FastAPI App",
+                "summary": "Package a FastAPI app into a Docker image. Same image runs on your laptop, Render, AWS, anywhere.",
+                "files": [
+                    {
+                        "name": "app/main.py",
+                        "lang": "python",
+                        "code": "from fastapi import FastAPI\napp = FastAPI()\n\n@app.get('/')\nasync def root():\n    return {'message': 'Hello from Docker!', 'host': 'container'}\n\n@app.get('/health')\nasync def health():\n    return {'status': 'healthy'}",
+                    },
+                    {
+                        "name": "requirements.txt",
+                        "lang": "text",
+                        "code": "fastapi==0.104.1\nuvicorn[standard]==0.24.0",
+                    },
+                    {
+                        "name": "Dockerfile",
+                        "lang": "dockerfile",
+                        "code": "# Start from a slim Python base image\nFROM python:3.11-slim\n\n# Working directory inside the container\nWORKDIR /app\n\n# Install deps first (cached layer — rebuilds only when requirements.txt changes)\nCOPY requirements.txt .\nRUN pip install --no-cache-dir -r requirements.txt\n\n# Copy the rest of the code\nCOPY . .\n\n# Expose the port the app runs on\nEXPOSE 8000\n\n# Run with uvicorn, bound to all interfaces\nCMD [\"uvicorn\", \"app.main:app\", \"--host\", \"0.0.0.0\", \"--port\", \"8000\"]",
+                    },
+                    {
+                        "name": "docker-compose.yml",
+                        "lang": "yaml",
+                        "code": "version: '3.9'\nservices:\n  api:\n    build: .\n    ports:\n      - '8000:8000'\n    volumes:\n      - ./app:/app/app    # live-reload during dev\n    environment:\n      - ENV=development\n    restart: unless-stopped",
+                    },
+                    {
+                        "name": "run.sh",
+                        "lang": "bash",
+                        "code": "# Build the image (first time, or after requirements change)\ndocker build -t myapi .\n\n# Run a single container\ndocker run -p 8000:8000 myapi\n\n# OR use docker-compose (recommended — handles volumes, env, restart)\ndocker-compose up --build\n\n# Test it\ncurl http://localhost:8000/\n# {\"message\":\"Hello from Docker!\",\"host\":\"container\"}\n\n# View logs\ndocker-compose logs -f api\n\n# Stop\ndocker-compose down",
+                    },
+                ],
+                "explanation": "Docker packages your app + dependencies + OS into a single image that runs identically everywhere. The Dockerfile is the recipe: (1) FROM python:3.11-slim — start from a minimal Python base. (2) WORKDIR /app — set the working directory. (3) COPY requirements.txt + RUN pip install — install deps FIRST so this layer is cached; rebuilding after a code change skips the slow pip install. (4) COPY . . — copy the code. (5) EXPOSE 8000 — document the port. (6) CMD [...] — the command to run when the container starts. docker-compose.yml declares the service: build from current dir, map port 8000, mount ./app as a volume for live-reload, restart on crash. The big wins: no more 'works on my machine', reproducible builds, easy rollback (just run an older image).",
+                "used_in": "OpenBenchML's Dockerfile + docker-compose.yml at the project root. The same image runs on Render and on the Oracle Cloud VM.",
+            },
+            {
+                "slug": "project-linear-regression",
+                "title": "Linear Regression with scikit-learn",
+                "summary": "Train a model on (X, y) data, predict on new X, score with MSE + R². The 'hello world' of ML.",
+                "files": [
+                    {
+                        "name": "train.py",
+                        "lang": "python",
+                        "code": "import numpy as np\nfrom sklearn.linear_model import LinearRegression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_squared_error, r2_score\nimport pickle, matplotlib.pyplot as plt\n\n# Generate synthetic data: y = 3x + 2 + noise\nnp.random.seed(42)\nX = np.random.uniform(0, 10, size=(100, 1))\ny = 3 * X.ravel() + 2 + np.random.normal(0, 1, 100)\n\n# Split into train (80%) + test (20%)\nX_tr, X_te, y_tr, y_te = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# Train\nmodel = LinearRegression()\nmodel.fit(X_tr, y_tr)\nprint(f'coef={model.coef_}, intercept={model.intercept_:.3f}')\n\n# Predict + score\npreds = model.predict(X_te)\nprint(f'MSE = {mean_squared_error(y_te, preds):.3f}')\nprint(f'R² = {r2_score(y_te, preds):.3f}')\n\n# Save the model to a pickle file (this is what OpenBenchML uploads)\nwith open('model.pkl', 'wb') as f:\n    pickle.dump(model, f)\nprint('saved model.pkl')\n\n# Plot\nplt.scatter(X_te, y_te, label='actual', alpha=0.6)\nplt.plot(X_te, preds, 'r-', label='predicted')\nplt.legend(); plt.xlabel('X'); plt.ylabel('y')\nplt.savefig('plot.png', dpi=100, bbox_inches='tight')",
+                    },
+                    {
+                        "name": "predict.py",
+                        "lang": "python",
+                        "code": "import pickle, numpy as np\n\n# Load the saved model\nwith open('model.pkl', 'rb') as f:\n    model = pickle.load(f)\n\n# Predict on new data\nX_new = np.array([[5.0], [7.5], [10.0]])\nprint('predictions:', model.predict(X_new))",
+                    },
+                    {
+                        "name": "run.sh",
+                        "lang": "bash",
+                        "code": "pip install scikit-learn numpy matplotlib\n\npython train.py\n# coef=[2.99], intercept=2.02\n# MSE = 0.81, R² = 0.97\n# saved model.pkl\n\npython predict.py\n# predictions: [17.0 24.5 32.0]",
+                    },
+                ],
+                "explanation": "Linear regression fits a line y = mx + b to the data. The model finds m (coef_) and b (intercept_) that minimise the mean squared error between predictions and actual y. Steps: (1) Generate synthetic data — here y = 3x + 2 + noise, so a good model should recover m≈3, b≈2. (2) train_test_split holds out 20% of the data for honest evaluation — never score on training data, it's cheating. (3) model.fit(X_tr, y_tr) runs the actual learning. (4) model.predict(X_te) generates predictions. (5) mean_squared_error and r2_score measure quality. R²=0.97 means the model explains 97% of the variance — excellent. (6) pickle.dump saves the trained model to a file. This .pkl file is exactly what OpenBenchML's upload page accepts — you train locally, upload the pickle, and the platform benchmarks it against a holdout set.",
+                "used_in": "app/routes/benchmark.py loads the uploaded .pkl, calls predict() on the holdout set, and computes accuracy/F1/RMSE. This mini-project is the exact workflow.",
+            },
+            {
+                "slug": "project-todo-localstorage",
+                "title": "Todo App with localStorage",
+                "summary": "Pure frontend — no backend, no server. Add, complete, delete todos. They survive page reload via localStorage.",
+                "files": [
+                    {
+                        "name": "index.html",
+                        "lang": "html",
+                        "code": "<!DOCTYPE html>\n<html>\n<head>\n  <title>Todo</title>\n  <style>\n    body { font-family: sans-serif; max-width: 480px; margin: 2rem auto; }\n    .todo { display: flex; gap: 0.5rem; align-items: center; padding: 0.5rem;\n            border-bottom: 1px solid #eee; }\n    .todo.done span { text-decoration: line-through; color: #999; }\n    input[type='text'] { flex: 1; padding: 0.5rem; }\n    button { padding: 0.5rem 1rem; cursor: pointer; }\n  </style>\n</head>\n<body>\n  <h1>My Todos</h1>\n  <form id='form'>\n    <input type='text' id='input' placeholder='What to do?' required>\n    <button>Add</button>\n  </form>\n  <div id='list'></div>\n\n  <script>\n    // Load todos from localStorage, or start empty\n    let todos = JSON.parse(localStorage.getItem('todos') || '[]');\n\n    function save() {\n      localStorage.setItem('todos', JSON.stringify(todos));\n    }\n\n    function render() {\n      const list = document.getElementById('list');\n      list.innerHTML = '';\n      todos.forEach((t, i) => {\n        const div = document.createElement('div');\n        div.className = 'todo' + (t.done ? ' done' : '');\n        div.innerHTML = `\n          <input type='checkbox' ${t.done ? 'checked' : ''}\n                 onchange='toggle(${i})'>\n          <span>${t.text}</span>\n          <button onclick='del(${i})'>x</button>\n        `;\n        list.appendChild(div);\n      });\n    }\n\n    function toggle(i) {\n      todos[i].done = !todos[i].done;\n      save(); render();\n    }\n\n    function del(i) {\n      todos.splice(i, 1);\n      save(); render();\n    }\n\n    document.getElementById('form').addEventListener('submit', (e) => {\n      e.preventDefault();\n      const input = document.getElementById('input');\n      todos.push({text: input.value, done: false});\n      input.value = '';\n      save(); render();\n    });\n\n    render();  // initial paint\n  </script>\n</body>\n</html>",
+                    },
+                ],
+                "explanation": "A pure-frontend todo app — no server, no database, no API calls. The state lives in localStorage, so todos survive page reloads. Pattern: (1) Load: JSON.parse(localStorage.getItem('todos') || '[]') — read the saved array, or start with an empty one. (2) save() writes the array back to localStorage on every change. (3) render() rebuilds the DOM from the array. (4) toggle() and del() mutate the array, then save + render. (5) The form's submit listener adds a new todo (use submit, not click, so Enter works). The key insight: the array is the single source of truth; the DOM is just a reflection of it. Every mutation goes: update array → save to localStorage → re-render. This 'state → render' pattern is the foundation of React, Vue, and every modern frontend framework — but you can do it in vanilla JS.",
+                "used_in": "The notebook's cell array follows the same pattern: cells = [...]; save to localStorage (planned); render() rebuilds the DOM from the array.",
+            },
+            {
+                "slug": "project-websocket-chat",
+                "title": "WebSocket Chat Room",
+                "summary": "Real-time chat — messages broadcast to every connected browser instantly. FastAPI WS + vanilla JS client.",
+                "files": [
+                    {
+                        "name": "main.py",
+                        "lang": "python",
+                        "code": "from fastapi import FastAPI, WebSocket, WebSocketDisconnect\nfrom fastapi.responses import HTMLResponse\nimport uvicorn\n\napp = FastAPI()\n\n# Track all connected clients\nclients: set[WebSocket] = set()\n\n@app.get('/')\nasync def get():\n    return HTMLResponse(open('index.html').read())\n\n@app.websocket('/ws')\nasync def ws_endpoint(ws: WebSocket):\n    await ws.accept()\n    clients.add(ws)\n    try:\n        while True:\n            msg = await ws.receive_text()\n            # Broadcast to every connected client\n            for c in list(clients):\n                await c.send_text(msg)\n    except WebSocketDisconnect:\n        clients.remove(ws)\n\nif __name__ == '__main__':\n    uvicorn.run(app, host='0.0.0.0', port=8000)",
+                    },
+                    {
+                        "name": "index.html",
+                        "lang": "html",
+                        "code": "<!DOCTYPE html>\n<html>\n<head><title>Chat</title>\n<style>\n  #msgs { height: 300px; overflow-y: scroll; border: 1px solid #ccc;\n          padding: 0.5rem; margin-bottom: 0.5rem; }\n  .msg { margin: 0.25rem 0; }\n  input { padding: 0.5rem; }\n</style></head>\n<body>\n  <div id='msgs'></div>\n  <input id='input' placeholder='type a message' size='50'>\n\n  <script>\n    const ws = new WebSocket('ws://' + location.host + '/ws');\n    const msgs = document.getElementById('msgs');\n    const input = document.getElementById('input');\n\n    ws.onmessage = (e) => {\n      const div = document.createElement('div');\n      div.className = 'msg';\n      div.textContent = e.data;\n      msgs.appendChild(div);\n      msgs.scrollTop = msgs.scrollHeight;  // auto-scroll\n    };\n\n    input.addEventListener('keydown', (e) => {\n      if (e.key === 'Enter' && input.value.trim()) {\n        ws.send(input.value);\n        input.value = '';\n      }\n    });\n\n    ws.onclose = () => {\n      setTimeout(() => location.reload(), 2000);  // reconnect\n    };\n  </script>\n</body>\n</html>",
+                    },
+                    {
+                        "name": "run.sh",
+                        "lang": "bash",
+                        "code": "pip install fastapi uvicorn\npython main.py\n\n# Open http://localhost:8000 in TWO browser tabs\n# Type a message in either tab — it appears in both instantly",
+                    },
+                ],
+                "explanation": "WebSockets give you a persistent bidirectional connection — either side can send at any time, unlike HTTP where the client must ask. The chat flow: (1) Browser opens ws://localhost:8000/ws. The server accepts and adds the WebSocket to a set of connected clients. (2) User types a message and hits Enter. ws.send(input.value) sends it to the server. (3) The server receives it via ws.receive_text(), then loops over every connected client and sends the same message. This is the 'broadcast' pattern — one message goes to everyone. (4) Each browser's ws.onmessage fires, appends the message to the DOM, and auto-scrolls to the bottom. (5) On disconnect (user closes tab), the WebSocketDisconnect exception fires, the server removes the client from the set. (6) ws.onclose on the client triggers a reload after 2s — basic auto-reconnect. Open two browser tabs to see real-time sync.",
+                "used_in": "OpenBenchML's realtime.html + app/main.py use this exact pattern for the live leaderboard — when a benchmark finishes, the result is broadcast to every connected browser.",
+            },
+            {
+                "slug": "project-jwt-auth",
+                "title": "JWT Auth Flow (Login → Cookie → Protected Route)",
+                "summary": "The complete auth loop: register, login (get JWT in cookie), access a protected route, logout. The backbone of OpenBenchML.",
+                "files": [
+                    {
+                        "name": "main.py",
+                        "lang": "python",
+                        "code": "from fastapi import FastAPI, HTTPException, Request, Response, Depends\nfrom fastapi.responses import HTMLResponse\nfrom pydantic import BaseModel\nfrom jose import jwt, JWTError\nfrom datetime import datetime, timedelta, timezone\nimport uvicorn, secrets\n\napp = FastAPI()\nSECRET = secrets.token_hex(32)  # in prod, load from env var\nALGO = 'HS256'\n\n# Fake user DB — use a real DB in production\nUSERS = {}\n\nclass LoginIn(BaseModel):\n    username: str\n    password: str\n\ndef make_token(user_id: str) -> str:\n    payload = {\n        'sub': user_id,\n        'exp': datetime.now(timezone.utc) + timedelta(hours=1),\n    }\n    return jwt.encode(payload, SECRET, algorithm=ALGO)\n\ndef current_user(request: Request) -> str:\n    token = request.cookies.get('token')\n    if not token:\n        raise HTTPException(401, 'not logged in')\n    try:\n        payload = jwt.decode(token, SECRET, algorithms=[ALGO])\n        return payload['sub']\n    except JWTError:\n        raise HTTPException(401, 'bad token')\n\n@app.post('/register')\nasync def register(body: LoginIn):\n    if body.username in USERS:\n        raise HTTPException(400, 'exists')\n    USERS[body.username] = body.password  # hash in prod!\n    return {'status': 'registered'}\n\n@app.post('/login')\nasync def login(body: LoginIn, response: Response):\n    if USERS.get(body.username) != body.password:\n        raise HTTPException(401, 'bad credentials')\n    token = make_token(body.username)\n    response.set_cookie(\n        'token', token,\n        httponly=True,      # JS can't read it — XSS-safe\n        samesite='lax',     # CSRF defence\n        max_age=3600,\n    )\n    return {'status': 'logged in'}\n\n@app.get('/me')\nasync def me(user: str = Depends(current_user)):\n    return {'user': user, 'secret_data': 'only logged-in users see this'}\n\n@app.post('/logout')\nasync def logout(response: Response):\n    response.delete_cookie('token')\n    return {'status': 'logged out'}\n\nif __name__ == '__main__':\n    uvicorn.run(app, host='0.0.0.0', port=8000)",
+                    },
+                    {
+                        "name": "test.sh",
+                        "lang": "bash",
+                        "code": "# 1. Register\ncurl -X POST http://localhost:8000/register \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"username\":\"ada\",\"password\":\"secret\"}'\n\n# 2. Login — saves JWT in a cookie jar\ncurl -c cookies.txt -X POST http://localhost:8000/login \\\n  -H 'Content-Type: application/json' \\\n  -d '{\"username\":\"ada\",\"password\":\"secret\"}'\n\n# 3. Access protected route — sends the cookie\ncurl -b cookies.txt http://localhost:8000/me\n# {\"user\":\"ada\",\"secret_data\":\"only logged-in users see this\"}\n\n# 4. Without the cookie — 401\ncurl http://localhost:8000/me\n# {\"detail\":\"not logged in\"}\n\n# 5. Logout\ncurl -b cookies.txt -c cookies.txt -X POST http://localhost:8000/logout",
+                    },
+                ],
+                "explanation": "JWT auth has 4 steps: (1) REGISTER — user picks a username + password, server stores them (hashed in production — never store plaintext!). (2) LOGIN — user submits credentials, server verifies, then creates a JWT containing the user id + expiry, signs it with SECRET, and sets it as an httpOnly cookie. httpOnly means JavaScript cannot read the cookie — defeats XSS token theft. (3) PROTECTED ROUTE — every request automatically sends the cookie. The current_user dependency decodes the JWT, verifies the signature (if SECRET is wrong, decode fails), checks expiry, and returns the user id. If anything fails, 401. (4) LOGOUT — delete the cookie. The key insight: the server is stateless — it doesn't remember who's logged in. The JWT in the cookie IS the proof. Anyone with the SECRET can forge tokens, so SECRET must be long, random, and never committed to git.",
+                "used_in": "app/routes/auth.py implements this exact flow. SECRET_KEY comes from env var. get_current_user_from_cookie is the dependency used on every protected route.",
+            },
+            {
+                "slug": "project-file-upload",
+                "title": "File Upload + Save + List",
+                "summary": "Upload files via multipart form, save to disk with a UUID name, list all uploaded files. The pattern behind OpenBenchML's model upload.",
+                "files": [
+                    {
+                        "name": "main.py",
+                        "lang": "python",
+                        "code": "from fastapi import FastAPI, UploadFile, File, HTTPException\nfrom fastapi.responses import HTMLResponse, FileResponse\nfrom pathlib import Path\nimport uuid, uvicorn\n\napp = FastAPI()\nUPLOAD_DIR = Path('uploads')\nUPLOAD_DIR.mkdir(exist_ok=True)\n\n@app.get('/')\nasync def form():\n    return HTMLResponse('''\n      <form method='post' action='/upload' enctype='multipart/form-data'>\n        <input type='file' name='file' required>\n        <button>Upload</button>\n      </form>\n      <a href='/files'>View uploaded files</a>\n    ''')\n\n@app.post('/upload')\nasync def upload(file: UploadFile = File(...)):\n    # Validate extension\n    if not file.filename.endswith(('.pkl', '.csv', '.png', '.txt')):\n        raise HTTPException(400, 'unsupported file type')\n\n    # Generate a unique name to avoid collisions\n    ext = Path(file.filename).suffix\n    safe_name = f'{uuid.uuid4().hex}{ext}'\n    dest = UPLOAD_DIR / safe_name\n\n    # Stream to disk (don't load into memory — large files)\n    with open(dest, 'wb') as f:\n        while chunk := await file.read(1024 * 1024):  # 1MB chunks\n            f.write(chunk)\n\n    return {'saved_as': safe_name, 'size_bytes': dest.stat().st_size}\n\n@app.get('/files')\nasync def list_files():\n    files = [\n        {'name': f.name, 'size': f.stat().st_size}\n        for f in UPLOAD_DIR.iterdir() if f.is_file()\n    ]\n    return files\n\n@app.get('/download/{name}')\nasync def download(name: str):\n    f = UPLOAD_DIR / name\n    if not f.exists():\n        raise HTTPException(404)\n    return FileResponse(f)\n\nif __name__ == '__main__':\n    uvicorn.run(app, host='0.0.0.0', port=8000)",
+                    },
+                    {
+                        "name": "run.sh",
+                        "lang": "bash",
+                        "code": "pip install fastapi uvicorn python-multipart\npython main.py\n\n# Open http://localhost:8000 in a browser\n# Pick a .pkl, .csv, .png, or .txt file → Upload\n# Click 'View uploaded files' to see the saved list\n# Each file gets a UUID name to prevent collisions",
+                    },
+                ],
+                "explanation": "File upload has 3 critical details: (1) enctype='multipart/form-data' on the form — without it, the file isn't sent. (2) UploadFile = File(...) on the server side — FastAPI streams the file, it doesn't load it all into RAM. (3) Stream to disk in chunks — `while chunk := await file.read(1MB): f.write(chunk)`. Reading the whole file into memory would crash the server on a 2GB upload. Other good practices: validate the extension (defends against malicious uploads), generate a UUID filename (prevents collisions and path traversal attacks — never trust the user's filename), and store size for display. The download endpoint uses FileResponse which streams the file back to the browser.",
+                "used_in": "app/routes/models.py — model .pkl upload. app/routes/datasets.py — dataset .csv upload. Both use this exact streaming pattern.",
+            },
+            {
+                "slug": "project-sqlite-crud",
+                "title": "SQLite + SQLAlchemy from Scratch",
+                "summary": "Set up a SQLite database, define models, run queries, run migrations. The data layer behind every backend.",
+                "files": [
+                    {
+                        "name": "models.py",
+                        "lang": "python",
+                        "code": "from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, create_engine\nfrom sqlalchemy.orm import declarative_base, relationship\nfrom datetime import datetime\n\nBase = declarative_base()\n\nclass Author(Base):\n    __tablename__ = 'authors'\n    id = Column(Integer, primary_key=True)\n    name = Column(String, unique=True, nullable=False)\n    email = Column(String)\n    posts = relationship('Post', back_populates='author')\n\nclass Post(Base):\n    __tablename__ = 'posts'\n    id = Column(Integer, primary_key=True)\n    title = Column(String, nullable=False)\n    body = Column(String)\n    rating = Column(Float, default=0.0)\n    created_at = Column(DateTime, default=datetime.utcnow)\n    author_id = Column(Integer, ForeignKey('authors.id'))\n    author = relationship('Author', back_populates='posts')\n\nengine = create_engine('sqlite:///blog.db', echo=True)\nBase.metadata.create_all(engine)",
+                    },
+                    {
+                        "name": "queries.py",
+                        "lang": "python",
+                        "code": "from sqlalchemy.orm import sessionmaker\nfrom models import engine, Author, Post\n\nSession = sessionmaker(bind=engine)\nsession = Session()\n\n# Create\nada = Author(name='Ada', email='ada@x.com')\nsession.add(ada)\nsession.commit()  # writes to DB, ada.id is now set\n\npost1 = Post(title='Hello', body='First post', author=ada)\npost2 = Post(title='World', body='Second post', rating=4.5, author=ada)\nsession.add_all([post1, post2])\nsession.commit()\n\n# Read\nall_posts = session.query(Post).all()\nprint('all posts:', [p.title for p in all_posts])\n\n# Filter\ntop = session.query(Post).filter(Post.rating >= 4).all()\nprint('top rated:', [p.title for p in top])\n\n# Order + limit\nrecent = (session.query(Post)\n          .order_by(Post.created_at.desc())\n          .limit(5).all())\n\n# Join via relationship\nada_posts = session.query(Author).filter_by(name='Ada').first().posts\nprint('ada posts:', [p.title for p in ada_posts])\n\n# Update\npost1.rating = 5.0\nsession.commit()\n\n# Delete\nsession.delete(post2)\nsession.commit()\n\nsession.close()",
+                    },
+                    {
+                        "name": "run.sh",
+                        "lang": "bash",
+                        "code": "pip install sqlalchemy\n\n# Create tables\npython models.py\n\n# Run CRUD operations\npython queries.py\n# SQL queries are echoed to stdout (echo=True)\n\n# Inspect the DB\nsqlite3 blog.db\n# sqlite> .tables\n# authors  posts\n# sqlite> SELECT * FROM authors;\n# 1|Ada|ada@x.com",
+                    },
+                ],
+                "explanation": "SQLAlchemy is the Python ORM — you write Python classes, it generates SQL. The flow: (1) models.py defines Author and Post classes. Each Column(...) maps to a DB column. primary_key=True marks the id. ForeignKey('authors.id') creates a one-to-many relationship (one author, many posts). relationship('Post', back_populates='author') lets you do ada.posts and post.author — SQLAlchemy runs the JOIN under the hood. (2) create_engine('sqlite:///blog.db') connects to a local SQLite file. echo=True prints every SQL query — great for learning. (3) Base.metadata.create_all(engine) inspects the models and runs CREATE TABLE. (4) queries.py shows the 4 CRUD patterns: create (add + commit), read (query.all / query.filter), update (mutate attribute + commit), delete (session.delete + commit). The session is a unit of work — changes are tracked in memory until commit() flushes them to the DB.",
+                "used_in": "app/database/models.py defines User, Model, Dataset, BenchmarkJob, LeaderboardEntry, Competition, Comment. app/database/db.py creates the engine + session factory.",
+            },
+            {
+                "slug": "project-rest-client",
+                "title": "Frontend REST Client (fetch + render table)",
+                "summary": "A vanilla JS frontend that calls a REST API, renders results in a table, and supports add/delete — no framework.",
+                "files": [
+                    {
+                        "name": "index.html",
+                        "lang": "html",
+                        "code": "<!DOCTYPE html>\n<html>\n<head>\n  <title>Users</title>\n  <style>\n    body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; }\n    table { width: 100%; border-collapse: collapse; }\n    th, td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #ddd; }\n    form { display: flex; gap: 0.5rem; margin-bottom: 1rem; }\n    input { padding: 0.4rem; flex: 1; }\n    button { padding: 0.4rem 1rem; cursor: pointer; }\n  </style>\n</head>\n<body>\n  <h1>Users</h1>\n  <form id='add'>\n    <input id='name' placeholder='name' required>\n    <input id='email' placeholder='email' required>\n    <button>Add</button>\n  </form>\n  <table>\n    <thead><tr><th>ID</th><th>Name</th><th>Email</th><th></th></tr></thead>\n    <tbody id='rows'></tbody>\n  </table>\n\n  <script>\n    const API = 'http://localhost:8000';  // change to your API URL\n\n    async function load() {\n      const res = await fetch(API + '/users');\n      const users = await res.json();\n      const rows = document.getElementById('rows');\n      rows.innerHTML = users.map(u => `\n        <tr>\n          <td>${u.id}</td>\n          <td>${u.name}</td>\n          <td>${u.email}</td>\n          <td><button onclick='del(${u.id})'>x</button></td>\n        </tr>\n      `).join('');\n    }\n\n    async function del(id) {\n      await fetch(`${API}/users/${id}`, {method: 'DELETE'});\n      load();  // refresh\n    }\n\n    document.getElementById('add').addEventListener('submit', async (e) => {\n      e.preventDefault();\n      const name = document.getElementById('name').value;\n      const email = document.getElementById('email').value;\n      await fetch(API + '/users', {\n        method: 'POST',\n        headers: {'Content-Type': 'application/json'},\n        body: JSON.stringify({name, email}),\n      });\n      e.target.reset();\n      load();  // refresh\n    });\n\n    load();  // initial paint\n  </script>\n</body>\n</html>",
+                    },
+                    {
+                        "name": "main.py",
+                        "lang": "python",
+                        "code": "# Use the project-crud-api main.py here\n# (See 'CRUD API with FastAPI + SQLAlchemy' mini-project)",
+                    },
+                ],
+                "explanation": "This is the standard SPA (single-page app) pattern without a framework. The flow: (1) load() fetches all users from the API and renders them as table rows using template literals. The .map().join('') idiom turns an array into an HTML string. (2) The Add form submits a POST request with JSON body, then calls load() to refresh. (3) The delete button calls del(id) which sends DELETE, then refreshes. The key insight: the table is always a reflection of the API state. Every mutation (add/delete) is followed by a re-fetch. This is 'request → render' — simpler than the localStorage todo app because the source of truth is the server, not the browser. To add: loading spinners, error handling (try/catch around fetch), and optimistic updates (update the DOM first, then send the request).",
+                "used_in": "OpenBenchML's dashboard, leaderboard, my_models pages all follow this pattern: fetch JSON from the API, render into a table or card grid.",
+            },
+            {
+                "slug": "project-metrics-dashboard",
+                "title": "Mini Metrics Dashboard (chart + API)",
+                "summary": "A dashboard that fetches metrics from FastAPI and renders a live bar chart with vanilla JS + SVG. No chart library.",
+                "files": [
+                    {
+                        "name": "main.py",
+                        "lang": "python",
+                        "code": "from fastapi import FastAPI\nfrom fastapi.responses import HTMLResponse\nfrom fastapi.middleware.cors import CORSMiddleware\nimport random, uvicorn\n\napp = FastAPI()\napp.add_middleware(CORSMiddleware, allow_origins=['*'], allow_methods=['*'])\n\n@app.get('/metrics')\nasync def metrics():\n    # In real life, read from a DB\n    return {\n        'cpu': random.uniform(10, 90),\n        'memory': random.uniform(20, 80),\n        'disk': random.uniform(30, 70),\n        'network': random.uniform(5, 95),\n    }\n\nif __name__ == '__main__':\n    uvicorn.run(app, host='0.0.0.0', port=8000)",
+                    },
+                    {
+                        "name": "index.html",
+                        "lang": "html",
+                        "code": "<!DOCTYPE html>\n<html>\n<head>\n  <title>Dashboard</title>\n  <style>\n    body { font-family: sans-serif; margin: 2rem; }\n    .chart { display: flex; gap: 1rem; align-items: flex-end;\n             height: 240px; border-bottom: 2px solid #333; padding: 1rem; }\n    .bar { width: 60px; background: #a0c000; border-radius: 4px 4px 0 0;\n           position: relative; transition: height 0.5s; }\n    .bar .label { position: absolute; top: -1.5rem; left: 0; right: 0;\n                  text-align: center; font-size: 0.8rem; }\n    .bar .val { position: absolute; bottom: 0.5rem; left: 0; right: 0;\n                text-align: center; color: #fff; font-weight: bold; }\n  </style>\n</head>\n<body>\n  <h1>Live Metrics</h1>\n  <div class='chart' id='chart'></div>\n\n  <script>\n    const METRICS = ['cpu', 'memory', 'disk', 'network'];\n\n    function render(data) {\n      const chart = document.getElementById('chart');\n      chart.innerHTML = METRICS.map(k => {\n        const v = data[k].toFixed(1);\n        return `<div class='bar' style='height:${v * 2.5}px'>\n          <div class='label'>${k}</div>\n          <div class='val'>${v}%</div>\n        </div>`;\n      }).join('');\n    }\n\n    async function refresh() {\n      const res = await fetch('http://localhost:8000/metrics');\n      const data = await res.json();\n      render(data);\n    }\n\n    refresh();                      // initial paint\n    setInterval(refresh, 2000);     // refresh every 2s\n  </script>\n</body>\n</html>",
+                    },
+                    {
+                        "name": "run.sh",
+                        "lang": "bash",
+                        "code": "pip install fastapi uvicorn\npython main.py &\n# Open index.html in a browser\n# Bars update every 2 seconds with new random metrics",
+                    },
+                ],
+                "explanation": "A dashboard has 3 pieces: (1) An API endpoint that returns the current metric values as JSON. (2) A render function that turns JSON into visual bars — here we use plain divs with height: value px. The CSS transition: height 0.5s makes the bars animate smoothly when the value changes. (3) A refresh loop: setInterval(refresh, 2000) calls the API and re-renders every 2 seconds. For a real dashboard you'd use a charting library (Chart.js, ECharts, D3) but the pattern is the same: fetch JSON → render → refresh on a timer. To make it real-time instead of polled, swap setInterval for a WebSocket — the server pushes new values the instant they change, no polling lag.",
+                "used_in": "OpenBenchML's dashboard + leaderboard use this pattern. The leaderboard polls /api/leaderboard every 30s (or receives WS pushes) and re-renders the table.",
             },
         ],
     },

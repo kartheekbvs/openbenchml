@@ -2000,8 +2000,13 @@ document.addEventListener('keydown', (e) => {
 
 // ─── Boot ───────────────────────────────────────────────────────────────────
 (function boot() {
-  // Start with one code cell containing the welcome code
+  // Start with one code cell. If ?prefill= was passed (from the Learn tab
+  // "Open in Notebook" button), use that code; otherwise use the welcome sample.
+  {% if prefill_code %}
+  addCodeCell({{ prefill_code | tojson }});
+  {% else %}
   addCodeCell({{ sample_code | tojson }});
+  {% endif %}
   // Auto-run the first cell to give the user some state
   setTimeout(() => {
     refreshKernelInfo();

@@ -600,6 +600,7 @@ print(f"sum(y) = {sum(y)}")
 @router.get("/notebook")
 async def notebook_page(
     request: Request,
+    prefill: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     """Render the Colab-style notebook page."""
@@ -618,12 +619,19 @@ async def notebook_page(
     import os
     notebook_server_url = os.environ.get("NOTEBOOK_SERVER_URL", "").rstrip("/") or None
 
+    # Prefill support: ?prefill=<code> pre-loads a cell from the Learn tab
+    # "Open in Notebook" button. Truncate to a sane length to avoid huge URLs.
+    prefill_code = None
+    if prefill:
+        prefill_code = prefill[:8000] if len(prefill) > 8000 else prefill
+
     return templates.TemplateResponse("notebook.html", {
         "request": request,
         "user": user,
         "sample_code": SAMPLE_CODE,
         "session_id": f"sess-{user.id}-{int(session.created_at)}",
         "notebook_server_url": notebook_server_url,
+        "prefill_code": prefill_code,
     })
 
 
