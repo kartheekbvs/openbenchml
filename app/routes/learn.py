@@ -29,6 +29,7 @@ from typing import Optional
 from app.config import APP_NAME, APP_VERSION, templates
 from app.routes.auth import get_current_user_from_cookie
 from app.database.db import SessionLocal
+from app.routes.learn_build_course import BUILD_COURSE
 
 router = APIRouter()
 
@@ -150,6 +151,9 @@ async def about_page(request: Request):
 # ═══════════════════════════════════════════════════════════════════════════
 
 LEARN_TREE = [
+    # ─── 10-Step Build Course (top of the page) ─────────────────────────
+    BUILD_COURSE,
+
     # ─── Python fundamentals ──────────────────────────────────────────────
     {
         "category": "Python",

@@ -302,6 +302,172 @@
     margin-bottom: 0.75rem;
   }
 
+  /* ─── Build course: step-specific layout ───────────────────────── */
+  .step-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.8rem;
+    background: var(--accent);
+    color: #1a1a1a;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    letter-spacing: 0.02em;
+  }
+  .step-progress-bar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 1rem;
+  }
+  .step-progress-bar .seg {
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    transition: background 0.2s;
+  }
+  .step-progress-bar .seg.done { background: var(--accent); }
+  .step-progress-bar .seg.current { background: var(--accent); opacity: 0.6; }
+
+  .goal-box, .try-box, .mistakes-box, .concept-box {
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+    line-height: 1.65;
+  }
+  .goal-box {
+    background: rgba(63,185,80,0.07);
+    border-left: 4px solid #3fb950;
+  }
+  .goal-box strong, .try-box strong, .mistakes-box strong, .concept-box strong {
+    display: block;
+    margin-bottom: 0.4rem;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .goal-box strong { color: #3fb950; }
+  .goal-box code {
+    background: rgba(63,185,80,0.12);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.85rem;
+  }
+
+  .concept-box {
+    background: rgba(88,166,255,0.06);
+    border-left: 4px solid #58a6ff;
+  }
+  .concept-box strong { color: #58a6ff; }
+  .concept-box pre {
+    background: #0d1117;
+    border: 1px solid #21262d;
+    border-radius: 6px;
+    padding: 0.85rem 1rem;
+    overflow-x: auto;
+    font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    color: #e6edf3;
+    white-space: pre;
+    margin: 0.5rem 0 0 0;
+  }
+
+  .try-box {
+    background: rgba(234,179,8,0.07);
+    border-left: 4px solid #eab308;
+  }
+  .try-box strong { color: #eab308; }
+
+  .mistakes-box {
+    background: rgba(248,81,73,0.06);
+    border-left: 4px solid #f85149;
+  }
+  .mistakes-box strong { color: #f85149; }
+  .mistakes-box ul {
+    margin: 0.5rem 0 0 0;
+    padding-left: 1.2rem;
+  }
+  .mistakes-box li {
+    margin-bottom: 0.4rem;
+  }
+  .mistakes-box li:last-child { margin-bottom: 0; }
+
+  .apply-label {
+    color: var(--text-primary);
+    font-size: 1.05rem;
+    margin: 1.5rem 0 0.5rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 600;
+  }
+  .apply-label::before {
+    content: "";
+    display: inline-block;
+    width: 4px; height: 18px;
+    background: var(--accent);
+    border-radius: 2px;
+    margin-right: 0.4rem;
+  }
+
+  .next-step-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 2rem;
+    padding: 1rem 1.25rem;
+    background: rgba(160,192,0,0.08);
+    border: 1px solid rgba(160,192,0,0.25);
+    border-radius: 10px;
+    text-decoration: none;
+    color: var(--text-primary);
+    transition: all 0.15s;
+  }
+  .next-step-link:hover {
+    background: rgba(160,192,0,0.15);
+    border-color: var(--accent);
+    transform: translateX(4px);
+  }
+  .next-step-link .ns-label {
+    font-size: 0.75rem;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+    margin-bottom: 0.15rem;
+  }
+  .next-step-link .ns-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+  }
+  .next-step-link .ns-arrow {
+    color: var(--accent);
+    font-size: 1.4rem;
+  }
+  .prev-step-link {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    padding: 0.6rem 1rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    transition: all 0.15s;
+  }
+  .prev-step-link:hover {
+    border-color: var(--accent);
+    color: var(--text-primary);
+  }
+
   .concept-content .used-in-box {
     margin-top: 1.5rem;
     padding: 0.85rem 1rem;
@@ -445,6 +611,7 @@
                   {% elif cat.slug == 'realtime' %}&#9889;
                   {% elif cat.slug == 'algorithms' %}&#127795;
                   {% elif cat.slug == 'projects' %}&#9881;&#65039;
+                  {% elif cat.slug == 'build' %}&#128640;
                   {% else %}&#128218;{% endif %}
               </div>
               <h3>{{ cat.category }}</h3>
@@ -483,6 +650,7 @@
           {% elif current_cat.slug == 'realtime' %}&#9889;
           {% elif current_cat.slug == 'algorithms' %}&#127795;
           {% elif current_cat.slug == 'projects' %}&#9881;&#65039;
+          {% elif current_cat.slug == 'build' %}&#128640;
           {% endif %}
           {{ current_cat.category }}
       </h1>
@@ -495,10 +663,12 @@
   <div class="concept-list">
       {% for c in current_cat.concepts %}
       <a class="concept-row" href="/learn/{{ c.slug }}">
-          <div class="cr-num">{{ loop.index }}</div>
+          <div class="cr-num">{% if c.step_number %}{{ c.step_number }}{% else %}{{ loop.index }}{% endif %}</div>
           <div class="cr-body">
               <div class="cr-title">{{ c.title }}</div>
-              <div class="cr-summary">{{ c.summary }}</div>
+              <div class="cr-summary">
+                {% if c.goal %}{{ c.goal }}{% else %}{{ c.summary }}{% endif %}
+              </div>
           </div>
           <div class="cr-arrow">&rsaquo;</div>
       </a>
@@ -519,10 +689,120 @@
 
   <div class="concept-page">
       <div class="concept-content">
-          <h1>{{ concept.title }}</h1>
-          <p class="concept-summary">{{ concept.summary }}</p>
+          {% if concept.step_number %}
+            {# ════════════════════════════════════════════════════════════════
+               BUILD COURSE — step-specific layout
+               ════════════════════════════════════════════════════════════════ #}
+            <span class="step-badge">&#128640; Step {{ concept.step_number }} of 10</span>
 
-          {% if concept.files %}
+            {# progress bar #}
+            <div class="step-progress-bar">
+              {% for i in range(1, 11) %}
+                <div class="seg {% if i < concept.step_number %}done{% elif i == concept.step_number %}current{% endif %}"></div>
+              {% endfor %}
+            </div>
+
+            {% if prev_concept %}
+            <a class="prev-step-link" href="/learn/{{ prev_concept.slug }}">
+              &larr; Previous: Step {{ prev_concept.step_number }} &mdash; {{ prev_concept.title }}
+            </a>
+            {% endif %}
+
+            <h1>{{ concept.title }}</h1>
+            <p class="concept-summary">{{ concept.summary }}</p>
+
+            {# Goal box #}
+            {% if concept.goal %}
+            <div class="goal-box">
+              <strong>&#127919; Goal &mdash; what you'll achieve in this step</strong>
+              {{ concept.goal }}
+            </div>
+            {% endif %}
+
+            {# Pure concept code #}
+            {% if concept.concept_code %}
+            <div class="concept-box">
+              <strong>&#128214; The basic concept</strong>
+              Learn this first. It's the pure Python/HTML idea, stripped of all app complexity.
+              <pre>{{ concept.concept_code }}</pre>
+            </div>
+            {% endif %}
+
+            {# Build files — apply the concept to OpenBenchML #}
+            {% if concept.files %}
+            <div class="apply-label">&#129518; Apply it to OpenBenchML</div>
+            <div class="project-files">
+              {% for f in concept.files %}
+              <div class="project-file">
+                <div class="file-header">
+                  <span class="file-icon">&#128196;</span>
+                  <span>{{ f.name }}</span>
+                  <span class="file-lang">{{ f.lang }}</span>
+                </div>
+                <pre>{{ f.code }}</pre>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            {# How it works #}
+            {% if concept.explanation %}
+            <h3>How it works</h3>
+            <p>{{ concept.explanation }}</p>
+            {% endif %}
+
+            {# Try yourself #}
+            {% if concept.try_yourself %}
+            <div class="try-box">
+              <strong>&#9999;&#65039; Try yourself</strong>
+              {{ concept.try_yourself }}
+            </div>
+            {% endif %}
+
+            {# Common mistakes #}
+            {% if concept.common_mistakes %}
+            <div class="mistakes-box">
+              <strong>&#9888;&#65039; Common mistakes to avoid</strong>
+              <ul>
+                {% for m in concept.common_mistakes %}
+                <li>{{ m }}</li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% endif %}
+
+            {# Used in #}
+            <div class="used-in-box">
+              <strong>&#128269; Where this is used in OpenBenchML</strong>
+              {{ concept.used_in }}
+            </div>
+
+            {# Next step link #}
+            {% if next_concept %}
+            <a class="next-step-link" href="/learn/{{ next_concept.slug }}">
+              <div>
+                <div class="ns-label">Next &mdash; Step {{ next_concept.step_number }}</div>
+                <div class="ns-title">{{ next_concept.title }}</div>
+              </div>
+              <span class="ns-arrow">&rarr;</span>
+            </a>
+            {% else %}
+            <div class="next-step-link" style="opacity:0.6; cursor:default;">
+              <div>
+                <div class="ns-label">&#127881; Course complete</div>
+                <div class="ns-title">You've built OpenBenchML. Now ship it!</div>
+              </div>
+              <span class="ns-arrow">&#10003;</span>
+            </div>
+            {% endif %}
+
+          {% elif concept.files %}
+            {# ════════════════════════════════════════════════════════════════
+               MINI PROJECT — multi-file layout
+               ════════════════════════════════════════════════════════════════ #}
+            <h1>{{ concept.title }}</h1>
+            <p class="concept-summary">{{ concept.summary }}</p>
+
             <span class="project-badge">&#128640; Mini Project &middot; {{ concept.files | length }} files</span>
             <h3>Project files</h3>
             <div class="project-files">
@@ -552,18 +832,29 @@
               &#9889; Open in Notebook
             </a>
             {% endif %}
+
+            <div class="used-in-box">
+              <strong>&#128269; Where this is used in OpenBenchML</strong>
+              {{ concept.used_in }}
+            </div>
           {% else %}
+            {# ════════════════════════════════════════════════════════════════
+               REGULAR CONCEPT — single code block
+               ════════════════════════════════════════════════════════════════ #}
+            <h1>{{ concept.title }}</h1>
+            <p class="concept-summary">{{ concept.summary }}</p>
+
             <h3>Code example</h3>
             <pre class="code-block">{{ concept.code }}</pre>
 
             <h3>How it works</h3>
             <p>{{ concept.explanation }}</p>
-          {% endif %}
 
-          <div class="used-in-box">
+            <div class="used-in-box">
               <strong>&#128269; Where this is used in OpenBenchML</strong>
               {{ concept.used_in }}
-          </div>
+            </div>
+          {% endif %}
       </div>
 
       <div class="concept-sidebar">
