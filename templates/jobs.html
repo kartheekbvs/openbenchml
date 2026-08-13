@@ -16,11 +16,11 @@
 <div class="card" style="margin-bottom: 1.5rem; padding: 1rem 1.25rem;">
     <div class="d-flex align-center gap-2" style="flex-wrap: wrap;">
         <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-right: 0.25rem;">Filter:</span>
-        <button class="btn btn-sm btn-primary filter-btn" data-status="all">All</button>
-        <button class="btn btn-sm btn-secondary filter-btn" data-status="pending">Pending</button>
-        <button class="btn btn-sm btn-secondary filter-btn" data-status="running">Running</button>
-        <button class="btn btn-sm btn-secondary filter-btn" data-status="completed">Completed</button>
-        <button class="btn btn-sm btn-secondary filter-btn" data-status="failed">Failed</button>
+        <a href="/jobs" class="btn btn-sm {% if not filter_status %}btn-primary{% else %}btn-secondary{% endif %}">All</a>
+        <a href="/jobs?status=pending"   class="btn btn-sm {% if filter_status == 'pending'   %}btn-primary{% else %}btn-secondary{% endif %}">Pending</a>
+        <a href="/jobs?status=running"   class="btn btn-sm {% if filter_status == 'running'   %}btn-primary{% else %}btn-secondary{% endif %}">Running</a>
+        <a href="/jobs?status=completed" class="btn btn-sm {% if filter_status == 'completed' %}btn-primary{% else %}btn-secondary{% endif %}">Completed</a>
+        <a href="/jobs?status=failed"    class="btn btn-sm {% if filter_status == 'failed'    %}btn-primary{% else %}btn-secondary{% endif %}">Failed</a>
     </div>
 </div>
 
@@ -109,34 +109,4 @@
     <a href="/benchmark" class="btn btn-primary btn-lg">&#9889; Run Your First Benchmark</a>
 </div>
 {% endif %}
-{% endblock %}
-
-{% block extra_js %}
-<script>
-(function() {
-    const filterBtns = document.querySelectorAll('.filter-btn');
-    const rows       = document.querySelectorAll('#jobs-table tbody tr');
-
-    filterBtns.forEach(function(btn) {
-        btn.addEventListener('click', function() {
-            // Update active button styling
-            filterBtns.forEach(function(b) {
-                b.classList.remove('btn-primary');
-                b.classList.add('btn-secondary');
-            });
-            this.classList.remove('btn-secondary');
-            this.classList.add('btn-primary');
-
-            const status = this.dataset.status;
-            rows.forEach(function(row) {
-                if (status === 'all' || row.dataset.status === status) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        });
-    });
-})();
-</script>
 {% endblock %}

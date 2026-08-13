@@ -1,0 +1,17 @@
+{
+  "slug": "real_estate",
+  "title": "California Housing (real CSV)",
+  "description": "Real California census data from the 1990 California Housing dataset (Pace & Barry, 1997). 20640 suburbs, 9 features including median income, housing median age, total rooms, total bedrooms, population, households, latitude, longitude, and ocean proximity. Target: median house value. The same dataset sklearn fetches \u2014 but here as a real CSV so the benchmark path is fully transparent.",
+  "task_type": "regression",
+  "difficulty": "advanced",
+  "target_col": "median_house_value",
+  "drop_cols": [],
+  "categorical_encode": true,
+  "header": true,
+  "delimiter": ",",
+  "column_names": null,
+  "target_map": null,
+  "na_values": [],
+  "source_url": "https://raw.githubusercontent.com/ageron/handson-ml2/master/datasets/housing/housing.csv",
+  "strip_bom": false
+}

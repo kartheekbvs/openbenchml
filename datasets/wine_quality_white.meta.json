@@ -1,0 +1,17 @@
+{
+  "slug": "wine_quality_white",
+  "title": "Wine Quality (White)",
+  "description": "Real physicochemical data from the UCI ML repository. 4898 white Vinho Verde wines from northern Portugal, same 11 features as the red wine dataset. Target: quality score 0\u201310. Larger and slightly more imbalanced than the red variant \u2014 a tougher multi-class benchmark.",
+  "task_type": "classification",
+  "difficulty": "advanced",
+  "target_col": "quality",
+  "drop_cols": [],
+  "categorical_encode": false,
+  "header": true,
+  "delimiter": ";",
+  "column_names": null,
+  "target_map": null,
+  "na_values": [],
+  "source_url": "https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-white.csv",
+  "strip_bom": false
+}

@@ -38,37 +38,11 @@
                     <option value="" disabled selected>Choose a dataset...</option>
                     {% for ds in datasets %}
                     <option value="{{ ds.id }}"
-                            data-task-type="{{ ds.task_type }}"
-                            data-difficulty="{{ ds.difficulty }}"
-                            data-samples="{{ ds.samples }}"
-                            data-features="{{ ds.features }}"
-                            data-description="{{ ds.description or '' }}">
-                        {{ ds.name }} — {{ ds.task_type }} ({{ ds.difficulty }})
+                            {% if request.query_params.get('dataset_id')|string == ds.id|string %}selected{% endif %}>
+                        {{ ds.name }} — {{ ds.task_type }} ({{ ds.difficulty }}, {{ ds.samples }} samples, {{ ds.features }} features)
                     </option>
                     {% endfor %}
                 </select>
-            </div>
-
-            <!-- Dynamic Dataset Info Card -->
-            <div id="dataset-info" class="card" style="display: none; margin-bottom: 1.25rem; background: var(--bg-primary); border-color: var(--accent);">
-                <div class="card-header" style="padding-bottom: 0.5rem; margin-bottom: 0.5rem;">
-                    <h3 id="dataset-info-name" style="font-size: 1rem;">—</h3>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
-                    <div>
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Samples</div>
-                        <div id="dataset-info-samples" style="font-weight: 700; color: var(--text-primary);">—</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Features</div>
-                        <div id="dataset-info-features" style="font-weight: 700; color: var(--text-primary);">—</div>
-                    </div>
-                    <div>
-                        <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px;">Difficulty</div>
-                        <div id="dataset-info-difficulty" style="font-weight: 700; color: var(--text-primary);">—</div>
-                    </div>
-                </div>
-                <p id="dataset-info-description" class="text-muted" style="margin-bottom: 0; font-size: 0.85rem;"></p>
             </div>
 
             <div class="form-actions">
@@ -100,44 +74,54 @@
                 </li>
                 <li style="padding: 0.35rem 0; color: var(--text-secondary);">
                     <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
-                    <strong style="color: var(--text-primary);">Latency</strong> — Average inference time per sample
+                    <strong style="color: var(--text-primary);">Latency</strong> — P50 / P95 / P99 per-sample inference time
                 </li>
                 <li style="padding: 0.35rem 0; color: var(--text-secondary);">
                     <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
-                    <strong style="color: var(--text-primary);">Memory Usage</strong> — Peak memory during evaluation
+                    <strong style="color: var(--text-primary);">Throughput</strong> — Samples processed per second
                 </li>
                 <li style="padding: 0.35rem 0; color: var(--text-secondary);">
                     <span style="color: var(--success); margin-right: 0.5rem;">&#10003;</span>
-                    <strong style="color: var(--text-primary);">CPU Utilization</strong> — Average CPU load during runs
+                    <strong style="color: var(--text-primary);">Memory &amp; Model Size</strong> — Peak RSS + on-disk KB
                 </li>
             </ul>
             <p style="font-size: 0.85rem;">After the benchmark completes, results are automatically posted to the <a href="/leaderboard">public leaderboard</a>.</p>
         </div>
     </div>
 </div>
-{% endblock %}
 
-{% block extra_js %}
-<script>
-(function() {
-    const datasetSelect = document.getElementById('dataset_id');
-    const infoPanel     = document.getElementById('dataset-info');
-
-    if (!datasetSelect || !infoPanel) return;
-
-    datasetSelect.addEventListener('change', function() {
-        const opt = this.options[this.selectedIndex];
-        if (!opt || !opt.value) {
-            infoPanel.style.display = 'none';
-            return;
-        }
-        document.getElementById('dataset-info-name').textContent        = opt.textContent.split('—')[0].trim();
-        document.getElementById('dataset-info-samples').textContent     = opt.dataset.samples  || '—';
-        document.getElementById('dataset-info-features').textContent    = opt.dataset.features || '—';
-        document.getElementById('dataset-info-difficulty').textContent  = opt.dataset.difficulty || '—';
-        document.getElementById('dataset-info-description').textContent = opt.dataset.description || 'No description available.';
-        infoPanel.style.display = 'block';
-    });
-})();
-</script>
+<!-- Static dataset catalogue (no JS — full info for every dataset) -->
+{% if datasets %}
+<div class="card" style="margin-top: 1.5rem;">
+    <div class="card-header">
+        <h3>Available Datasets ({{ datasets | length }})</h3>
+    </div>
+    <div class="table-wrapper">
+        <table class="datasets-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Task</th>
+                    <th>Difficulty</th>
+                    <th>Samples</th>
+                    <th>Features</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ds in datasets %}
+                <tr>
+                    <td><strong>{{ ds.name }}</strong></td>
+                    <td><span class="badge {% if ds.task_type == 'classification' %}badge-info{% else %}badge-success{% endif %}">{{ ds.task_type }}</span></td>
+                    <td>{{ ds.difficulty }}</td>
+                    <td>{{ ds.samples }}</td>
+                    <td>{{ ds.features }}</td>
+                    <td style="max-width: 480px; font-size: 0.85rem; color: var(--text-secondary);">{{ ds.description[:160] if ds.description else '—' }}{% if ds.description and ds.description|length > 160 %}…{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

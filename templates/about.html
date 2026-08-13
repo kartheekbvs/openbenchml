@@ -461,20 +461,3 @@
     <a href="https://github.com/kartheekbvs/openbenchml" target="_blank" rel="noopener">View source on GitHub</a>
 </div>
 {% endblock %}
-
-{% block extra_js %}
-<script>
-  // Smooth-scroll to section if URL has a hash
-  if (location.hash) {
-    const el = document.querySelector(location.hash);
-    if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'});
-  }
-  // Click-to-expand section icons (just visual feedback)
-  document.querySelectorAll('.about-section .section-icon').forEach(ic => {
-    ic.addEventListener('click', () => {
-      ic.style.transform = 'scale(1.15) rotate(5deg)';
-      setTimeout(() => ic.style.transform = '', 200);
-    });
-  });
-</script>
-{% endblock %}

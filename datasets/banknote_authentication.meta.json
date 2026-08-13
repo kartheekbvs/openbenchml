@@ -1,0 +1,23 @@
+{
+  "slug": "banknote_authentication",
+  "title": "Banknote Authentication",
+  "description": "Real data from the UCI ML repository. 1372 banknote images were wavelet-transformed to extract 4 features: variance, skewness, curtosis, and entropy of the image. Binary target: genuine vs forged. A clean, easy-to-classify dataset \u2014 perfect for verifying that a model framework's predict() pipeline is wired correctly.",
+  "task_type": "classification",
+  "difficulty": "beginner",
+  "target_col": "4",
+  "drop_cols": [],
+  "categorical_encode": false,
+  "header": false,
+  "delimiter": ",",
+  "column_names": [
+    "Variance",
+    "Skewness",
+    "Curtosis",
+    "Entropy",
+    "Class"
+  ],
+  "target_map": null,
+  "na_values": [],
+  "source_url": "https://archive.ics.uci.edu/ml/machine-learning-databases/00267/data_banknote_authentication.txt",
+  "strip_bom": false
+}

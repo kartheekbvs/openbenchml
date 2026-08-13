@@ -1,0 +1,22 @@
+{
+  "slug": "titanic",
+  "title": "Titanic Survival",
+  "description": "Real passenger data from the RMS Titanic disaster. 891 passengers with features including class, sex, age, siblings/spouses aboard, parents/children aboard, fare paid, and embarkation port. The goal is to predict survival (0 = died, 1 = survived). A classic Kaggle starter dataset with mixed numeric and categorical features and missing values \u2014 a realistic ML benchmark.",
+  "task_type": "classification",
+  "difficulty": "beginner",
+  "target_col": "Survived",
+  "drop_cols": [
+    "PassengerId",
+    "Name",
+    "Ticket",
+    "Cabin"
+  ],
+  "categorical_encode": true,
+  "header": true,
+  "delimiter": ",",
+  "column_names": null,
+  "target_map": null,
+  "na_values": [],
+  "source_url": "https://raw.githubusercontent.com/datasciencedojo/datasets/master/titanic.csv",
+  "strip_bom": false
+}

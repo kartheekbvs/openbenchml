@@ -1,25 +1,37 @@
 """
 OpenBenchML Database Seeder
 =============================
-Populates the database with default benchmark datasets and sample
-competitions so the platform is usable immediately after install.
+Populates the database with REAL benchmark datasets (downloaded from
+GitHub raw / UCI ML repository) and sample competitions so the platform
+is usable immediately after install.
 
-The list of built-in datasets here mirrors the registry in
-``app/benchmark_engine/loader.py``.  When you add a dataset to the
-loader you should add a matching entry here so users can see it in
-the web UI and CLI without needing to know the loader's internal key.
+All datasets here are REAL — no synthetic ``make_*`` generators.  The
+list of sklearn classics mirrors the registry in
+``app/benchmark_engine/loader.py``.  The CSV datasets are downloaded
+by ``scripts/download_real_datasets.py`` and stored in
+``datasets/<slug>.csv`` with companion ``<slug>.meta.json`` sidecars.
+
+If a CSV file is missing (e.g. the download script hasn't been run yet),
+the seeder logs a warning and skips that dataset — it does NOT crash.
 """
 
+import json
 import logging
+import os
 from datetime import datetime, timedelta
+from pathlib import Path
 from sqlalchemy.orm import Session
 from app.database.db import SessionLocal
 from app.database.models import Dataset, Competition
+from app.config import BASE_DIR
 
 logger = logging.getLogger(__name__)
 
-BUILTIN_DATASETS = [
-    # ── Classic sklearn — classification ─────────────────────────────────
+DATASETS_DIR = BASE_DIR / "datasets"
+
+# ─── Sklearn classic built-ins (in-memory loaders, no file_path) ──────────────
+# These mirror the registry in app/benchmark_engine/loader.py.
+SKLEARN_BUILTINS = [
     {
         "name": "Iris",
         "task_type": "classification",
@@ -33,10 +45,10 @@ BUILTIN_DATASETS = [
     {
         "name": "Wine",
         "task_type": "classification",
-        "description": "Wine quality classification dataset derived from chemical "
-                       "analysis of wines. 13 chemical features including alcohol, "
-                       "malic acid, ash, flavonoids. Great for multi-class "
-                       "classification benchmarking.",
+        "description": "Wine cultivar classification dataset derived from chemical "
+                       "analysis of wines grown in the same region in Italy. 13 "
+                       "chemical features including alcohol, malic acid, ash, "
+                       "flavonoids. Great for multi-class classification benchmarking.",
         "samples": 178, "features": 13,
         "difficulty": "intermediate", "is_builtin": True,
     },
@@ -70,8 +82,6 @@ BUILTIN_DATASETS = [
         "samples": 400, "features": 4096,
         "difficulty": "advanced", "is_builtin": True,
     },
-
-    # ── Classic sklearn — regression ─────────────────────────────────────
     {
         "name": "Diabetes",
         "task_type": "regression",
@@ -102,189 +112,274 @@ BUILTIN_DATASETS = [
         "samples": 20, "features": 3,
         "difficulty": "beginner", "is_builtin": True,
     },
+]
 
-    # ── Synthetic — classification ───────────────────────────────────────
-    {
-        "name": "MakeClassification",
-        "task_type": "classification",
-        "description": "Synthetic multi-class classification — 1000 samples, 20 "
-                       "features, 3 classes, 2 clusters per class, 10 informative "
-                       "features. Configurable complexity — perfect for stress-"
-                       "testing classifiers at scale.",
-        "samples": 1000, "features": 20,
-        "difficulty": "intermediate", "is_builtin": True,
-    },
-    {
-        "name": "MakeMoons",
-        "task_type": "classification",
-        "description": "Two interleaving half-moons — 800 samples with 25%% noise. "
-                       "A classic non-linearly-separable dataset — great for "
-                       "comparing linear vs. non-linear classifiers (SVM kernels, "
-                       "tree ensembles, neural networks).",
-        "samples": 800, "features": 2,
-        "difficulty": "intermediate", "is_builtin": True,
-    },
-    {
-        "name": "MakeCircles",
-        "task_type": "classification",
-        "description": "Concentric circles — small circle inside a larger one, 800 "
-                       "samples with 20%% noise. Another classic non-linear dataset; "
-                       "linear classifiers will fail here. Good benchmark for "
-                       "kernel methods and tree ensembles.",
-        "samples": 800, "features": 2,
-        "difficulty": "intermediate", "is_builtin": True,
-    },
-    {
-        "name": "MakeBlobs",
-        "task_type": "classification",
-        "description": "Gaussian blobs — 900 samples, 8 features, 4 well-separated "
-                       "clusters. Good baseline for clustering-derived "
-                       "classification and for testing scalability.",
-        "samples": 900, "features": 8,
-        "difficulty": "beginner", "is_builtin": True,
-    },
-    {
-        "name": "MakeHastie",
-        "task_type": "classification",
-        "description": "Hastie et al. binary classification dataset — 2000 samples, "
-                       "10 features generated from standard gaussian, target is "
-                       "label = sign(sum(x**2) - 9.8). A binary benchmark used in "
-                       "boosting literature.",
-        "samples": 2000, "features": 10,
-        "difficulty": "advanced", "is_builtin": True,
-    },
 
-    # ── Synthetic — regression ───────────────────────────────────────────
+# ─── Real-world CSV datasets (downloaded by scripts/download_real_datasets.py) ─
+# Each entry expects a corresponding datasets/<slug>.csv + <slug>.meta.json pair.
+# If the CSV file is missing, the seeder logs a warning and skips it.
+REAL_CSV_DATASETS = [
     {
-        "name": "MakeRegression",
-        "task_type": "regression",
-        "description": "Synthetic linear regression — 1000 samples, 15 features, 10 "
-                       "informative, gaussian noise (sigma=10). Good baseline for "
-                       "linear models, regularised regression, and tree-based "
-                       "regressors.",
-        "samples": 1000, "features": 15,
-        "difficulty": "intermediate", "is_builtin": True,
+        "slug": "titanic",
+        "name": "Titanic",
+        "task_type": "classification",
+        "description": "Real passenger data from the RMS Titanic disaster (April 1912). "
+                       "891 passengers with features including class, sex, age, "
+                       "siblings/spouses aboard, parents/children aboard, fare paid, "
+                       "and embarkation port. Predict survival (0 = died, 1 = survived). "
+                       "A classic Kaggle starter dataset with mixed numeric and "
+                       "categorical features and missing values.",
+        "samples": 891, "features": 10,
+        "difficulty": "beginner",
     },
     {
-        "name": "MakeFriedman1",
-        "task_type": "regression",
-        "description": "Friedman #1 regression — 1000 samples, 10 features. The "
-                       "target is a non-linear function of the first 4 features "
-                       "only — the remaining 6 are irrelevant. Classic benchmark "
-                       "from Friedman (1991) for gradient boosting papers.",
-        "samples": 1000, "features": 10,
-        "difficulty": "advanced", "is_builtin": True,
+        "slug": "pima_diabetes",
+        "name": "PimaDiabetes",
+        "task_type": "classification",
+        "description": "Real clinical data from the Pima Indians of Arizona — a "
+                       "population with one of the highest rates of type-2 diabetes "
+                       "in the world. 768 female patients, 8 features including "
+                       "plasma glucose, blood pressure, BMI, insulin, and diabetes "
+                       "pedigree. Binary target: diabetes onset within 5 years. "
+                       "Originally from the National Institute of Diabetes and "
+                       "Digestive and Kidney Diseases.",
+        "samples": 768, "features": 8,
+        "difficulty": "intermediate",
     },
     {
-        "name": "MakeFriedman2",
-        "task_type": "regression",
-        "description": "Friedman #2 regression — 1000 samples, 4 features combined "
-                       "as a product of trigonometric and exponential functions. "
-                       "Highly non-linear; a tough test for any regressor.",
-        "samples": 1000, "features": 4,
-        "difficulty": "advanced", "is_builtin": True,
+        "slug": "heart_disease",
+        "name": "HeartDisease",
+        "task_type": "classification",
+        "description": "Real clinical data from the Cleveland Clinic Foundation, "
+                       "originally from the UCI ML repository. 303 patients with 13 "
+                       "features including age, sex, chest pain type, resting blood "
+                       "pressure, cholesterol, ECG results, max heart rate, exercise-"
+                       "induced angina, ST depression, slope, number of major vessels, "
+                       "and thal. Binary target: presence of heart disease.",
+        "samples": 303, "features": 13,
+        "difficulty": "intermediate",
     },
     {
-        "name": "MakeFriedman3",
+        "slug": "sonar_mines_vs_rocks",
+        "name": "SonarMinesVsRocks",
+        "task_type": "classification",
+        "description": "Real sonar signal data from the UCI ML repository. 208 patterns "
+                       "obtained by bouncing sonar signals off metal cylinders (mines) "
+                       "and rocks at various angles and under various conditions. 60 "
+                       "numeric features in the range 0.0–1.0 represent energy in a "
+                       "particular frequency band. Binary target: mine vs rock. A "
+                       "classic benchmark for pattern classification.",
+        "samples": 208, "features": 60,
+        "difficulty": "intermediate",
+    },
+    {
+        "slug": "banknote_authentication",
+        "name": "BanknoteAuthentication",
+        "task_type": "classification",
+        "description": "Real data from the UCI ML repository. 1372 banknote images "
+                       "were wavelet-transformed to extract 4 features: variance, "
+                       "skewness, curtosis, and entropy of the image. Binary target: "
+                       "genuine vs forged. A clean, easy-to-classify dataset — "
+                       "perfect for verifying that a model framework's predict() "
+                       "pipeline is wired correctly.",
+        "samples": 1372, "features": 4,
+        "difficulty": "beginner",
+    },
+    {
+        "slug": "wine_quality_red",
+        "name": "WineQualityRed",
+        "task_type": "classification",
+        "description": "Real physicochemical data from the UCI ML repository. 1599 red "
+                       "Vinho Verde wines from northern Portugal, 11 features "
+                       "including fixed acidity, volatile acidity, citric acid, "
+                       "residual sugar, chlorides, free SO2, total SO2, density, pH, "
+                       "sulphates, alcohol. Target: quality score 0–10 (sensory panel "
+                       "median). Multi-class classification.",
+        "samples": 1599, "features": 11,
+        "difficulty": "intermediate",
+    },
+    {
+        "slug": "wine_quality_white",
+        "name": "WineQualityWhite",
+        "task_type": "classification",
+        "description": "Real physicochemical data from the UCI ML repository. 4898 white "
+                       "Vinho Verde wines from northern Portugal, same 11 features as "
+                       "the red wine dataset. Target: quality score 0–10. Larger and "
+                       "slightly more imbalanced than the red variant — a tougher "
+                       "multi-class benchmark.",
+        "samples": 4898, "features": 11,
+        "difficulty": "advanced",
+    },
+    {
+        "slug": "iris_csv",
+        "name": "IrisCSV",
+        "task_type": "classification",
+        "description": "The classic Iris dataset — but loaded from the real CSV used "
+                       "by seaborn (not the sklearn Bunch). 150 samples, 4 features "
+                       "(sepal length, sepal width, petal length, petal width). "
+                       "Target: 3 species (setosa, versicolor, virginica). Useful as "
+                       "a sanity check that the CSV-loading pipeline produces identical "
+                       "numbers to sklearn's built-in version.",
+        "samples": 150, "features": 4,
+        "difficulty": "beginner",
+    },
+    {
+        "slug": "penguins",
+        "name": "PalmerPenguins",
+        "task_type": "classification",
+        "description": "Real data collected at Palmer Station, Antarctica by Dr. "
+                       "Kristen Gorman. 344 penguins from 3 islands in the Palmer "
+                       "Archipelago, with features including bill length, bill depth, "
+                       "flipper length, body mass, sex, and island. Target: 3 species "
+                       "(Adelie, Chinstrap, Gentoo). A modern alternative to Iris with "
+                       "mixed numeric and categorical features and some missing values.",
+        "samples": 344, "features": 9,
+        "difficulty": "beginner",
+    },
+    {
+        "slug": "auto_mpg",
+        "name": "AutoMPG",
         "task_type": "regression",
-        "description": "Friedman #3 regression — 1000 samples, 4 features with "
-                       "arctan-based non-linearity. The third in the Friedman "
-                       "trilogy of non-linear regression benchmarks.",
-        "samples": 1000, "features": 4,
-        "difficulty": "advanced", "is_builtin": True,
+        "description": "Real data from the UCI ML repository. 398 cars from the 1970s "
+                       "and 1980s, 7 features including cylinders, displacement, "
+                       "horsepower, weight, acceleration, model year, and origin. "
+                       "Target: miles-per-gallon fuel efficiency. Contains some "
+                       "missing values marked as '?'.",
+        "samples": 398, "features": 7,
+        "difficulty": "intermediate",
+    },
+    {
+        "slug": "boston_housing",
+        "name": "BostonHousing",
+        "task_type": "regression",
+        "description": "Real data from the classic Harrison & Rubinfeld (1978) study "
+                       "of Boston house prices. 506 suburbs, 13 features including "
+                       "crime rate, residential land zoning, industrial proportion, "
+                       "nitric oxides concentration, average rooms, age of housing, "
+                       "distance to employment centres, accessibility to radial "
+                       "highways, property tax rate, pupil-teacher ratio, proportion "
+                       "of Black residents, lower-status population proportion. "
+                       "Target: median home value in $1000s.",
+        "samples": 506, "features": 13,
+        "difficulty": "intermediate",
+    },
+    {
+        "slug": "real_estate",
+        "name": "CaliforniaHousingCSV",
+        "task_type": "regression",
+        "description": "Real California census data from the 1990 California Housing "
+                       "dataset (Pace & Barry, 1997). 20640 suburbs, 9 features "
+                       "including median income, housing median age, total rooms, "
+                       "total bedrooms, population, households, latitude, longitude, "
+                       "and ocean proximity. Target: median house value. The same "
+                       "dataset sklearn fetches — but here as a real CSV so the "
+                       "benchmark path is fully transparent.",
+        "samples": 20640, "features": 13,
+        "difficulty": "advanced",
     },
 ]
+
 
 # Default sample competitions seeded on first run
 DEFAULT_COMPETITIONS = [
     {
-        "title": "Iris Classification Challenge",
-        "slug": "iris-classification-challenge",
+        "title": "Titanic Survival Challenge",
+        "slug": "titanic-survival-challenge",
         "description": (
-            "Welcome to the inaugural OpenBenchML competition! Build the most "
-            "accurate classifier you can on the classic Iris dataset. This is "
-            "a beginner-friendly challenge — perfect for your first submission. "
+            "Build the most accurate classifier you can on the legendary Titanic "
+            "dataset. Predict which passengers survived the disaster based on class, "
+            "sex, age, family aboard, fare, and embarkation port. This is the "
+            "canonical Kaggle starter problem — perfect for your first submission. "
             "Top-3 finishers get a shout-out in the next release notes."
         ),
         "rules": (
             "1. Only scikit-learn / xgboost / lightgbm / pytorch / onnx / tensorflow models are accepted.\n"
             "2. Maximum 10 submissions per user.\n"
-            "3. Submissions are auto-benchmarked on the standard Iris test split.\n"
+            "3. Submissions are auto-benchmarked on the standard Titanic test split.\n"
             "4. The evaluation metric is accuracy.\n"
             "5. Ties are broken by inference latency (lower is better)."
         ),
         "prize": "Top-3 leaderboard shout-out in the next release notes.",
-        "dataset_name": "Iris",
+        "dataset_name": "Titanic",
         "evaluation_metric": "accuracy",
         "duration_days": 30,
         "max_submissions_per_user": 10,
     },
     {
-        "title": "Diabetes Regression Sprint",
-        "slug": "diabetes-regression-sprint",
+        "title": "Pima Indians Diabetes Prediction",
+        "slug": "pima-diabetes-prediction",
         "description": (
-            "Predict diabetes disease progression one year after baseline "
-            "using 10 features. Lowest RMSE wins. The Diabetes dataset is "
-            "small (442 samples) so you can iterate quickly — perfect for "
-            "experimenting with regularisation and feature engineering."
+            "Predict diabetes onset within 5 years for female Pima Indians patients "
+            "using 8 clinical features (glucose, BMI, insulin, blood pressure, etc.). "
+            "Lowest log-loss wins. A real clinical ML benchmark with imbalanced "
+            "classes — perfect for experimenting with threshold tuning and "
+            "calibration."
         ),
         "rules": (
-            "1. Same framework rules as the Iris challenge.\n"
+            "1. Same framework rules as the Titanic challenge.\n"
             "2. Maximum 10 submissions per user.\n"
-            "3. Evaluation metric is RMSE (lower is better).\n"
-            "4. Ties are broken by R2 score (higher is better)."
+            "3. Evaluation metric is accuracy.\n"
+            "4. Ties are broken by AUC-ROC, then by inference latency."
         ),
         "prize": "Bragging rights and a GitHub star.",
-        "dataset_name": "Diabetes",
-        "evaluation_metric": "rmse",
+        "dataset_name": "PimaDiabetes",
+        "evaluation_metric": "accuracy",
         "duration_days": 14,
         "max_submissions_per_user": 10,
     },
     {
-        "title": "Moons Non-Linear Showdown",
-        "slug": "moons-non-linear-showdown",
+        "title": "Heart Disease Detection",
+        "slug": "heart-disease-detection",
         "description": (
-            "Two interleaving half-moons — can your model separate them? "
-            "Linear classifiers will fail here. This challenge rewards "
-            "kernel methods, tree ensembles, and neural networks. The "
-            "MakeMoons dataset is small but deceptively hard — every "
-            "fraction of a percent matters."
+            "Detect the presence of heart disease from 13 clinical features "
+            "(age, sex, chest pain type, cholesterol, ECG, max heart rate, etc.). "
+            "Highest F1 score wins — accuracy is misleading for imbalanced medical "
+            "data. A real-world medical ML benchmark from the Cleveland Clinic."
         ),
         "rules": (
-            "1. Same framework rules as the Iris challenge.\n"
+            "1. Same framework rules as the Titanic challenge.\n"
             "2. Maximum 15 submissions per user.\n"
-            "3. Evaluation metric is accuracy.\n"
+            "3. Evaluation metric is F1 score (higher is better).\n"
             "4. Ties are broken by AUC-ROC, then by inference latency."
         ),
         "prize": "Featured model on the homepage for one week.",
-        "dataset_name": "MakeMoons",
-        "evaluation_metric": "accuracy",
+        "dataset_name": "HeartDisease",
+        "evaluation_metric": "f1_score",
         "duration_days": 21,
         "max_submissions_per_user": 15,
     },
     {
-        "title": "Friedman #1 Grand Prix",
-        "slug": "friedman-1-grand-prix",
+        "title": "Boston Housing Price Prediction",
+        "slug": "boston-housing-price-prediction",
         "description": (
-            "The Friedman #1 dataset is the gold-standard benchmark in the "
-            "gradient boosting literature. 10 features, only the first 4 are "
-            "informative, and the target is a non-linear combination. Lowest "
-            "RMSE wins. Boosting methods typically dominate here — can a "
-            "neural net beat them?"
+            "Predict median home values in Boston suburbs from 13 features "
+            "(crime rate, rooms, age, tax rate, pupil-teacher ratio, etc.). "
+            "Lowest RMSE wins. The classic regression benchmark — every ML "
+            "textbook uses it. Now you can compete on it for real."
         ),
         "rules": (
-            "1. Same framework rules as the Iris challenge.\n"
+            "1. Same framework rules as the Titanic challenge.\n"
             "2. Maximum 20 submissions per user.\n"
             "3. Evaluation metric is RMSE (lower is better).\n"
             "4. Ties are broken by R2 score, then by inference latency."
         ),
         "prize": "OpenBenchML contributor badge + GitHub star.",
-        "dataset_name": "MakeFriedman1",
+        "dataset_name": "BostonHousing",
         "evaluation_metric": "rmse",
         "duration_days": 30,
         "max_submissions_per_user": 20,
     },
 ]
+
+
+def _resolve_csv_path(slug: str) -> str:
+    """Return the absolute path to datasets/<slug>.csv."""
+    return str(DATASETS_DIR / f"{slug}.csv")
+
+
+def _csv_exists(slug: str) -> bool:
+    """Check whether the CSV file for a slug exists on disk."""
+    return (DATASETS_DIR / f"{slug}.csv").is_file()
 
 
 def seed_database():
@@ -299,10 +394,40 @@ def seed_database():
         # ── Datasets ───────────────────────────────────────────────────────
         existing_count = db.query(Dataset).count()
         if existing_count == 0:
-            for dataset_data in BUILTIN_DATASETS:
-                db.add(Dataset(**dataset_data))
+            seeded = 0
+            skipped = 0
+
+            # 1. Sklearn built-ins (no file_path)
+            for ds in SKLEARN_BUILTINS:
+                db.add(Dataset(**ds))
+                seeded += 1
+
+            # 2. Real CSV datasets (with file_path pointing to local CSV)
+            for csv_ds in REAL_CSV_DATASETS:
+                if not _csv_exists(csv_ds["slug"]):
+                    logger.warning(
+                        f"CSV file for '{csv_ds['slug']}' not found in {DATASETS_DIR} "
+                        f"— skipping. Run scripts/download_real_datasets.py to fetch it."
+                    )
+                    skipped += 1
+                    continue
+                db.add(Dataset(
+                    name=csv_ds["name"],
+                    task_type=csv_ds["task_type"],
+                    description=csv_ds["description"],
+                    samples=csv_ds["samples"],
+                    features=csv_ds["features"],
+                    file_path=_resolve_csv_path(csv_ds["slug"]),
+                    is_builtin=True,  # built-in to the platform (managed by us)
+                    difficulty=csv_ds["difficulty"],
+                ))
+                seeded += 1
+
             db.commit()
-            logger.info(f"Seeded {len(BUILTIN_DATASETS)} default datasets")
+            logger.info(
+                f"Seeded {seeded} datasets ({skipped} CSV datasets skipped — "
+                f"run scripts/download_real_datasets.py to fetch them)"
+            )
         else:
             logger.info(f"Database already has {existing_count} datasets, skipping dataset seed")
 

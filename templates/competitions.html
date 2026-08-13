@@ -49,8 +49,4 @@
 </div>
 {% endif %}
 
-<script>
-// Inject current UTC time for the "Ends in" calculation
-const now = new Date("{{ now.isoformat() if now else '' }}");
-</script>
 {% endblock %}

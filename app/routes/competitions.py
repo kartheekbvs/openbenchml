@@ -338,6 +338,48 @@ async def competition_detail_page(
             .all()
         )
 
+    # ── Comments (rendered server-side, no JS needed) ─────────────────────
+    from app.database.models import Comment
+    from sqlalchemy.orm import joinedload as _joinedload
+    comments = (
+        db.query(Comment)
+        .filter(
+            Comment.competition_id == comp.id,
+            Comment.parent_id.is_(None),
+        )
+        .options(_joinedload(Comment.author))
+        .order_by(Comment.is_pinned.desc(), Comment.created_at.asc())
+        .all()
+    )
+
+    # Pre-fetch replies for each top-level comment (one extra query per
+    # comment; fine for low-volume competition discussions).
+    comment_rows = []
+    for c in comments:
+        replies = (
+            db.query(Comment)
+            .filter(Comment.parent_id == c.id)
+            .options(_joinedload(Comment.author))
+            .order_by(Comment.created_at.asc())
+            .all()
+        )
+        comment_rows.append({
+            "id": c.id,
+            "author_username": c.author.username if c.author else "Unknown",
+            "body": c.body,
+            "created_at": c.created_at,
+            "is_pinned": c.is_pinned,
+            "replies": [
+                {
+                    "id": r.id,
+                    "author_username": r.author.username if r.author else "Unknown",
+                    "body": r.body,
+                    "created_at": r.created_at,
+                }
+                for r in replies
+            ],
+        })
+
     return templates.TemplateResponse("competition_detail.html", {
         "request": request,
         "user": user,
@@ -345,6 +387,7 @@ async def competition_detail_page(
         "leaderboard_rows": leaderboard_rows,
         "user_submissions": user_subs,
         "user_models": user_models,
+        "comments": comment_rows,
         "time_to_end": (comp.ends_at - datetime.utcnow()).total_seconds() if comp.status == "live" else None,
     })
 

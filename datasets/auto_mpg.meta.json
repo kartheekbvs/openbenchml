@@ -1,0 +1,31 @@
+{
+  "slug": "auto_mpg",
+  "title": "Auto MPG",
+  "description": "Real data from the UCI ML repository. 398 cars from the 1970s and 1980s, 8 features including cylinders, displacement, horsepower, weight, acceleration, model year, and origin. Target: miles-per-gallon fuel efficiency. Contains some missing values marked as '?'.",
+  "task_type": "regression",
+  "difficulty": "intermediate",
+  "target_col": "mpg",
+  "drop_cols": [
+    "car_name"
+  ],
+  "categorical_encode": false,
+  "header": false,
+  "delimiter": null,
+  "column_names": [
+    "mpg",
+    "cylinders",
+    "displacement",
+    "horsepower",
+    "weight",
+    "acceleration",
+    "model_year",
+    "origin",
+    "car_name"
+  ],
+  "target_map": null,
+  "na_values": [
+    "?"
+  ],
+  "source_url": "https://archive.ics.uci.edu/ml/machine-learning-databases/auto-mpg/auto-mpg.data",
+  "strip_bom": false
+}

@@ -1,0 +1,17 @@
+{
+  "slug": "boston_housing",
+  "title": "Boston Housing",
+  "description": "Real data from the classic Harrison & Rubinfeld (1978) study of Boston house prices. 506 suburbs, 13 features including crime rate, residential land zoning, industrial proportion, nitric oxides concentration, average rooms, age of housing, distance to employment centres, accessibility to radial highways, property tax rate, pupil-teacher ratio, proportion of Black residents, lower-status population proportion. Target: median home value in $1000s. The original sklearn dataset \u2014 preserved here as a real CSV.",
+  "task_type": "regression",
+  "difficulty": "intermediate",
+  "target_col": "medv",
+  "drop_cols": [],
+  "categorical_encode": true,
+  "header": true,
+  "delimiter": ",",
+  "column_names": null,
+  "target_map": null,
+  "na_values": [],
+  "source_url": "https://raw.githubusercontent.com/selva86/datasets/master/BostonHousing.csv",
+  "strip_bom": false
+}

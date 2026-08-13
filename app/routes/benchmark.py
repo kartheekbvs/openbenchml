@@ -151,18 +151,20 @@ async def benchmark_submit(
 @router.get("/jobs", response_class=HTMLResponse)
 async def jobs_page(
     request: Request,
+    status: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     """Render a list of the current user's benchmark jobs.
 
     Each row shows job id, model name, dataset name, status (with colour
-    coding), submitted_at, and finished_at timestamps.
+    coding), submitted_at, and finished_at timestamps.  An optional
+    ``?status=`` query parameter filters server-side (no client JS).
     """
     user = await get_current_user_from_cookie(request, db)
     if user is None:
         return RedirectResponse(url="/login", status_code=303)
 
-    jobs: List[BenchmarkJob] = (
+    query = (
         db.query(BenchmarkJob)
         .join(MLModel, MLModel.id == BenchmarkJob.model_id)
         .filter(MLModel.user_id == user.id)
@@ -171,8 +173,16 @@ async def jobs_page(
             joinedload(BenchmarkJob.dataset),
         )
         .order_by(BenchmarkJob.submitted_at.desc())
-        .all()
     )
+
+    # ── Server-side status filter (no client-side JS required) ────────────
+    valid_statuses = {"pending", "running", "completed", "failed"}
+    if status and status in valid_statuses:
+        query = query.filter(BenchmarkJob.status == status)
+    else:
+        status = None  # normalize invalid values to "all"
+
+    jobs: List[BenchmarkJob] = query.all()
 
     # Build display rows with colour mapping
     job_rows = [
@@ -188,12 +198,14 @@ async def jobs_page(
         for j in jobs
     ]
 
-    logger.debug("Fetched %d jobs for user=%s", len(job_rows), user.username)
+    logger.debug("Fetched %d jobs for user=%s (status filter=%s)",
+                 len(job_rows), user.username, status)
 
     return templates.TemplateResponse("jobs.html", {
         "request": request,
         "user": user,
         "job_rows": job_rows,
+        "filter_status": status,
     })
 
 

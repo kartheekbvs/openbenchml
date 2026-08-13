@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block title %}{{ comp.title }} &mdash; OpenBenchML{% endblock %}
 
+{% block extra_head %}
+{# Auto-refresh every 30 seconds while the competition is live — pure HTML, no JS #}
+{% if comp.status == 'live' %}<meta http-equiv="refresh" content="30">{% endif %}
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
     <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -98,9 +103,33 @@
         {% endif %}
 
         <div class="card">
-            <div class="card-header"><h3>Discussion</h3></div>
+            <div class="card-header"><h3>Discussion ({{ comments | length }})</h3></div>
             <div id="comments-container">
-                <p class="text-muted">Loading comments...</p>
+                {% if comments %}
+                    {% for c in comments %}
+                    <div class="comment">
+                        <strong>{{ c.author_username }}</strong>
+                        <span class="text-muted" style="font-size: 0.85em;">
+                            {{ c.created_at.strftime('%Y-%m-%d %H:%M') if c.created_at else '' }}
+                            {% if c.is_pinned %}<span class="badge badge-warning" style="margin-left: 0.5rem;">PINNED</span>{% endif %}
+                        </span>
+                        <p style="margin: 0.35rem 0 0 0; white-space: pre-wrap;">{{ c.body }}</p>
+                        {% if c.replies %}
+                            {% for r in c.replies %}
+                            <div class="comment comment-reply" style="margin-left: 1.5rem; padding-left: 0.75rem; border-left: 2px solid var(--border-color);">
+                                <strong>{{ r.author_username }}</strong>
+                                <span class="text-muted" style="font-size: 0.85em;">
+                                    {{ r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '' }}
+                                </span>
+                                <p style="margin: 0.35rem 0 0 0; white-space: pre-wrap;">{{ r.body }}</p>
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No comments yet. Start the conversation!</p>
+                {% endif %}
             </div>
             {% if user %}
             <form action="/comments" method="POST" style="margin-top: 1rem;">
@@ -144,100 +173,18 @@
         {% if comp.status == 'live' and time_to_end %}
         <div class="card countdown-card">
             <div class="card-header"><h4>Time Remaining</h4></div>
-            <div id="countdown" data-seconds="{{ time_to_end | int }}">Loading...</div>
+            <div class="countdown-static">
+                {% set secs = time_to_end | int %}
+                {% set d = (secs // 86400) | int %}
+                {% set h = ((secs % 86400) // 3600) | int %}
+                {% set m = ((secs % 3600) // 60) | int %}
+                {{ d }}d {{ h }}h {{ m }}m
+                <div class="text-muted" style="font-size: 0.75rem; margin-top: 0.25rem;">
+                    (page auto-refreshes every 30s)
+                </div>
+            </div>
         </div>
         {% endif %}
     </div>
 </div>
-
-<script>
-// Real-time leaderboard updates via WebSocket
-(function() {
-    function escapeHtml(s) {
-        if (s === null || s === undefined) return '';
-        return String(s)
-            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/`/g, '&#96;');
-    }
-    const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const ws = new WebSocket(`${proto}//${location.host}/ws/leaderboard`);
-    ws.onopen = () => console.log('[WS] Leaderboard stream connected');
-    ws.onmessage = async (evt) => {
-        const msg = JSON.parse(evt.data);
-        if (msg.type === 'leaderboard_update' && msg.dataset_id === {{ comp.dataset_id }}) {
-            // Refresh leaderboard via API
-            try {
-                const r = await fetch(`/api/competitions/{{ comp.slug }}/leaderboard`);
-                if (r.ok) {
-                    const rows = await r.json();
-                    const tbody = document.getElementById('leaderboard-body');
-                    if (tbody && rows.length) {
-                        tbody.innerHTML = rows.map(r => `
-                            <tr>
-                                <td>#${escapeHtml(r.rank)}</td>
-                                <td><a href="/models/${escapeHtml(r.model_id)}">${escapeHtml(r.username)}</a></td>
-                                <td>${escapeHtml(r.model_name)}</td>
-                                <td><strong>${r.score !== null ? r.score.toFixed(4) : '-'}</strong></td>
-                                <td>${escapeHtml(new Date(r.submitted_at).toLocaleString())}</td>
-                            </tr>
-                        `).join('');
-                    }
-                }
-            } catch (e) { console.error('Leaderboard refresh failed', e); }
-        }
-    };
-    // Heartbeat
-    setInterval(() => {
-        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({type: 'ping'}));
-    }, 30000);
-
-    // Load comments (moved here so escapeHtml is in scope)
-    fetch('/api/comments?competition_id={{ comp.id }}')
-        .then(r => r.json())
-        .then(comments => {
-            const container = document.getElementById('comments-container');
-            if (!comments.length) {
-                container.innerHTML = '<p class="text-muted">No comments yet. Start the conversation!</p>';
-                return;
-            }
-            container.innerHTML = comments.map(c => `
-                <div class="comment">
-                    <strong>${escapeHtml(c.author_username || 'Unknown')}</strong>
-                    <span class="text-muted" style="font-size: 0.85em;">${escapeHtml(new Date(c.created_at).toLocaleString())}</span>
-                    <p>${escapeHtml(c.body)}</p>
-                    ${c.replies && c.replies.length ? c.replies.map(r => `
-                        <div class="comment comment-reply" style="margin-left: 1.5rem;">
-                            <strong>${escapeHtml(r.author_username || 'Unknown')}</strong>
-                            <span class="text-muted" style="font-size: 0.85em;">${escapeHtml(new Date(r.created_at).toLocaleString())}</span>
-                            <p>${escapeHtml(r.body)}</p>
-                        </div>
-                    `).join('') : ''}
-                </div>
-            `).join('');
-        })
-        .catch(e => {
-            document.getElementById('comments-container').innerHTML =
-                '<p class="text-muted">Could not load comments.</p>';
-        });
-})();
-
-// Countdown timer
-(function() {
-    const el = document.getElementById('countdown');
-    if (!el) return;
-    let remaining = parseInt(el.dataset.seconds, 10);
-    function tick() {
-        if (remaining <= 0) { el.textContent = 'Competition ended'; return; }
-        const d = Math.floor(remaining / 86400);
-        const h = Math.floor((remaining % 86400) / 3600);
-        const m = Math.floor((remaining % 3600) / 60);
-        const s = remaining % 60;
-        el.textContent = `${d}d ${h}h ${m}m ${s}s`;
-        remaining--;
-    }
-    tick();
-    setInterval(tick, 1000);
-})();
-
-</script>
 {% endblock %}

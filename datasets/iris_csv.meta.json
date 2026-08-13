@@ -1,0 +1,17 @@
+{
+  "slug": "iris_csv",
+  "title": "Iris (real CSV)",
+  "description": "The classic Iris dataset \u2014 but loaded from the real CSV used by seaborn (not the sklearn Bunch). 150 samples, 4 features (sepal length, sepal width, petal length, petal width). Target: 3 species (setosa, versicolor, virginica). Useful as a sanity check that the CSV-loading pipeline produces identical numbers to sklearn's built-in version.",
+  "task_type": "classification",
+  "difficulty": "beginner",
+  "target_col": "species",
+  "drop_cols": [],
+  "categorical_encode": false,
+  "header": true,
+  "delimiter": ",",
+  "column_names": null,
+  "target_map": null,
+  "na_values": [],
+  "source_url": "https://raw.githubusercontent.com/mwaskom/seaborn-data/master/iris.csv",
+  "strip_bom": false
+}

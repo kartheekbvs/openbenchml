@@ -1,0 +1,17 @@
+{
+  "slug": "heart_disease",
+  "title": "Heart Disease (Cleveland)",
+  "description": "Real clinical data from the Cleveland Clinic Foundation, originally from the UCI ML repository. 303 patients with 13 features including age, sex, chest pain type, resting blood pressure, cholesterol, fasting blood sugar, ECG results, max heart rate, exercise-induced angina, ST depression, slope, number of major vessels, and thal. Binary target: presence of heart disease.",
+  "task_type": "classification",
+  "difficulty": "intermediate",
+  "target_col": "target",
+  "drop_cols": [],
+  "categorical_encode": true,
+  "header": true,
+  "delimiter": ",",
+  "column_names": null,
+  "target_map": null,
+  "na_values": [],
+  "source_url": "https://raw.githubusercontent.com/dphi-official/Datasets/master/heart_disease.csv",
+  "strip_bom": true
+}

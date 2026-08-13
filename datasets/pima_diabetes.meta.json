@@ -1,0 +1,27 @@
+{
+  "slug": "pima_diabetes",
+  "title": "Pima Indians Diabetes",
+  "description": "Real clinical data from the Pima Indians of Arizona, a population with one of the highest rates of type-2 diabetes in the world. 768 female patients, 8 features including plasma glucose concentration, blood pressure, triceps skinfold thickness, insulin, BMI, diabetes pedigree function, and age. Binary target: diabetes onset within 5 years. Originally from the National Institute of Diabetes and Digestive and Kidney Diseases.",
+  "task_type": "classification",
+  "difficulty": "intermediate",
+  "target_col": "8",
+  "drop_cols": [],
+  "categorical_encode": false,
+  "header": false,
+  "delimiter": ",",
+  "column_names": [
+    "Pregnancies",
+    "Glucose",
+    "BloodPressure",
+    "SkinThickness",
+    "Insulin",
+    "BMI",
+    "DiabetesPedigree",
+    "Age",
+    "Outcome"
+  ],
+  "target_map": null,
+  "na_values": [],
+  "source_url": "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.data.csv",
+  "strip_bom": false
+}

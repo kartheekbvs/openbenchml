@@ -2,8 +2,8 @@
 OpenBenchML Model & Dataset Loader
 ====================================
 Responsible for loading ML models from disk (multi-framework) and
-preparing benchmark datasets (built-in sklearn, synthetic generators,
-or custom files).
+preparing benchmark datasets (real-world CSV files + sklearn's classic
+real datasets — no synthetic random generators).
 
 The public API consumed by ``benchmark_service`` is:
 
@@ -11,14 +11,29 @@ The public API consumed by ``benchmark_service`` is:
 * :func:`load_dataset` – prepare a train/test split with metadata.
 * :func:`list_builtin_datasets` – enumerate available built-in datasets.
 
+The dataset catalogue is split into two families:
+
+1. **Classic sklearn built-ins** — ``iris``, ``wine``, ``breastcancer``,
+   ``digits``, ``diabetes``, ``californiahousing``, ``olivettifaces``,
+   ``linnerud``.  These are *real* curated datasets shipped by scikit-learn
+   (not synthetic generators).
+
+2. **Real-world CSV datasets** — downloaded from GitHub raw / UCI ML
+   repository by ``scripts/download_real_datasets.py`` and stored in
+   ``datasets/<slug>.csv`` with a companion ``<slug>.meta.json`` sidecar
+   describing the target column, drop columns, categorical encoding, etc.
+
 This module is **the foundation of the core engine**. It must never
 silently swallow a bad argument — every error path raises a clear,
 actionable exception so the benchmark service can persist a useful
 error message for the user.
 """
 
+import csv
+import json
 import logging
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import joblib
@@ -32,39 +47,21 @@ from sklearn.datasets import (
     load_linnerud,
     fetch_california_housing,
     fetch_olivetti_faces,
-    make_classification,
-    make_regression,
-    make_moons,
-    make_circles,
-    make_blobs,
-    make_friedman1,
-    make_friedman2,
-    make_friedman3,
-    make_hastie_10_2,
 )
 from sklearn.model_selection import train_test_split
 
 logger = logging.getLogger(__name__)
 
-# ─── Built-in dataset registry ────────────────────────────────────────────────
+# ─── Built-in dataset registry (sklearn classics only) ────────────────────────
 # The "key" matches the lowercase dataset.name as stored in the DB.
-# Each entry records the loader function, the task type, an
-# optional size cap (large datasets are subsampled to keep benchmarks
-# fast and predictable in shared environments), and an optional
-# ``params`` dict passed to the loader (used by synthetic generators).
 #
-# Three families of datasets are supported:
+# These are all REAL curated datasets from scikit-learn — no synthetic
+# ``make_*`` generators.  Synthetic generators were removed in v4.3 because
+# they produce "random numbers" that aren't comparable to real-world ML
+# benchmarking.  If you need a synthetic stress-test, generate the CSV
+# yourself and upload it as a custom dataset.
 #
-#   1. **Classic sklearn** – ``load_iris``, ``load_wine``, ...  These
-#      return a ``Bunch`` with ``.data`` / ``.target`` / ``.feature_names``.
-#   2. **Synthetic generators** – ``make_classification``, ``make_moons``,
-#      ...  These return ``(X, y)`` tuples.  We use ``params`` to control
-#      shape and difficulty.  Great for stress-testing models with
-#      controllable complexity.
-#   3. **Fetcher datasets** – ``fetch_california_housing``,
-#      ``fetch_olivetti_faces``.  Larger datasets, often subsampled.
-#
-# Adding a new dataset is a one-line change here.  The seed.py module
+# Adding a new sklearn built-in is a one-line change here.  ``seed.py``
 # mirrors this list so the database is consistent.
 _BUILTIN_DATASETS: Dict[str, Dict[str, Any]] = {
     # ── Classic sklearn classification ────────────────────────────────────
@@ -85,59 +82,6 @@ _BUILTIN_DATASETS: Dict[str, Dict[str, Any]] = {
     "olivettifaces": {"loader": fetch_olivetti_faces,
                        "task_type": "classification",
                        "max_samples": 200},
-
-    # ── Synthetic: classification ─────────────────────────────────────────
-    "makeclassification": {
-        "loader": make_classification,
-        "task_type": "classification",
-        "params": {"n_samples": 1000, "n_features": 20, "n_informative": 10,
-                   "n_classes": 3, "n_clusters_per_class": 2, "random_state": 42},
-    },
-    "makemoons": {
-        "loader": make_moons,
-        "task_type": "classification",
-        "params": {"n_samples": 800, "noise": 0.25, "random_state": 42},
-    },
-    "makecircles": {
-        "loader": make_circles,
-        "task_type": "classification",
-        "params": {"n_samples": 800, "noise": 0.20, "factor": 0.5, "random_state": 42},
-    },
-    "makeblobs": {
-        "loader": make_blobs,
-        "task_type": "classification",
-        "params": {"n_samples": 900, "n_features": 8, "centers": 4,
-                   "cluster_std": 1.0, "random_state": 42},
-    },
-    "makehastie": {
-        "loader": make_hastie_10_2,
-        "task_type": "classification",
-        "params": {"n_samples": 2000, "random_state": 42},
-    },
-
-    # ── Synthetic: regression ─────────────────────────────────────────────
-    "makeregression": {
-        "loader": make_regression,
-        "task_type": "regression",
-        "params": {"n_samples": 1000, "n_features": 15, "n_informative": 10,
-                   "noise": 10.0, "random_state": 42},
-    },
-    "makefriedman1": {
-        "loader": make_friedman1,
-        "task_type": "regression",
-        "params": {"n_samples": 1000, "n_features": 10, "noise": 1.0,
-                   "random_state": 42},
-    },
-    "makefriedman2": {
-        "loader": make_friedman2,
-        "task_type": "regression",
-        "params": {"n_samples": 1000, "noise": 1.0, "random_state": 42},
-    },
-    "makefriedman3": {
-        "loader": make_friedman3,
-        "task_type": "regression",
-        "params": {"n_samples": 1000, "noise": 1.0, "random_state": 42},
-    },
 }
 
 
@@ -155,7 +99,7 @@ def list_builtin_datasets() -> List[Dict[str, Any]]:
             "name": key,
             "task_type": entry["task_type"],
             "max_samples": entry.get("max_samples"),
-            "synthetic": "params" in entry,
+            "synthetic": False,  # all entries here are real datasets
         })
     return out
 
@@ -333,11 +277,14 @@ def load_dataset(
 
     Resolution order:
 
-    1. If *dataset_name* is the lowercased name of a built-in dataset
-       (e.g. ``"iris"``, ``"californiahousing"``, ``"makemoons"``),
-       the corresponding loader is invoked.
+    1. If *dataset_name* is the lowercased name of a built-in sklearn
+       dataset (e.g. ``"iris"``, ``"californiahousing"``), the
+       corresponding loader is invoked.
     2. Otherwise, if *dataset_name* is a path to an existing file, the
-       file is loaded as a custom dataset (.npz / .joblib / .pkl).
+       file is loaded as a custom dataset:
+         - ``.csv``  → real-world CSV with optional ``.meta.json`` sidecar
+         - ``.npz``  → NumPy compressed archive with ``X`` and ``y`` keys
+         - ``.joblib`` / ``.pkl`` → dict ``{X, y}`` or tuple ``(X, y)``
     3. Otherwise a :class:`ValueError` is raised with a clear message.
 
     Args:
@@ -346,8 +293,8 @@ def load_dataset(
             as "no dataset specified" and raises ``ValueError``.
         task_type: Hint for the task type (``classification`` or
             ``regression``).  When *None* the value is inferred from
-            the built-in registry or defaults to ``classification``
-            for custom datasets.
+            the built-in registry, the CSV sidecar, or defaults to
+            ``classification`` for custom datasets.
 
     Returns:
         A dictionary with the following keys:
@@ -372,12 +319,12 @@ def load_dataset(
 
     logger.info("Loading dataset: '%s' (task_type=%s)", dataset_name, task_type)
 
-    # ── Built-in sklearn / synthetic datasets ─────────────────────────────
+    # ── Built-in sklearn datasets ─────────────────────────────────────────
     normalised = str(dataset_name).lower().strip().replace("-", "_").replace(" ", "_")
     if normalised in _BUILTIN_DATASETS:
         return _load_sklearn_dataset(normalised)
 
-    # ── Custom dataset from file ──────────────────────────────────────────
+    # ── Custom dataset from file (CSV / NPZ / JOBLIB) ─────────────────────
     if os.path.isfile(dataset_name):
         return _load_custom_dataset(dataset_name, task_type)
 
@@ -389,15 +336,10 @@ def load_dataset(
 
 
 def _load_sklearn_dataset(name: str) -> Dict[str, Any]:
-    """Internal helper for loading a built-in dataset.
+    """Internal helper for loading a built-in sklearn dataset.
 
-    Handles three loader shapes transparently:
-
-    * Bunch-returning loaders (``load_iris``, etc.) — call with no args.
-    * Tuple-returning synthetic generators (``make_classification``,
-      ``make_moons``, ...) — call with the ``params`` dict.
-    * Fetcher functions (``fetch_california_housing``,
-      ``fetch_olivetti_faces``) — call with ``as_frame=False``.
+    Handles Bunch-returning loaders (load_iris, etc.) and fetcher
+    functions (fetch_california_housing, fetch_olivetti_faces).
 
     Args:
         name: Key in :data:`_BUILTIN_DATASETS` (e.g. ``"iris"``).
@@ -409,32 +351,21 @@ def _load_sklearn_dataset(name: str) -> Dict[str, Any]:
     loader_fn = entry["loader"]
     resolved_task = entry["task_type"]
     max_samples = entry.get("max_samples")
-    params = entry.get("params")
 
-    logger.debug("Loading built-in dataset '%s' (params=%s)", name, params)
+    logger.debug("Loading built-in sklearn dataset '%s'", name)
 
-    # ── Synthetic generator (returns (X, y) tuple) ────────────────────────
-    if params is not None:
-        X, y = loader_fn(**params)
-        X = np.asarray(X)
-        y = np.asarray(y)
-        feature_names = [f"feature_{i}" for i in range(X.shape[1])]
-    else:
-        # ── Bunch-returning loader (sklearn classic + fetcher) ────────────
-        # fetch_* functions accept as_frame but Bunch always has .data/.target
-        try:
-            bunch = loader_fn()
-        except TypeError:
-            # Some fetchers accept extra kwargs; retry without args.
-            bunch = loader_fn
+    try:
+        bunch = loader_fn()
+    except TypeError:
+        bunch = loader_fn
 
-        X: np.ndarray = np.asarray(bunch.data)
-        y: np.ndarray = np.asarray(bunch.target)
-        feature_names: list = (
-            list(bunch.feature_names)
-            if hasattr(bunch, "feature_names") and bunch.feature_names is not None
-            else [f"feature_{i}" for i in range(X.shape[1])]
-        )
+    X: np.ndarray = np.asarray(bunch.data)
+    y: np.ndarray = np.asarray(bunch.target)
+    feature_names: list = (
+        list(bunch.feature_names)
+        if hasattr(bunch, "feature_names") and bunch.feature_names is not None
+        else [f"feature_{i}" for i in range(X.shape[1])]
+    )
 
     # ── Optional subsampling for very large datasets ──────────────────────
     if max_samples is not None and X.shape[0] > max_samples:
@@ -458,6 +389,11 @@ def _load_custom_dataset(
 
     Supported formats:
 
+    * ``.csv``  – Real-world CSV.  An optional ``<file>.meta.json``
+      sidecar can specify ``target_col``, ``drop_cols``,
+      ``categorical_encode``, ``header``, ``delimiter``,
+      ``column_names``, ``target_map``, ``na_values``.  When no
+      sidecar is present the last column is used as the target.
     * ``.npz``  – NumPy compressed archive with ``X`` and ``y`` keys.
     * ``.joblib`` / ``.pkl`` – Joblib/pickle file containing a dict
       with ``X`` and ``y`` keys, **or** a tuple ``(X, y)``.
@@ -465,16 +401,19 @@ def _load_custom_dataset(
     Args:
         file_path: Path to the dataset file.
         task_type: ``classification`` or ``regression``.  Defaults to
-            ``classification`` when *None*.
+            the sidecar's ``task_type`` (CSV) or ``classification``.
 
     Returns:
         Dataset dictionary (see :func:`load_dataset`).
     """
-    resolved_task = task_type or "classification"
     ext = os.path.splitext(file_path)[1].lower()
 
-    X: Optional[np.ndarray] = None
-    y: Optional[np.ndarray] = None
+    if ext == ".csv":
+        return _load_csv_dataset(file_path, task_type)
+
+    if ext == ".txt":
+        # Many UCI datasets are .txt but really CSV/TSV — try CSV.
+        return _load_csv_dataset(file_path, task_type)
 
     if ext == ".npz":
         data = np.load(file_path, allow_pickle=True)
@@ -483,8 +422,9 @@ def _load_custom_dataset(
                 f"NPZ file '{file_path}' must contain 'X' and 'y' arrays. "
                 f"Found keys: {list(data.keys())}"
             )
-        X = data["X"]
-        y = data["y"]
+        X = np.asarray(data["X"])
+        y = np.asarray(data["y"])
+        resolved_task = task_type or "classification"
 
     elif ext in (".joblib", ".pkl"):
         payload = joblib.load(file_path)
@@ -502,15 +442,16 @@ def _load_custom_dataset(
             raise ValueError(
                 f"Unexpected payload type in '{file_path}': {type(payload).__name__}"
             )
+        resolved_task = task_type or "classification"
+
     else:
         raise ValueError(
             f"Unsupported dataset file format: '{ext}'. "
-            f"Supported: .npz, .joblib, .pkl"
+            f"Supported: .csv, .txt, .npz, .joblib, .pkl"
         )
 
     X = np.asarray(X)
     y = np.asarray(y)
-
     n_features = X.shape[1] if X.ndim > 1 else 1
     feature_names = [f"feature_{i}" for i in range(n_features)]
 
@@ -521,6 +462,335 @@ def _load_custom_dataset(
         n_features,
     )
     return _split_data(X, y, resolved_task, feature_names=feature_names)
+
+
+# ─── CSV dataset loader (real-world datasets) ─────────────────────────────────
+
+def _load_csv_dataset(file_path: str, task_type: Optional[str]) -> Dict[str, Any]:
+    """Load a real-world CSV dataset using an optional JSON sidecar.
+
+    The sidecar (``<file>.meta.json``) is written by
+    ``scripts/download_real_datasets.py`` and contains:
+
+    * ``target_col``   – column name or index (string or int-as-string)
+    * ``drop_cols``    – list of columns to drop before feature matrix
+    * ``categorical_encode`` – if True, one-hot encode object columns
+    * ``header``       – whether the CSV has a header row (default True)
+    * ``delimiter``    – CSV delimiter (default ``,``; ``None`` = whitespace)
+    * ``column_names`` – list of column names to apply if no header
+    * ``target_map``   – dict mapping string labels to ints (e.g. {"M":1,"R":0})
+    * ``na_values``    – list of strings to treat as NaN
+    * ``task_type``    – ``classification`` or ``regression``
+    * ``strip_bom``    – strip a leading BOM from the first header cell
+
+    When no sidecar is found, the last column is used as the target,
+    the task type defaults to ``classification`` (or the *task_type*
+    argument), and no categorical encoding is applied.
+    """
+    sidecar_path = os.path.splitext(file_path)[0] + ".meta.json"
+    meta: Dict[str, Any] = {}
+    if os.path.isfile(sidecar_path):
+        with open(sidecar_path, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+        logger.debug("Loaded CSV sidecar: %s", sidecar_path)
+
+    header = meta.get("header", True)
+    delimiter = meta.get("delimiter", ",")
+    column_names = meta.get("column_names")
+    target_col = meta.get("target_col")
+    drop_cols = meta.get("drop_cols", [])
+    categorical_encode = meta.get("categorical_encode", False)
+    target_map = meta.get("target_map")
+    na_values = meta.get("na_values", [])
+    strip_bom = meta.get("strip_bom", False)
+    resolved_task = task_type or meta.get("task_type") or "classification"
+
+    # ── Read the CSV ──────────────────────────────────────────────────────
+    with open(file_path, "r", encoding="utf-8", errors="replace") as f:
+        if delimiter is None:
+            # Whitespace-separated (e.g. UCI auto-mpg .data files).
+            # Use regex to split on \s+ but keep quoted strings together.
+            rows = []
+            for line in f:
+                # Strip newline but preserve content
+                line = line.rstrip("\n").rstrip("\r")
+                if not line.strip():
+                    continue
+                # Match: either a quoted string ("...") or a non-whitespace token
+                tokens = re.findall(r'"[^"]*"|\S+', line)
+                # Strip surrounding quotes from quoted tokens
+                tokens = [t[1:-1] if t.startswith('"') and t.endswith('"') else t
+                          for t in tokens]
+                rows.append(tokens)
+        else:
+            reader = csv.reader(f, delimiter=delimiter)
+            rows = list(reader)
+
+    if not rows:
+        raise ValueError(f"CSV file '{file_path}' is empty")
+
+    # ── Resolve header ────────────────────────────────────────────────────
+    if header:
+        header_row = rows[0]
+        if strip_bom and header_row:
+            header_row[0] = header_row[0].lstrip("\ufeff").strip()
+        data_rows = rows[1:]
+        if column_names:
+            # Override header with provided column_names
+            cols = list(column_names)
+        else:
+            cols = [str(h).strip() for h in header_row]
+    else:
+        data_rows = rows
+        if column_names:
+            cols = list(column_names)
+        else:
+            n_cols = len(data_rows[0]) if data_rows else 0
+            cols = [f"col_{i}" for i in range(n_cols)]
+
+    if not data_rows:
+        raise ValueError(f"CSV file '{file_path}' has header but no data rows")
+
+    n_cols = len(cols)
+    n_rows = len(data_rows)
+
+    # ── Resolve target column ─────────────────────────────────────────────
+    if target_col is None:
+        target_idx = n_cols - 1
+    elif isinstance(target_col, int):
+        target_idx = target_col
+    elif isinstance(target_col, str):
+        # Try to match by column name (or by string index)
+        if target_col in cols:
+            target_idx = cols.index(target_col)
+        elif target_col.isdigit():
+            target_idx = int(target_col)
+        else:
+            raise ValueError(
+                f"target_col '{target_col}' not found in CSV columns: {cols}"
+            )
+    else:
+        raise ValueError(f"Invalid target_col type: {type(target_col).__name__}")
+
+    # ── Resolve drop column indices ───────────────────────────────────────
+    drop_indices = set()
+    for dc in drop_cols:
+        if isinstance(dc, int):
+            drop_indices.add(dc)
+        elif isinstance(dc, str):
+            if dc in cols:
+                drop_indices.add(cols.index(dc))
+            elif dc.isdigit():
+                drop_indices.add(int(dc))
+            # silently ignore unknown drop cols
+
+    if target_idx in drop_indices:
+        raise ValueError(
+            f"target_col index {target_idx} is in drop_cols — refusing to drop the target"
+        )
+
+    feature_indices = [i for i in range(n_cols) if i not in drop_indices and i != target_idx]
+    feature_names = [cols[i] for i in feature_indices]
+
+    # ── Build raw feature matrix and target vector ────────────────────────
+    X_raw: List[List[Any]] = []
+    y_raw: List[Any] = []
+    skipped = 0
+    for row in data_rows:
+        if len(row) < n_cols:
+            # Short row — pad with empty strings
+            row = row + [""] * (n_cols - len(row))
+        elif len(row) > n_cols:
+            row = row[:n_cols]
+
+        y_val = row[target_idx]
+        # Apply na_values filter to target
+        if y_val in na_values or y_val == "" or y_val is None:
+            skipped += 1
+            continue
+
+        # Check for NaN in any feature
+        has_nan = False
+        feat_vals = []
+        for i in feature_indices:
+            v = row[i]
+            if v in na_values or v == "":
+                has_nan = True
+                break
+            feat_vals.append(v)
+        if has_nan:
+            skipped += 1
+            continue
+
+        X_raw.append(feat_vals)
+        y_raw.append(y_val)
+
+    if skipped:
+        logger.info(
+            "CSV loader skipped %d/%d rows with missing values in '%s'",
+            skipped, n_rows, file_path,
+        )
+
+    if not X_raw:
+        raise ValueError(
+            f"After filtering missing values, no rows remained in '{file_path}'"
+        )
+
+    # ── Convert target: apply target_map if present, else try int, else label-encode ─
+    y_arr = _convert_target(np.array(y_raw, dtype=object), target_map, resolved_task)
+
+    # ── Convert features ──────────────────────────────────────────────────
+    X_arr = _convert_features(
+        np.array(X_raw, dtype=object),
+        feature_names,
+        categorical_encode,
+    )
+
+    logger.info(
+        "Loaded CSV dataset '%s': %d samples, %d features, task=%s, "
+        "categorical_encode=%s",
+        os.path.basename(file_path),
+        X_arr.shape[0],
+        X_arr.shape[1],
+        resolved_task,
+        categorical_encode,
+    )
+    return _split_data(X_arr, y_arr, resolved_task, feature_names=feature_names)
+
+
+def _convert_target(
+    y_raw: np.ndarray,
+    target_map: Optional[Dict[str, Any]],
+    task_type: str,
+) -> np.ndarray:
+    """Convert raw string target column into a numeric array.
+
+    Order of operations:
+    1. If *target_map* is provided, map string labels to ints.
+    2. Try to cast to float (works for numeric targets).
+    3. If float cast fails and task is classification, label-encode the
+       unique string values (alphabetical order → 0..k-1).
+    """
+    if target_map:
+        # Apply explicit mapping
+        mapped = []
+        for v in y_raw:
+            key = str(v).strip()
+            if key in target_map:
+                mapped.append(target_map[key])
+            else:
+                # Try int/float keys
+                try:
+                    if key in target_map:
+                        mapped.append(target_map[key])
+                    elif int(key) in target_map:
+                        mapped.append(target_map[int(key)])
+                    elif float(key) in target_map:
+                        mapped.append(target_map[float(key)])
+                    else:
+                        raise ValueError(
+                            f"Target value '{v}' not in target_map {list(target_map.keys())}"
+                        )
+                except (ValueError, TypeError):
+                    raise ValueError(
+                        f"Target value '{v}' not in target_map {list(target_map.keys())}"
+                    )
+        return np.asarray(mapped, dtype=np.int64)
+
+    # No target_map — try numeric cast
+    try:
+        y = y_raw.astype(float)
+        if task_type == "classification":
+            # If all values are integer-valued, cast to int
+            if np.allclose(y, np.round(y)):
+                y = y.astype(np.int64)
+        return y
+    except (ValueError, TypeError):
+        # Label-encode strings
+        if task_type == "classification":
+            unique_vals = sorted(set(str(v).strip() for v in y_raw))
+            label_to_int = {v: i for i, v in enumerate(unique_vals)}
+            logger.info(
+                "Label-encoded target: %d unique classes -> %s",
+                len(unique_vals),
+                label_to_int,
+            )
+            return np.asarray([label_to_int[str(v).strip()] for v in y_raw], dtype=np.int64)
+        else:
+            raise ValueError(
+                "Regression task but target column contains non-numeric values "
+                f"and no target_map was provided.  Unique values: "
+                f"{sorted(set(str(v) for v in y_raw))[:10]}"
+            )
+
+
+def _convert_features(
+    X_raw: np.ndarray,
+    feature_names: List[str],
+    categorical_encode: bool,
+) -> np.ndarray:
+    """Convert raw string feature matrix into a numeric array.
+
+    * Numeric columns are cast to float.
+    * If *categorical_encode* is True, object/string columns are
+      one-hot encoded (k-1 dummies via integer encoding for simplicity,
+      to avoid dimension explosion on high-cardinality columns).
+    * If *categorical_encode* is False, string columns that can't be
+      cast to float are integer-encoded (label encoding per column).
+    """
+    n_rows, n_cols = X_raw.shape
+    encoded_cols: List[np.ndarray] = []
+    final_feature_names: List[str] = []
+
+    for col_idx in range(n_cols):
+        col = X_raw[:, col_idx]
+        name = feature_names[col_idx]
+
+        # Try numeric cast first
+        try:
+            numeric = col.astype(float)
+            encoded_cols.append(numeric.reshape(-1, 1))
+            final_feature_names.append(name)
+            continue
+        except (ValueError, TypeError):
+            pass
+
+        # String column — needs encoding
+        if categorical_encode:
+            # One-hot encode (low-cardinality only; high-cardinality gets integer-encoded)
+            unique_vals = sorted(set(str(v).strip() for v in col))
+            if len(unique_vals) <= 10:
+                # One-hot
+                for uv in unique_vals:
+                    col_vec = np.array(
+                        [1.0 if str(v).strip() == uv else 0.0 for v in col],
+                        dtype=np.float32,
+                    )
+                    encoded_cols.append(col_vec.reshape(-1, 1))
+                    final_feature_names.append(f"{name}={uv}")
+            else:
+                # Integer-encode (high-cardinality)
+                val_to_int = {v: i for i, v in enumerate(unique_vals)}
+                col_vec = np.array(
+                    [val_to_int[str(v).strip()] for v in col], dtype=np.float32
+                )
+                encoded_cols.append(col_vec.reshape(-1, 1))
+                final_feature_names.append(name)
+        else:
+            # Integer-encode (label encoding)
+            unique_vals = sorted(set(str(v).strip() for v in col))
+            val_to_int = {v: i for i, v in enumerate(unique_vals)}
+            col_vec = np.array(
+                [val_to_int[str(v).strip()] for v in col], dtype=np.float32
+            )
+            encoded_cols.append(col_vec.reshape(-1, 1))
+            final_feature_names.append(name)
+
+    # Mutate feature_names in place so the caller sees the post-encoding names
+    feature_names.clear()
+    feature_names.extend(final_feature_names)
+
+    return np.hstack(encoded_cols).astype(np.float32)
 
 
 def _split_data(
@@ -536,18 +806,6 @@ def _split_data(
 
     Classification tasks are stratified on ``y`` to preserve class
     distributions.  Regression tasks use a plain random split.
-
-    Args:
-        X: Feature matrix of shape ``(n_samples, n_features)``.
-        y: Target vector of shape ``(n_samples,)``.
-        task_type: ``classification`` or ``regression``.
-        test_size: Fraction of the data reserved for testing.
-        random_state: Seed for reproducibility.
-        feature_names: Optional list of feature names.
-
-    Returns:
-        Dictionary with keys ``X_train``, ``X_test``, ``y_train``,
-        ``y_test``, ``task_type``, ``feature_names``.
     """
     stratify = y if task_type == "classification" else None
 

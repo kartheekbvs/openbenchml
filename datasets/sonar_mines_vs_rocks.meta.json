@@ -1,0 +1,22 @@
+{
+  "slug": "sonar_mines_vs_rocks",
+  "title": "Sonar: Mines vs Rocks",
+  "description": "Real sonar signal data from the UCI ML repository. 208 patterns obtained by bouncing sonar signals off metal cylinders (mines) and rocks at various angles and under various conditions. 60 numeric features in the range 0.0\u20131.0 represent energy in a particular frequency band. Binary target: mine vs rock. A classic benchmark for pattern classification.",
+  "task_type": "classification",
+  "difficulty": "intermediate",
+  "target_col": "60",
+  "drop_cols": [],
+  "categorical_encode": false,
+  "header": true,
+  "delimiter": ",",
+  "column_names": null,
+  "target_map": {
+    "M": 1,
+    "R": 0,
+    "m": 1,
+    "r": 0
+  },
+  "na_values": [],
+  "source_url": "https://raw.githubusercontent.com/jbrownlee/Datasets/master/sonar.csv",
+  "strip_bom": false
+}

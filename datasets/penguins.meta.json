@@ -1,0 +1,17 @@
+{
+  "slug": "penguins",
+  "title": "Palmer Penguins",
+  "description": "Real data collected at Palmer Station, Antarctica by Dr. Kristen Gorman. 344 penguins from 3 islands in the Palmer Archipelago, with features including bill length, bill depth, flipper length, body mass, sex, and island. Target: 3 species (Adelie, Chinstrap, Gentoo). A modern alternative to Iris with mixed numeric and categorical features and some missing values.",
+  "task_type": "classification",
+  "difficulty": "beginner",
+  "target_col": "species",
+  "drop_cols": [],
+  "categorical_encode": true,
+  "header": true,
+  "delimiter": ",",
+  "column_names": null,
+  "target_map": null,
+  "na_values": [],
+  "source_url": "https://raw.githubusercontent.com/mwaskom/seaborn-data/master/penguins.csv",
+  "strip_bom": false
+}

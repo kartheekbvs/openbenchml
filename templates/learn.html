@@ -924,12 +924,3 @@
 
 {% endblock %}
 
-{% block extra_js %}
-<script>
-  // Highlight current concept in sidebar (active class is set server-side,
-  // but we add a smooth scroll-to-top on concept page load)
-  if (document.querySelector('.concept-page')) {
-    window.scrollTo({top: 0, behavior: 'smooth'});
-  }
-</script>
-{% endblock %}

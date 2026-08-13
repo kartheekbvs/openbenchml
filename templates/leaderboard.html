@@ -36,6 +36,7 @@
                 <option value="{{ ds.id }}" {% if selected_dataset_id == ds.id %}selected{% endif %}>{{ ds.name }}</option>
                 {% endfor %}
             </select>
+            <button type="submit" class="btn btn-secondary btn-sm">Filter</button>
         </form>
     </div>
 </div>
@@ -131,29 +132,3 @@
 {% endif %}
 {% endblock %}
 
-{% block extra_js %}
-<script>
-(function() {
-    var filterForm = document.getElementById('dataset-filter-form');
-    var filterSelect = document.getElementById('dataset_filter');
-    if (filterSelect) {
-        filterSelect.addEventListener('change', function() {
-            // Determine the base URL from the current sort mode tab
-            var basePath = '/leaderboard';
-            {% if sort_mode == 'fastest' %}
-            basePath = '/leaderboard/fastest';
-            {% elif sort_mode == 'smallest' %}
-            basePath = '/leaderboard/smallest';
-            {% endif %}
-
-            var datasetId = this.value;
-            var url = basePath;
-            if (datasetId) {
-                url += '?dataset_id=' + encodeURIComponent(datasetId);
-            }
-            window.location.href = url;
-        });
-    }
-})();
-</script>
-{% endblock %}

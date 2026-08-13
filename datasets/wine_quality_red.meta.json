@@ -1,0 +1,17 @@
+{
+  "slug": "wine_quality_red",
+  "title": "Wine Quality (Red)",
+  "description": "Real physicochemical data from the UCI ML repository. 1599 red Vinho Verde wines from northern Portugal, 11 features including fixed acidity, volatile acidity, citric acid, residual sugar, chlorides, free SO2, total SO2, density, pH, sulphates, alcohol. Target: quality score 0\u201310 (sensory panel median). Treated as a multi-class classification problem (3\u20138 in practice).",
+  "task_type": "classification",
+  "difficulty": "intermediate",
+  "target_col": "quality",
+  "drop_cols": [],
+  "categorical_encode": false,
+  "header": true,
+  "delimiter": ";",
+  "column_names": null,
+  "target_map": null,
+  "na_values": [],
+  "source_url": "https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv",
+  "strip_bom": false
+}
