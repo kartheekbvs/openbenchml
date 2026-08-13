@@ -432,6 +432,33 @@ async def api_info():
     }
 
 
+# ─── Model Cache Inspection (admin/debug) ─────────────────────────────────────
+@app.get("/api/admin/model-cache")
+async def model_cache_info():
+    """Return the current in-memory model cache contents.
+
+    The benchmark engine caches deserialised models in process memory
+    keyed by ``(file_path, framework)`` so repeated benchmarks against
+    the same model don't pay the joblib.load() cost (~80-150 ms) every
+    time.  This endpoint exposes the cache state for debugging.
+    """
+    from app.benchmark_engine.loader import get_model_cache_info, clear_model_cache
+    return {
+        "cached_models": get_model_cache_info(),
+        "count": len(get_model_cache_info()),
+    }
+
+
+@app.post("/api/admin/model-cache/clear")
+async def model_cache_clear():
+    """Drop all cached models.  Use after re-uploading a model file
+    to force the next benchmark to re-load from disk.
+    """
+    from app.benchmark_engine.loader import clear_model_cache
+    n = clear_model_cache()
+    return {"cleared": n}
+
+
 # ─── WebSocket Endpoint ──────────────────────────────────────────────────────
 import asyncio
 

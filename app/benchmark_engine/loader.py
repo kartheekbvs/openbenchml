@@ -34,7 +34,9 @@ import json
 import logging
 import os
 import re
-from typing import Any, Dict, List, Optional
+import threading
+import time
+from typing import Any, Dict, List, Optional, Tuple
 
 import joblib
 import numpy as np
@@ -51,6 +53,140 @@ from sklearn.datasets import (
 from sklearn.model_selection import train_test_split
 
 logger = logging.getLogger(__name__)
+
+
+# ─── Model cache (load-once, invalidate on file mtime change) ──────────────────
+# Without this cache, every benchmark job called ``joblib.load()`` on the
+# model file — ~80-150 ms per call for a typical 100 KB sklearn model,
+# much more for large PyTorch/ONNX artifacts.  The cache keeps the
+# deserialised object in memory keyed by ``(file_path, framework)`` and
+# only re-loads if the file's mtime changes (so re-uploading a model
+# still picks up the new version).
+#
+# Thread-safety: a single ``threading.RLock`` guards the dict.  The
+# actual ``joblib.load()`` happens OUTSIDE the lock so two threads
+# loading different models don't serialise.
+_MODEL_CACHE: Dict[Tuple[str, str], Dict[str, Any]] = {}
+_MODEL_CACHE_LOCK = threading.RLock()
+
+
+def clear_model_cache(file_path: Optional[str] = None) -> int:
+    """Drop cached model entries.
+
+    Args:
+        file_path: If given, drop only entries whose file_path matches.
+            If ``None``, drop every cached entry.
+
+    Returns:
+        The number of entries evicted.
+    """
+    with _MODEL_CACHE_LOCK:
+        if file_path is None:
+            n = len(_MODEL_CACHE)
+            _MODEL_CACHE.clear()
+            return n
+        keys_to_drop = [k for k in _MODEL_CACHE if k[0] == file_path]
+        for k in keys_to_drop:
+            _MODEL_CACHE.pop(k, None)
+        return len(keys_to_drop)
+
+
+def get_model_cache_info() -> List[Dict[str, Any]]:
+    """Return a list of cached model entries (for debugging / health)."""
+    with _MODEL_CACHE_LOCK:
+        return [
+            {
+                "file_path": k[0],
+                "framework": k[1],
+                "mtime": v["mtime"],
+                "size_kb": v.get("size_kb"),
+                "loaded_at": v.get("loaded_at"),
+            }
+            for k, v in _MODEL_CACHE.items()
+        ]
+
+
+def _load_model_cached(file_path: str, framework: str) -> Any:
+    """Internal: load a model from disk with caching.
+
+    Cache key: ``(file_path, framework)``.  Invalidation: the file's
+    mtime is checked on every call; if it changed, the cached entry is
+    dropped and the model is re-loaded from disk.
+
+    This is the function that should be called by ``benchmark_service``
+    and any other code that needs to load a model for inference.
+    """
+    if not file_path or not os.path.isfile(file_path):
+        raise FileNotFoundError(f"Model file not found: {file_path!r}")
+
+    framework = (framework or "").lower().strip()
+    key = (file_path, framework)
+
+    try:
+        current_mtime = os.path.getmtime(file_path)
+        current_size = os.path.getsize(file_path)
+    except OSError as exc:
+        raise FileNotFoundError(
+            f"Cannot stat model file '{file_path}': {exc}"
+        ) from exc
+
+    # ── Fast path: cache hit with unchanged mtime ────────────────────────
+    with _MODEL_CACHE_LOCK:
+        cached = _MODEL_CACHE.get(key)
+        if cached is not None and cached["mtime"] == current_mtime:
+            logger.debug(
+                "Model cache HIT: %s (framework=%s, mtime=%d, size=%d B)",
+                file_path, framework, current_mtime, current_size,
+            )
+            return cached["model"]
+
+    # ── Slow path: cache miss or mtime changed — load from disk ──────────
+    # Load OUTSIDE the lock so concurrent loads of different models
+    # don't block each other.
+    logger.info(
+        "Model cache MISS: %s (framework=%s, mtime=%d, size=%d B) — loading from disk",
+        file_path, framework, current_mtime, current_size,
+    )
+    model = _load_model_uncached(file_path, framework)
+
+    with _MODEL_CACHE_LOCK:
+        _MODEL_CACHE[key] = {
+            "model": model,
+            "mtime": current_mtime,
+            "size_kb": round(current_size / 1024.0, 2),
+            "loaded_at": time.time(),
+        }
+    return model
+
+
+def _load_model_uncached(file_path: str, framework: str) -> Any:
+    """Load a model from disk WITHOUT using the cache (internal)."""
+    framework = (framework or "").lower().strip()
+    try:
+        if framework == "scikit-learn":
+            return _load_sklearn_model(file_path)
+        elif framework == "pytorch":
+            return _load_pytorch_model(file_path)
+        elif framework == "onnx":
+            return _load_onnx_model(file_path)
+        elif framework == "xgboost":
+            return _load_xgboost_model(file_path)
+        elif framework == "lightgbm":
+            return _load_lightgbm_model(file_path)
+        elif framework == "tensorflow":
+            return _load_tensorflow_model(file_path)
+        else:
+            raise ValueError(
+                f"Unsupported framework: '{framework}'. "
+                f"Supported: scikit-learn, pytorch, onnx, xgboost, lightgbm, tensorflow"
+            )
+    except (FileNotFoundError, ValueError):
+        raise
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to load model from '{file_path}' (framework={framework}): {exc}"
+        ) from exc
+
 
 # ─── Built-in dataset registry (sklearn classics only) ────────────────────────
 # The "key" matches the lowercase dataset.name as stored in the DB.
@@ -109,6 +245,13 @@ def list_builtin_datasets() -> List[Dict[str, Any]]:
 def load_model(file_path: str, framework: str) -> Any:
     """Load a saved ML model from disk based on its framework.
 
+    **Caching**: the loaded model is cached in process memory keyed by
+    ``(file_path, framework)``.  Subsequent calls with the same path
+    return the cached object immediately (~0 ms) — the file is NOT
+    re-read from disk.  The cache is invalidated automatically when
+    the file's mtime changes (so re-uploading a model still picks up
+    the new version).  Call :func:`clear_model_cache` to force-evict.
+
     Supported frameworks and their loading strategies:
 
     * **scikit-learn** – :func:`joblib.load`
@@ -125,49 +268,16 @@ def load_model(file_path: str, framework: str) -> Any:
             ``lightgbm``, ``tensorflow``).
 
     Returns:
-        The loaded model object (type varies by framework).
+        The loaded model object (type varies by framework).  Repeated
+        calls with the same ``file_path`` return the SAME object
+        instance (no re-deserialisation).
 
     Raises:
         FileNotFoundError: If *file_path* does not exist on disk.
         ValueError: If *framework* is not recognised.
         RuntimeError: If the model cannot be deserialised.
     """
-    if not file_path or not os.path.isfile(file_path):
-        raise FileNotFoundError(f"Model file not found: {file_path!r}")
-
-    framework = (framework or "").lower().strip()
-    logger.info("Loading model from '%s' (framework=%s)", file_path, framework)
-
-    try:
-        if framework == "scikit-learn":
-            return _load_sklearn_model(file_path)
-
-        elif framework == "pytorch":
-            return _load_pytorch_model(file_path)
-
-        elif framework == "onnx":
-            return _load_onnx_model(file_path)
-
-        elif framework == "xgboost":
-            return _load_xgboost_model(file_path)
-
-        elif framework == "lightgbm":
-            return _load_lightgbm_model(file_path)
-
-        elif framework == "tensorflow":
-            return _load_tensorflow_model(file_path)
-
-        else:
-            raise ValueError(
-                f"Unsupported framework: '{framework}'. "
-                f"Supported: scikit-learn, pytorch, onnx, xgboost, lightgbm, tensorflow"
-            )
-    except (FileNotFoundError, ValueError):
-        raise
-    except Exception as exc:
-        raise RuntimeError(
-            f"Failed to load model from '{file_path}' (framework={framework}): {exc}"
-        ) from exc
+    return _load_model_cached(file_path, framework)
 
 
 # ─── Framework-specific private loaders ────────────────────────────────────────

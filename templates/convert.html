@@ -382,6 +382,91 @@ function setKernelStatus(label, kind) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  Visible alert banner — pops up at the top so the user ALWAYS sees the
+//  outcome, even if they scrolled past the live-output box.
+// ─────────────────────────────────────────────────────────────────────────────
+function showAlert(message, kind) {
+    // kind: 'error' | 'success' | 'warning' | 'info'
+    kind = kind || 'info';
+
+    // Find or create the alert container at the top of the page.
+    let container = document.getElementById('convert-alert-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'convert-alert-container';
+        container.style.cssText = 'position:sticky;top:0;z-index:1000;';
+        // Insert right above the convert-toolbar so it's the first thing
+        // the user sees.
+        const toolbar = document.querySelector('.convert-toolbar');
+        if (toolbar && toolbar.parentNode) {
+            toolbar.parentNode.insertBefore(container, toolbar);
+        } else {
+            document.querySelector('main.container').prepend(container);
+        }
+    }
+
+    // Cap message length to keep the DOM sane.
+    let text = String(message || '');
+    if (text.length > 2000) text = text.slice(0, 2000) + '\n…(truncated)';
+
+    const alert = document.createElement('div');
+    alert.className = 'convert-alert' + (kind === 'success' ? ' success' : '');
+    alert.style.cssText = 'margin-bottom:0.75rem;white-space:pre-wrap;word-break:break-word;';
+    alert.textContent = text;
+
+    // Add a dismiss button so the user can clear the alert.
+    const close = document.createElement('button');
+    close.textContent = '✕';
+    close.style.cssText = 'float:right;background:none;border:0;color:inherit;font-size:1rem;cursor:pointer;padding:0 0.4rem;';
+    close.onclick = () => alert.remove();
+    alert.prepend(close);
+
+    container.appendChild(alert);
+    // Scroll the alert into view.
+    alert.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // Auto-remove success alerts after 8s. Errors stay until dismissed.
+    if (kind === 'success') {
+        setTimeout(() => { if (alert.parentNode) alert.remove(); }, 8000);
+    }
+    return alert;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Global error catchers — prevent "white page" on uncaught promise
+//  rejections or Pyodide-internal crashes.  Anything that escapes
+//  trainWithPyodide()'s try/catch lands here.
+// ─────────────────────────────────────────────────────────────────────────────
+window.addEventListener('error', (event) => {
+    const msg = event.error && event.error.message
+        ? event.error.message
+        : String(event.message || 'Unknown error');
+    showAlert('Unexpected error: ' + msg, 'error');
+    // Reset the train button if it's stuck in "Training…" state.
+    const btn = document.getElementById('train-btn');
+    if (btn) {
+        btn.disabled = false;
+        btn.textContent = '⚡ Train & Convert';
+    }
+    isTraining = false;
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason;
+    let msg;
+    if (reason && reason.message) msg = reason.message;
+    else if (typeof reason === 'string') msg = reason;
+    else msg = 'Unhandled promise rejection (check console for details)';
+    showAlert('Training pipeline error: ' + msg, 'error');
+    const btn = document.getElementById('train-btn');
+    if (btn) {
+        btn.disabled = false;
+        btn.textContent = '⚡ Train & Convert';
+    }
+    isTraining = false;
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  Engine toggle
 // ─────────────────────────────────────────────────────────────────────────────
 function setEngine(eng) {
@@ -468,6 +553,15 @@ print("[kernel] Pyodide ready — np, pd, sklearn, scipy, matplotlib, joblib imp
         setKernelStatus('kernel: pyodide failed', 'error');
         appendLiveOutput("[kernel] Pyodide failed to load: " + (err.message || err), "error");
         appendLiveOutput("[kernel] Switch to Server sandbox above, or refresh the page.", "stderr");
+        // ── Visible alert so the user immediately understands ──
+        showAlert(
+            "Pyodide failed to load in your browser.\n" +
+            "This usually means the CDN is blocked, your browser is out of memory, " +
+            "or you're offline.\n\n" +
+            "Switch to the 'Server sandbox' engine above (top-right of this page) " +
+            "— it runs the same code on the server with a 300s limit.",
+            'error'
+        );
     }
 }
 
@@ -741,6 +835,13 @@ base64.b64encode(buf.getvalue()).decode('ascii')
         appendLiveOutput(`[success] Detected class: ${data.model_class}`, "success");
         appendLiveOutput(`[redirect] /models/${data.id}`, "stderr");
 
+        // ── Visible success banner ───────────────────────────────────────
+        showAlert(
+            `✓ Model saved as #${data.id} (${data.model_name}, ${data.size_kb} KB).\n` +
+            `Redirecting to model detail page…`,
+            'success'
+        );
+
         // Redirect to the model detail page after a short delay.
         setTimeout(() => {
             window.location.href = `/models/${data.id}`;
@@ -748,9 +849,31 @@ base64.b64encode(buf.getvalue()).decode('ascii')
 
     } catch (err) {
         const elapsed = ((performance.now() - startTime) / 1000).toFixed(1);
+        const errMsg = err.message || String(err);
         appendLiveOutput(`\n[error] Training failed after ${elapsed}s:`, "error");
-        appendLiveOutput(err.message || String(err), "error");
+        appendLiveOutput(errMsg, "error");
         setKernelStatus('kernel: ready (training failed)', 'error');
+
+        // ── Visible alert banner so the user ALWAYS sees the failure ──
+        // Decode common Pyodide error patterns into a friendly message.
+        let friendly = errMsg;
+        if (errMsg.includes("unknown url type: https")) {
+            friendly =
+                "Cannot fetch HTTPS URLs directly in Pyodide.\n" +
+                "Fix: use the patched pd.read_csv() (auto-applied at kernel boot) OR\n" +
+                "      use the Server engine (button at the top of this page) for unrestricted network.";
+        } else if (errMsg.includes("No module named")) {
+            friendly =
+                "A Python module is missing in the Pyodide kernel.\n" +
+                "Pyodide ships numpy, pandas, scipy, scikit-learn, matplotlib, joblib only.\n" +
+                "If you need xgboost / lightgbm / torch, switch to the Server engine.";
+        } else if (errMsg.length > 400) {
+            friendly = errMsg.slice(0, 400) + "\n…(see live output for full traceback)";
+        }
+        showAlert(
+            `Training failed after ${elapsed}s:\n\n${friendly}`,
+            'error'
+        );
     } finally {
         const trainBtn = document.getElementById('train-btn');
         trainBtn.disabled = false;
@@ -814,6 +937,13 @@ async function onTrainClick() {
         } else {
             trainWithServer();
         }
+    } catch (err) {
+        // Safety net: if trainWithPyodide itself throws synchronously
+        // (or rejects before its own try/catch wraps it), show a
+        // visible alert so the page never goes white silently.
+        const msg = (err && err.message) ? err.message : String(err);
+        showAlert('Training pipeline error: ' + msg, 'error');
+        console.error('[convert] onTrainClick error:', err);
     } finally {
         isTraining = false;
     }
