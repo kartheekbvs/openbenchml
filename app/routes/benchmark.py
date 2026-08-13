@@ -4,6 +4,12 @@ OpenBenchML Benchmark Execution Routes
 Handles benchmark job creation, execution, results display, model
 comparison, and JSON API access.  HTML routes require cookie-based
 authentication; API routes return JSON without auth for public data.
+
+A special "sample benchmark" endpoint (``POST /benchmark/sample/{id}``)
+allows any visitor — even logged-out — to trigger a real benchmark
+using the platform's auto-trained sample model for that dataset.  This
+proves the benchmarking pipeline produces real numbers without
+requiring users to upload a model first.
 """
 
 import logging
@@ -14,13 +20,14 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from sqlalchemy.orm import Session, joinedload
 
 from app.database.db import get_db
-from app.database.models import MLModel, Dataset, BenchmarkJob, BenchmarkResult
+from app.database.models import MLModel, Dataset, BenchmarkJob, BenchmarkResult, User
 from app.services.benchmark_service import (
     create_benchmark_job,
     run_benchmark,
     get_benchmark_status,
     cancel_benchmark,
 )
+from app.services.sample_models_service import find_sample_model_for_dataset
 from app.routes.auth import get_current_user_from_cookie
 from app.config import templates
 
@@ -148,6 +155,96 @@ async def benchmark_submit(
     return RedirectResponse(url=f"/results/{job.id}", status_code=303)
 
 
+# ─── Sample benchmark (no login required) ─────────────────────────────────────
+
+
+@router.post("/benchmark/sample/{dataset_id}")
+async def benchmark_sample_submit(
+    request: Request,
+    dataset_id: int,
+    db: Session = Depends(get_db),
+):
+    """Run a real benchmark using the platform's auto-trained sample model.
+
+    This endpoint is **public** — no login required.  It looks up the
+    sample model for the given dataset (auto-trained at startup by
+    ``sample_models_service.ensure_sample_models``), creates a benchmark
+    job, runs it synchronously, and redirects the visitor to the
+    results page.
+
+    The visitor is treated as the system user (owner of the sample
+    model) so the access-control check on the results page passes.
+
+    If no sample model exists for the dataset, the user is redirected
+    back to the dataset detail page with an explanatory flash message
+    in the URL fragment.
+    """
+    # We do NOT require login here.  We use the system user as the
+    # effective owner for the duration of this request so the results
+    # page (which checks job.model.user_id == user.id) will allow
+    # viewing.  The results page is also relaxed for sample-model jobs
+    # — see results_page below.
+    dataset: Optional[Dataset] = (
+        db.query(Dataset).filter(Dataset.id == dataset_id).first()
+    )
+    if dataset is None:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    sample_model = find_sample_model_for_dataset(dataset, db)
+    if sample_model is None:
+        # No sample model available — bounce back to dataset page
+        return RedirectResponse(
+            url=f"/datasets/{dataset_id}?nosample=1",
+            status_code=303,
+        )
+
+    # If the sample model file is missing, try to retrain it inline
+    import os
+    if not sample_model.file_path or not os.path.isfile(sample_model.file_path):
+        # Trigger a refresh
+        from app.services.sample_models_service import ensure_sample_models
+        try:
+            ensure_sample_models(db)
+            db.refresh(sample_model)
+        except Exception as exc:
+            logger.error("Inline sample model retrain failed: %s", exc)
+
+        if not sample_model.file_path or not os.path.isfile(sample_model.file_path):
+            return RedirectResponse(
+                url=f"/datasets/{dataset_id}?nosample=1",
+                status_code=303,
+            )
+
+    # Create and run the benchmark job synchronously
+    try:
+        job = create_benchmark_job(
+            model_id=sample_model.id,
+            dataset_id=dataset_id,
+            db=db,
+        )
+        logger.info(
+            "Sample benchmark job id=%d created (model=%d, dataset=%d)",
+            job.id, sample_model.id, dataset_id,
+        )
+        run_benchmark(job_id=job.id, db=db)
+    except HTTPException as exc:
+        logger.warning("Sample benchmark submission failed: %s", exc.detail)
+        return RedirectResponse(
+            url=f"/datasets/{dataset_id}?error={exc.detail[:200]}",
+            status_code=303,
+        )
+    except Exception as exc:
+        logger.error("Sample benchmark execution failed: %s", exc)
+        if 'job' in dir():
+            return RedirectResponse(url=f"/results/{job.id}", status_code=303)
+        return RedirectResponse(
+            url=f"/datasets/{dataset_id}?error=benchmark_failed",
+            status_code=303,
+        )
+
+    return RedirectResponse(url=f"/results/{job.id}", status_code=303)
+
+
 @router.get("/jobs", response_class=HTMLResponse)
 async def jobs_page(
     request: Request,
@@ -221,10 +318,13 @@ async def results_page(
     f1_score, mae, rmse, r2_score, latency_ms, memory_mb, cpu_percent,
     and model_size_kb.  If the job is not yet complete the status is
     shown instead.
+
+    Access control: the model owner can view results.  In addition,
+    sample-model jobs (owned by the ``openbenchml_system`` user) are
+    publicly viewable so that any visitor who clicks "Run Sample
+    Benchmark" can see the real metrics.
     """
     user = await get_current_user_from_cookie(request, db)
-    if user is None:
-        return RedirectResponse(url="/login", status_code=303)
 
     job: Optional[BenchmarkJob] = (
         db.query(BenchmarkJob)
@@ -239,9 +339,19 @@ async def results_page(
     if job is None:
         raise HTTPException(status_code=404, detail="Benchmark job not found")
 
-    # Enforce access control: only the model owner can view results
-    if job.model and job.model.user_id != user.id:
-        raise HTTPException(status_code=403, detail="You do not have access to this job")
+    # ── Determine if this is a sample-model job ──────────────────────────
+    is_sample_job = False
+    if job.model is not None:
+        owner = job.model.owner
+        if owner is not None and owner.username == "openbenchml_system":
+            is_sample_job = True
+
+    # ── Access control ───────────────────────────────────────────────────
+    if not is_sample_job:
+        if user is None:
+            return RedirectResponse(url="/login", status_code=303)
+        if job.model and job.model.user_id != user.id:
+            raise HTTPException(status_code=403, detail="You do not have access to this job")
 
     result: Optional[BenchmarkResult] = job.result
 
@@ -256,10 +366,15 @@ async def results_page(
             ("MAE", result.mae, "{:.4f}"),
             ("RMSE", result.rmse, "{:.4f}"),
             ("R\u00b2 Score", result.r2_score, "{:.4f}"),
-            ("Latency", result.latency_ms, "{:.1f} ms"),
-            ("Memory", result.memory_mb, "{:.1f} MB"),
+            ("Latency (mean)", result.latency_ms, "{:.2f} ms"),
+            ("Latency P50", result.latency_p50_ms, "{:.2f} ms"),
+            ("Latency P95", result.latency_p95_ms, "{:.2f} ms"),
+            ("Latency P99", result.latency_p99_ms, "{:.2f} ms"),
+            ("Throughput", result.throughput_per_sec, "{:.1f} /s"),
+            ("Memory", result.memory_mb, "{:.2f} MB"),
             ("CPU Usage", result.cpu_percent, "{:.1f}%"),
             ("Model Size", result.model_size_kb, "{:.1f} KB"),
+            ("Inferences", result.inference_count, "{}"),
         ]
         for label, value, fmt in metric_defs:
             if value is not None:
@@ -276,6 +391,7 @@ async def results_page(
         "result": result,
         "metric_cards": metric_cards,
         "status_color": STATUS_COLORS.get(job.status, "secondary"),
+        "is_sample_job": is_sample_job,
     })
 
 

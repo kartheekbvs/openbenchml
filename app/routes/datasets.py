@@ -4,20 +4,32 @@ OpenBenchML Dataset Routes
 Provides browsable HTML pages and a JSON API for the platform's built-in
 benchmark datasets.  Datasets are read-only — they are seeded via
 ``database.seed`` and are not user-uploadable in the current version.
+
+The dataset detail page (``/datasets/{id}``) includes a ``df.head(N)``
+style preview that reads the first N rows of the underlying CSV (or
+the sklearn Bunch for built-ins).  The row count comes from the
+``?rows=`` query parameter (default 5, clamped to 1..100).  The form
+uses a normal ``<form method="GET">`` — no vanilla JavaScript.
 """
 
 import logging
 from collections import defaultdict
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from sqlalchemy.orm import Session, joinedload
 
 from app.database.db import get_db
-from app.database.models import Dataset, BenchmarkJob, BenchmarkResult
+from app.database.models import Dataset, BenchmarkJob, BenchmarkResult, MLModel
 from app.routes.auth import get_current_user_from_cookie
 from app.config import templates
+from app.services.dataset_preview_service import (
+    get_dataset_preview,
+    DEFAULT_PREVIEW_ROWS,
+    clamp_rows,
+)
+from app.services.sample_models_service import find_sample_model_for_dataset
 
 logger = logging.getLogger(__name__)
 
@@ -69,13 +81,23 @@ async def datasets_page(
 async def dataset_detail_page(
     request: Request,
     dataset_id: int,
+    rows: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
     """Render a detailed view for a single dataset.
 
     Shows full metadata (description, task type, sample/feature counts,
-    difficulty) together with recent benchmark jobs that used this
-    dataset, so users can gauge how models typically perform.
+    difficulty) together with:
+
+    * A ``df.head(N)`` style preview table of the first N rows
+      (controllable via the ``?rows=`` query parameter, default 5,
+      clamped to 1..100).  For CSV datasets the file is read directly;
+      for sklearn built-ins the Bunch is materialised.
+    * Recent benchmark jobs that used this dataset, so users can gauge
+      how models typically perform.
+    * A "Run Sample Benchmark" button — runs a real benchmark using
+      the platform's pre-trained sample model for this dataset so any
+      visitor (even logged-out) can see real numbers immediately.
     """
     user = await get_current_user_from_cookie(request, db)
 
@@ -86,6 +108,13 @@ async def dataset_detail_page(
     )
     if dataset is None:
         raise HTTPException(status_code=404, detail="Dataset not found")
+
+    # ── df.head(N) preview (no vanilla JS — pure server-side) ────────────
+    requested_rows = clamp_rows(rows)
+    preview: Dict[str, Any] = get_dataset_preview(dataset, requested_rows)
+
+    # ── Find a sample pre-trained model for this dataset (if any) ────────
+    sample_model: Optional[MLModel] = find_sample_model_for_dataset(dataset, db)
 
     # ── Recent completed benchmarks for this dataset ──────────────────────
     recent_jobs: List[BenchmarkJob] = (
@@ -104,8 +133,8 @@ async def dataset_detail_page(
     )
 
     logger.debug(
-        "Dataset detail: id=%d, name='%s', recent_jobs=%d",
-        dataset_id, dataset.name, len(recent_jobs),
+        "Dataset detail: id=%d, name='%s', preview_rows=%d, recent_jobs=%d",
+        dataset_id, dataset.name, preview.get("total_rows_loaded", 0), len(recent_jobs),
     )
 
     return templates.TemplateResponse("dataset_detail.html", {
@@ -113,6 +142,9 @@ async def dataset_detail_page(
         "user": user,
         "dataset": dataset,
         "recent_jobs": recent_jobs,
+        "preview": preview,
+        "preview_rows": requested_rows,
+        "sample_model": sample_model,
     })
 
 
@@ -161,3 +193,36 @@ async def api_list_datasets(
         }
         for ds in datasets
     ]
+
+
+@router.get("/api/datasets/{dataset_id}/preview", response_class=JSONResponse)
+async def api_dataset_preview(
+    dataset_id: int,
+    rows: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    """Return the first ``rows`` rows of a dataset as JSON (df.head(N)).
+
+    Useful for programmatic inspection of a dataset without rendering
+    the HTML page.  Row count is clamped to 1..100 (default 5).
+    """
+    dataset: Optional[Dataset] = (
+        db.query(Dataset).filter(Dataset.id == dataset_id).first()
+    )
+    if dataset is None:
+        raise HTTPException(status_code=404, detail="Dataset not found")
+
+    n = clamp_rows(rows)
+    preview = get_dataset_preview(dataset, n)
+    return {
+        "dataset_id": dataset.id,
+        "dataset_name": dataset.name,
+        "requested_rows": n,
+        "returned_rows": preview.get("total_rows_loaded", 0),
+        "total_rows_in_file": preview.get("total_rows_in_file"),
+        "source": preview.get("source"),
+        "file_name": preview.get("file_name"),
+        "columns": preview.get("columns", []),
+        "rows": preview.get("rows", []),
+        "error": preview.get("error"),
+    }

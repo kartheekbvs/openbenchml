@@ -7,7 +7,7 @@
 <div class="d-flex align-center justify-between" style="margin-bottom: 2rem;">
     <div>
         <h1 style="margin-bottom: 0.25rem;">{{ dataset.name }}</h1>
-        <p class="text-muted">Dataset details and recent benchmark results.</p>
+        <p class="text-muted">Dataset details, sample preview, and recent benchmark results.</p>
     </div>
     <a href="/datasets" class="btn btn-secondary btn-sm">&#8592; All Datasets</a>
 </div>
@@ -44,6 +44,12 @@
             <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 0.25rem;">Features</div>
             <div style="font-weight: 700; color: var(--text-primary);">{{ dataset.features or '—' }}</div>
         </div>
+        {% if preview and preview.file_name %}
+        <div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 0.25rem;">Source</div>
+            <div style="font-weight: 600; color: var(--text-primary); font-size: 0.85rem; word-break: break-all;">{{ preview.file_name }}</div>
+        </div>
+        {% endif %}
     </div>
     {% if dataset.description %}
     <div style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border);">
@@ -52,6 +58,88 @@
     </div>
     {% endif %}
 </div>
+
+<!-- Data Preview (df.head(N)) -->
+<div class="card" style="margin-bottom: 2rem;">
+    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+        <h3 style="margin: 0;">Data Preview &mdash; df.head({{ preview_rows }})</h3>
+        <!-- GET form: no vanilla JS, server re-renders with new N -->
+        <form method="get" action="/datasets/{{ dataset.id }}" style="display: flex; align-items: center; gap: 0.5rem;">
+            <label for="rows" style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">Rows:</label>
+            <input type="number" id="rows" name="rows" min="1" max="100" value="{{ preview_rows }}"
+                   style="width: 80px; padding: 0.35rem 0.5rem; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary);">
+            <button type="submit" class="btn btn-secondary btn-sm">Show</button>
+        </form>
+    </div>
+
+    {% if preview and preview.error %}
+    <p class="text-muted" style="padding: 1rem 0; color: var(--warning);">
+        Could not load preview: {{ preview.error }}
+    </p>
+    {% elif preview and preview.columns and preview.rows %}
+    <div style="padding: 0.5rem 0 1rem; font-size: 0.85rem; color: var(--text-secondary);">
+        Showing <strong style="color: var(--text-primary);">{{ preview.total_rows_loaded }}</strong>
+        {% if preview.total_rows_in_file is not none %}
+        of <strong style="color: var(--text-primary);">{{ preview.total_rows_in_file }}</strong>
+        {% endif %}
+        rows &middot; <strong style="color: var(--text-primary);">{{ preview.columns|length }}</strong> columns
+        &middot; source: <code>{{ preview.source }}</code>
+    </div>
+    <div class="table-wrapper" style="overflow-x: auto;">
+        <table style="font-size: 0.85rem;">
+            <thead>
+                <tr>
+                    <th style="text-align: right; padding-right: 0.75rem; color: var(--text-secondary); font-weight: 500;">#</th>
+                    {% for col in preview.columns %}
+                    <th>{{ col }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in preview.rows %}
+                <tr>
+                    <td style="text-align: right; padding-right: 0.75rem; color: var(--text-secondary); font-variant-numeric: tabular-nums;">{{ loop.index0 }}</td>
+                    {% for cell in row %}
+                    <td style="font-variant-numeric: tabular-nums; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis;" title="{{ cell }}">{{ cell }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if preview.total_rows_in_file and preview.total_rows_loaded < preview.total_rows_in_file %}
+    <div style="margin-top: 0.75rem; font-size: 0.85rem; color: var(--text-secondary);">
+        Increase "Rows" above to see more (max 100). Use the JSON API at
+        <code>/api/datasets/{{ dataset.id }}/preview?rows={{ preview_rows }}</code>
+        for programmatic access.
+    </div>
+    {% endif %}
+    {% else %}
+    <p class="text-muted" style="padding: 1rem 0;">No preview available for this dataset.</p>
+    {% endif %}
+</div>
+
+<!-- Sample Benchmark CTA -->
+{% if sample_model %}
+<div class="card" style="margin-bottom: 2rem; background: linear-gradient(135deg, rgba(99,102,241,0.08), rgba(168,85,247,0.08)); border: 1px solid var(--border);">
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <div>
+            <h3 style="margin: 0 0 0.35rem 0; font-size: 1.1rem;">Run a real benchmark in one click</h3>
+            <p class="text-muted" style="margin: 0; font-size: 0.9rem;">
+                The platform ships with a pre-trained
+                <strong style="color: var(--text-primary);">{{ sample_model.framework }}</strong>
+                model (<strong style="color: var(--text-primary);">{{ sample_model.model_name }}</strong>)
+                already trained on this dataset.  Run it through the full
+                benchmark pipeline and see real accuracy / F1 / R&sup2; /
+                latency / throughput numbers &mdash; no upload required.
+            </p>
+        </div>
+        <form method="post" action="/benchmark/sample/{{ dataset.id }}">
+            <button type="submit" class="btn btn-primary btn-lg">&#9889; Run Sample Benchmark</button>
+        </form>
+    </div>
+</div>
+{% endif %}
 
 <!-- Recent Benchmarks -->
 <div class="card" style="margin-bottom: 2rem;">
@@ -68,8 +156,8 @@
                 <tr>
                     <th>Rank</th>
                     <th>Model</th>
-                    <th>Accuracy</th>
-                    <th>F1 Score</th>
+                    <th>{{ "Accuracy" if dataset.task_type == "classification" else "R² Score" }}</th>
+                    <th>{{ "F1 Score" if dataset.task_type == "classification" else "MAE" }}</th>
                     <th>Latency (ms)</th>
                     <th>Finished</th>
                 </tr>
@@ -95,45 +183,70 @@
                         </a>
                     </td>
                     <td>
-                        {% if job.result and job.result.accuracy is not none %}
-                        <span style="font-weight: 700; color: var(--success);">{{ "%.4f"|format(job.result.accuracy) }}</span>
+                        {% if dataset.task_type == "classification" %}
+                            {% if job.result and job.result.accuracy is not none %}
+                            <span style="font-weight: 700; color: var(--success);">{{ "%.4f"|format(job.result.accuracy) }}</span>
+                            {% else %}
+                            <span class="text-muted">&mdash;</span>
+                            {% endif %}
                         {% else %}
-                        <span class="text-muted">—</span>
+                            {% if job.result and job.result.r2_score is not none %}
+                            <span style="font-weight: 700; color: var(--success);">{{ "%.4f"|format(job.result.r2_score) }}</span>
+                            {% else %}
+                            <span class="text-muted">&mdash;</span>
+                            {% endif %}
                         {% endif %}
                     </td>
                     <td>
-                        {% if job.result and job.result.f1_score is not none %}
-                        {{ "%.4f"|format(job.result.f1_score) }}
+                        {% if dataset.task_type == "classification" %}
+                            {% if job.result and job.result.f1_score is not none %}
+                            {{ "%.4f"|format(job.result.f1_score) }}
+                            {% else %}
+                            <span class="text-muted">&mdash;</span>
+                            {% endif %}
                         {% else %}
-                        <span class="text-muted">—</span>
+                            {% if job.result and job.result.mae is not none %}
+                            {{ "%.4f"|format(job.result.mae) }}
+                            {% else %}
+                            <span class="text-muted">&mdash;</span>
+                            {% endif %}
                         {% endif %}
                     </td>
                     <td>
                         {% if job.result and job.result.latency_ms is not none %}
                         {{ "%.1f"|format(job.result.latency_ms) }}
                         {% else %}
-                        <span class="text-muted">—</span>
+                        <span class="text-muted">&mdash;</span>
                         {% endif %}
                     </td>
-                    <td>{{ job.finished_at.strftime("%b %d, %H:%M") if job.finished_at else "—" }}</td>
+                    <td>{{ job.finished_at.strftime("%b %d, %H:%M") if job.finished_at else "&mdash;" }}</td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
     {% else %}
-    <p class="text-muted" style="padding: 1rem 0;">No completed benchmarks for this dataset yet. Be the first to run one!</p>
+    <p class="text-muted" style="padding: 1rem 0;">
+        No completed benchmarks for this dataset yet.
+        {% if sample_model %}
+        Click <strong>Run Sample Benchmark</strong> above to be the first!
+        {% else %}
+        Be the first to run one!
+        {% endif %}
+    </p>
     {% endif %}
 </div>
 
 <!-- Action Button -->
 {% if user %}
 <div class="text-center">
-    <a href="/benchmark?dataset_id={{ dataset.id }}" class="btn btn-primary btn-lg">&#9889; Run Benchmark with This Dataset</a>
+    <a href="/benchmark?dataset_id={{ dataset.id }}" class="btn btn-primary btn-lg">&#9889; Run Benchmark with Your Own Model</a>
 </div>
 {% else %}
 <div class="text-center">
+    {% if not sample_model %}
     <a href="/login" class="btn btn-primary btn-lg">Login to Run a Benchmark</a>
+    {% endif %}
 </div>
 {% endif %}
 {% endblock %}

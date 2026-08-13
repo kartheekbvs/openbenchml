@@ -31,6 +31,7 @@ from app.config import (
 )
 from app.database.db import init_db
 from app.database.seed import seed_database
+from app.services.sample_models_service import ensure_sample_models
 
 # Configure logging
 logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO), format=LOG_FORMAT)
@@ -92,6 +93,23 @@ async def lifespan(app: FastAPI):
     # Seed with default datasets
     seed_database()
     logger.info("Database seeded with default datasets")
+
+    # Train / refresh real sample models so any visitor can run a real
+    # benchmark immediately.  This is idempotent and skips datasets
+    # that already have a working model file on disk.
+    try:
+        from app.database.db import SessionLocal
+        _seed_db = SessionLocal()
+        try:
+            stats = ensure_sample_models(_seed_db)
+            logger.info(
+                "Sample models: created=%d reused=%d failed=%d total=%d",
+                stats["created"], stats["reused"], stats["failed"], stats["total"],
+            )
+        finally:
+            _seed_db.close()
+    except Exception as exc:
+        logger.error("Sample model seeding failed (non-fatal): %s", exc)
 
     # Log configuration
     logger.info(f"Rate limiting: {'enabled' if RATE_LIMIT_ENABLED else 'disabled'}")
