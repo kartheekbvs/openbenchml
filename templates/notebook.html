@@ -1930,6 +1930,42 @@ try:
 except Exception as e:
     print(f"[pyodide] Warning: could not patch sklearn fetcher: {e}")
 
+# ── Patch pandas.read_csv so pd.read_csv("https://...") works in Pyodide ──
+# Pyodide has no real network stack — urllib.request.urlopen raises
+# "unknown url type: https". We intercept HTTPS/http URLs and route
+# them through pyodide.http.pyfetch, then hand the resulting bytes
+# back to pandas via io.BytesIO. Local paths still go through the
+# original reader unchanged.
+#
+# Note: pyfetch is awaitable, but read_csv is sync. Pyodide provides
+# run_sync() (via pyodide.ffi.run_sync) to bridge — but the simplest
+# portable approach is to use the sync wrapper open_url which Pyodide
+# already exposes for the same purpose. We use open_url here.
+try:
+    from pyodide.http import open_url as _obml_open_url
+    import io as _obml_io
+    _obml_orig_read_csv = pd.read_csv
+
+    def _obml_read_csv(filepath_or_buffer, *args, **kwargs):
+        if isinstance(filepath_or_buffer, str) and (
+            filepath_or_buffer.startswith("https://")
+            or filepath_or_buffer.startswith("http://")
+        ):
+            # open_url returns a binary file-like object ready for pandas
+            fobj = _obml_open_url(filepath_or_buffer)
+            data_bytes = fobj.read()
+            if isinstance(data_bytes, str):
+                data_bytes = data_bytes.encode("utf-8")
+            return _obml_orig_read_csv(
+                _obml_io.BytesIO(data_bytes), *args, **kwargs
+            )
+        return _obml_orig_read_csv(filepath_or_buffer, *args, **kwargs)
+
+    pd.read_csv = _obml_read_csv
+    print("[pyodide] Patched pandas.read_csv for HTTPS URLs.")
+except Exception as e:
+    print(f"[pyodide] Warning: could not patch pandas.read_csv: {e}")
+
 def __obml_get_figures__():
     out = []
     for n in plt.get_fignums():

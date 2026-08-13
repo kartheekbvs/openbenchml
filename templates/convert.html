@@ -426,6 +426,36 @@ matplotlib.use("AGG")
 import matplotlib.pyplot as plt
 import io, base64, pickle, sys
 
+# Patch pandas.read_csv so pd.read_csv("https://...") works in Pyodide.
+# Pyodide has no real network stack — urllib.request.urlopen raises
+# "unknown url type: https". We intercept HTTPS/http URLs and route
+# them through pyodide.http.open_url, then hand the bytes back to
+# pandas via io.BytesIO. Local paths still go through the original
+# reader unchanged.
+try:
+    from pyodide.http import open_url as _obml_open_url
+    _obml_orig_read_csv = pd.read_csv
+    _obml_io_bytesio = io.BytesIO
+
+    def _obml_read_csv(filepath_or_buffer, *args, **kwargs):
+        if isinstance(filepath_or_buffer, str) and (
+            filepath_or_buffer.startswith("https://")
+            or filepath_or_buffer.startswith("http://")
+        ):
+            fobj = _obml_open_url(filepath_or_buffer)
+            data_bytes = fobj.read()
+            if isinstance(data_bytes, str):
+                data_bytes = data_bytes.encode("utf-8")
+            return _obml_orig_read_csv(
+                _obml_io_bytesio(data_bytes), *args, **kwargs
+            )
+        return _obml_orig_read_csv(filepath_or_buffer, *args, **kwargs)
+
+    pd.read_csv = _obml_read_csv
+    print("[kernel] Patched pandas.read_csv for HTTPS URLs.")
+except Exception as e:
+    print(f"[kernel] Warning: could not patch pandas.read_csv: {e}")
+
 print("[kernel] Pyodide ready — np, pd, sklearn, scipy, matplotlib, joblib imported.")
 `);
 
