@@ -80,6 +80,40 @@ ws_manager = ConnectionManager()
 
 
 # ─── Application Lifespan ─────────────────────────────────────────────────────
+
+def _spawn_sample_model_seeder():
+    """Train/refresh sample models in a background daemon thread.
+
+    Runs in parallel with uvicorn binding the port so that Render's
+    port scanner sees the open socket immediately.  We use a worker
+    thread (not asyncio.to_thread) because sklearn's fit() is CPU-bound
+    and we don't want to hold the event loop.  ``daemon=True`` ensures
+    the thread never blocks process shutdown.
+    """
+    import threading
+    import traceback as _tb
+
+    def _worker():
+        try:
+            from app.database.db import SessionLocal
+            _seed_db = SessionLocal()
+            try:
+                stats = ensure_sample_models(_seed_db)
+                logger.info(
+                    "Sample models: created=%d reused=%d failed=%d total=%d",
+                    stats["created"], stats["reused"], stats["failed"], stats["total"],
+                )
+            finally:
+                _seed_db.close()
+        except Exception as exc:
+            logger.error("Sample model seeding failed (non-fatal): %s\n%s",
+                         exc, _tb.format_exc())
+
+    t = threading.Thread(target=_worker, name="sample-models-seeder", daemon=True)
+    t.start()
+    logger.info("Sample-model seeder thread started (background, non-blocking)")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
@@ -94,26 +128,17 @@ async def lifespan(app: FastAPI):
     seed_database()
     logger.info("Database seeded with default datasets")
 
-    # Train / refresh real sample models so any visitor can run a real
-    # benchmark immediately.  This is idempotent and skips datasets
-    # that already have a working model file on disk.
-    try:
-        from app.database.db import SessionLocal
-        _seed_db = SessionLocal()
-        try:
-            stats = ensure_sample_models(_seed_db)
-            logger.info(
-                "Sample models: created=%d reused=%d failed=%d total=%d",
-                stats["created"], stats["reused"], stats["failed"], stats["total"],
-            )
-        finally:
-            _seed_db.close()
-    except Exception as exc:
-        logger.error("Sample model seeding failed (non-fatal): %s", exc)
-
     # Log configuration
     logger.info(f"Rate limiting: {'enabled' if RATE_LIMIT_ENABLED else 'disabled'}")
     logger.info(f"CORS origins: {CORS_ORIGINS}")
+
+    # IMPORTANT: Train sample models in a BACKGROUND daemon thread.
+    # If we call ensure_sample_models() synchronously here, Render's
+    # port scanner times out before uvicorn binds to $PORT and the
+    # deploy fails with "no open ports detected".  The daemon thread
+    # starts immediately but does NOT block — uvicorn binds the port
+    # right away, and training continues in parallel.
+    _spawn_sample_model_seeder()
 
     yield
 
