@@ -1343,6 +1343,8 @@ _CURATED = {
         "float64", "bool_", "save", "load", "savez", "fromfile", "copy", "abs",
         "sqrt", "exp", "log", "log10", "sin", "cos", "tan", "arcsin", "arccos",
         "arctan", "floor", "ceil", "round", "clip", "newaxis", "ndim", "shape",
+        "median", "percentile", "quantile", "std", "cov", "corrcoef", "histogram",
+        "bincount", "digitize", "isfinite", "isnan", "isinf", "meshgrid", "ix_",
     ],
     "pd": [
         "DataFrame", "Series", "read_csv", "read_json", "read_parquet", "read_excel",
@@ -1353,6 +1355,9 @@ _CURATED = {
         "diff", "cumsum", "cummax", "cummin", "value_counts", "unique", "nunique",
         "head", "tail", "sample", "describe", "info", "columns", "index", "loc",
         "iloc", "at", "iat", "dt", "str", "plot", "hist", "boxplot", "corr", "cov",
+        "set_index", "reset_index", "drop", "drop_duplicates", "sort_values",
+        "sort_index", "rename", "astype", "to_csv", "to_parquet", "to_excel",
+        "to_dict", "to_numpy", "iterrows", "itertuples", "items", "keys", "values",
     ],
     "plt": [
         "plot", "scatter", "bar", "barh", "hist", "pie", "boxplot", "violinplot",
@@ -1362,19 +1367,184 @@ _CURATED = {
         "colorbar", "xlim", "ylim", "xticks", "yticks", "grid", "axis", "tight_layout",
         "rcParams", "style", "cm", "colors", "patches", "annotate", "text", "axhline",
         "axvline", "fill_between", "fill", "semilogx", "semilogy", "loglog",
+        "suptitle", "twinx", "twiny", "figure", "Figure", "Axes",
     ],
     "sklearn": [
         "datasets", "linear_model", "ensemble", "svm", "neighbors", "tree",
         "neural_network", "cluster", "decomposition", "preprocessing", "pipeline",
         "model_selection", "metrics", "feature_extraction", "feature_selection",
         "naive_bayes", "cross_decomposition", "calibration", "compose", "covariance",
-        "discriminant_analysis", "dummy", "ensemble", "gaussian_process", "isotonic",
+        "discriminant_analysis", "dummy", "gaussian_process", "isotonic",
         "kernel_approximation", "kernel_ridge", "manifold", "mixture", "multioutput",
-        "multiclass", "multioutput", "naive_bayes", "neighbors", "neural_network",
-        "pipeline", "preprocessing", "random_projection", "semi_supervised", "svm",
-        "tree", "utils",
+        "multiclass", "random_projection", "semi_supervised", "utils",
+    ],
+    "sklearn.datasets": [
+        "load_iris", "load_wine", "load_breast_cancer", "load_digits", "load_diabetes",
+        "load_linnerud", "fetch_california_housing", "fetch_olivetti_faces",
+        "fetch_20newsgroups", "fetch_openml", "make_classification", "make_regression",
+        "make_blobs", "make_moons", "make_circles", "make_friedman1", "make_s_curve",
+    ],
+    "sklearn.metrics": [
+        "accuracy_score", "precision_score", "recall_score", "f1_score",
+        "confusion_matrix", "classification_report", "roc_auc_score", "roc_curve",
+        "precision_recall_curve", "average_precision_score", "log_loss",
+        "mean_squared_error", "mean_absolute_error", "r2_score", "r2_score",
+        "median_absolute_error", "max_error", "explained_variance_score",
+        "mean_absolute_percentage_error", "silhouette_score", "adjusted_rand_score",
+        "homogeneity_score", "completeness_score", "v_measure_score",
+        "matthews_corrcoef", "cohen_kappa_score", "brier_score_loss",
+        "mean_squared_log_error", "mean_poisson_deviance", "mean_gamma_deviance",
+    ],
+    "sklearn.model_selection": [
+        "train_test_split", "cross_val_score", "cross_validate", "KFold",
+        "StratifiedKFold", "GroupKFold", "RepeatedKFold", "LeaveOneOut",
+        "GridSearchCV", "RandomizedSearchCV", "learning_curve", "validation_curve",
+        "ShuffleSplit", "StratifiedShuffleSplit", "TimeSeriesSplit",
+    ],
+    "sklearn.ensemble": [
+        "RandomForestClassifier", "RandomForestRegressor",
+        "GradientBoostingClassifier", "GradientBoostingRegressor",
+        "AdaBoostClassifier", "AdaBoostRegressor", "BaggingClassifier",
+        "BaggingRegressor", "ExtraTreesClassifier", "ExtraTreesRegressor",
+        "HistGradientBoostingClassifier", "HistGradientBoostingRegressor",
+        "VotingClassifier", "VotingRegressor", "StackingClassifier",
+        "StackingRegressor", "IsolationForest", "RandomTreesEmbedding",
+    ],
+    "sklearn.linear_model": [
+        "LinearRegression", "LogisticRegression", "Ridge", "RidgeClassifier",
+        "Lasso", "LassoCV", "ElasticNet", "ElasticNetCV", "SGDClassifier",
+        "SGDRegressor", "Perceptron", "PassiveAggressiveClassifier",
+        "PassiveAggressiveRegressor", "BayesianRidge", "ARDRegression",
+        "HuberRegressor", "RANSACRegressor", "TheilSenRegressor",
+        "OrthogonalMatchingPursuit", "LassoLars", "Lars",
+    ],
+    "sklearn.svm": [
+        "SVC", "SVR", "LinearSVC", "LinearSVR", "NuSVC", "NuSVR", "OneClassSVM",
+    ],
+    "sklearn.neighbors": [
+        "KNeighborsClassifier", "KNeighborsRegressor", "RadiusNeighborsClassifier",
+        "RadiusNeighborsRegressor", "NearestNeighbors", "NearestCentroid",
+        "LocalOutlierFactor", "KernelDensity", "KNeighborsTransformer",
+    ],
+    "sklearn.tree": [
+        "DecisionTreeClassifier", "DecisionTreeRegressor", "ExtraTreeClassifier",
+        "ExtraTreeRegressor", "export_graphviz", "plot_tree", "export_text",
+    ],
+    "sklearn.preprocessing": [
+        "StandardScaler", "MinMaxScaler", "MaxAbsScaler", "RobustScaler",
+        "Normalizer", "Binarizer", "OneHotEncoder", "OrdinalEncoder",
+        "LabelEncoder", "LabelBinarizer", "MultiLabelBinarizer",
+        "PolynomialFeatures", "FunctionTransformer", "PowerTransformer",
+        "QuantileTransformer", "KBinsDiscretizer", "add_dummy_feature",
+    ],
+    "sklearn.pipeline": [
+        "Pipeline", "FeatureUnion", "make_pipeline", "make_union",
+        "ColumnTransformer", "make_column_transformer", "make_column_selector",
+    ],
+    "sklearn.decomposition": [
+        "PCA", "IncrementalPCA", "KernelPCA", "SparsePCA", "MiniBatchSparsePCA",
+        "TruncatedSVD", "NMF", "FactorAnalysis", "FastICA", "LatentDirichletAllocation",
+        "DictionaryLearning", "MiniBatchDictionaryLearning", "SparseCoder",
+    ],
+    "sklearn.cluster": [
+        "KMeans", "MiniBatchKMeans", "AffinityPropagation", "MeanShift",
+        "SpectralClustering", "AgglomerativeClustering", "DBSCAN", "HDBSCAN",
+        "OPTICS", "Birch", "GaussianMixture", "BayesianGaussianMixture",
+        "estimate_bandwidth", "kmeans_plusplus",
+    ],
+    "sklearn.neural_network": [
+        "MLPClassifier", "MLPRegressor", "BernoulliRBM",
+    ],
+    "sklearn.naive_bayes": [
+        "GaussianNB", "MultinomialNB", "ComplementNB", "BernoulliNB",
+        "CategoricalNB",
+    ],
+    "scipy": [
+        "stats", "linalg", "optimize", "integrate", "interpolate", "fft",
+        "signal", "sparse", "ndimage", "special", "constants", "io", "odr",
+        "spatial", "cluster", "constants", "weave",
+    ],
+    "scipy.stats": [
+        "norm", "uniform", "expon", "gamma", "beta", "t", "chi2", "f",
+        "poisson", "binom", "bernoulli", "geom", "nbinom", "lognorm",
+        "weibull_min", "weibull_max", "rayleigh", "cauchy", "laplace",
+        "ttest_1samp", "ttest_ind", "ttest_rel", "mannwhitneyu", "wilcoxon",
+        "chi2_contingency", "fisher_exact", "ks_2samp", "shapiro", "normaltest",
+        "anderson", "skew", "kurtosis", "mode", "describe", "rankdata",
+        "zscore", "sem", "trim_mean", "gmean", "hmean", "entropy", " percentileofscore",
+        "spearmanr", "pearsonr", "kendalltau",
+    ],
+    "sns": [
+        "set", "set_theme", "set_style", "set_context", "set_palette",
+        "set_color_codes", "despine", "axes_style", "plotting_context",
+        "color_palette", "light_palette", "dark_palette", "diverging_palette",
+        "husl_palette", "hls_palette", "cubehelix_palette", "xkcd_palette",
+        "load_dataset", "get_dataset_names", "get_data_home",
+        "relplot", "scatterplot", "lineplot", "displot", "histplot", "kdeplot",
+        "ecdfplot", "rugplot", "jointplot", "pairplot", "barplot", "countplot",
+        "pointplot", "stripplot", "swarmplot", "boxplot", "violinplot", "boxenplot",
+        "lmplot", "regplot", "residplot", "heatmap", "clustermap", "fac",
+        "FacetGrid", "PairGrid", "JointGrid", "axes_style", "desaturate",
+    ],
+    "tf": [
+        "constant", "Variable", "Tensor", "GradientTape", "function", "py_function",
+        "math", "linalg", "random", "nn", "keras", "data", "io", "image",
+        "signal", "sparse", "square", "reduce_sum", "reduce_mean", "reduce_max",
+        "reduce_min", "cast", "expand_dims", "squeeze", "reshape", "stack",
+        "concat", "gather", "one_hot", "argmax", "argmin", "softmax",
+    ],
+    "torch": [
+        "tensor", "Tensor", "FloatTensor", "DoubleTensor", "HalfTensor",
+        "LongTensor", "IntTensor", "ShortTensor", "ByteTensor", "BoolTensor",
+        "device", "cuda", "is_cuda", "is_available", "set_grad_enabled",
+        "no_grad", "enable_grad", "autograd", "nn", "optim", "save", "load",
+        "rand", "randn", "randint", "randperm", "zeros", "ones", "eye",
+        "arange", "linspace", "logspace", "cat", "stack", "chunk", "split",
+        "reshape", "view", "permute", "transpose", "matmul", "mm", "bmm",
+        "sigmoid", "relu", "tanh", "softmax", "log_softmax", "cross_entropy",
+        "mse_loss", "l1_loss", "nll_loss", "binary_cross_entropy",
+    ],
+    "xgb": [
+        "DMatrix", "Booster", "train", "cv", "plot_importance", "plot_tree",
+        "to_graphviz", "sklearn", "XGBClassifier", "XGBRegressor",
+        "XGBRFClassifier", "XGBRFRegressor", "XGBRanker",
+    ],
+    "lgb": [
+        "Dataset", "Booster", "train", "cv", "plot_importance", "plot_tree",
+        "create_tree_digraph", "LGBMClassifier", "LGBMRegressor", "LGBMRanker",
+        "DaskLGBMClassifier", "DaskLGBMRegressor",
     ],
 }
+
+# Top-level Python keywords / builtins — returned when the user is typing a
+# bare identifier (no dot) with at least 2 characters.  This is what Jupyter /
+# VS Code does and it makes the editor feel "smart" instantly without needing
+# a Jedi round-trip for the most common cases.
+_PY_KEYWORDS = [
+    # Statements
+    "import", "from", "as", "return", "yield", "if", "elif", "else", "for",
+    "while", "break", "continue", "pass", "def", "class", "lambda", "with",
+    "try", "except", "finally", "raise", "assert", "global", "nonlocal",
+    "del", "in", "is", "not", "and", "or", "None", "True", "False",
+    # Builtins
+    "print", "len", "range", "enumerate", "zip", "map", "filter", "sorted",
+    "reversed", "sum", "min", "max", "abs", "round", "any", "all", "type",
+    "isinstance", "issubclass", "id", "hash", "dir", "vars", "repr", "str",
+    "int", "float", "bool", "complex", "list", "tuple", "dict", "set",
+    "frozenset", "bytes", "bytearray", "open", "iter", "next", "format",
+    "input", "help", "property", "staticmethod", "classmethod", "super",
+    "getattr", "setattr", "hasattr", "delattr", "eval", "exec", "compile",
+    "globals", "locals", "exit", "quit", "slice", "object",
+    # Common dunder
+    "__init__", "__repr__", "__str__", "__len__", "__eq__", "__hash__",
+    "__getitem__", "__setitem__", "__iter__", "__next__", "__call__",
+    "__enter__", "__exit__", "__main__", "__name__",
+    # Common data-science snippets (auto-expanded)
+    "import numpy as np", "import pandas as pd", "import matplotlib.pyplot as plt",
+    "from sklearn.ensemble import RandomForestClassifier",
+    "from sklearn.model_selection import train_test_split",
+    "from sklearn.metrics import accuracy_score, mean_squared_error",
+]
 
 
 def _jedi_completions(code: str, cursor_pos: int, namespace: Dict[str, Any]) -> List[Dict[str, str]]:
@@ -1490,7 +1660,28 @@ async def notebook_complete_api(
             merged.append(c)
             seen.add(c["name"])
 
-    return {"ok": True, "completions": merged[:40], "source": "jedi+curated",
+    # 3) Keyword / builtin fallback when the user is typing a bare
+    #    identifier (no dot, e.g. "imp"). Returns instantly without
+    #    requiring the user to have imported anything.
+    if not prefix and attr_part and len(attr_part) >= 2:
+        # Pull in any names already in the user's namespace first (e.g.
+        # if they did `df = pd.read_csv(...)` then typing `df<tab>` works
+        # via Jedi).  Only suggest keywords the user hasn't already
+        # defined or that Jedi hasn't already returned.
+        for kw in _PY_KEYWORDS:
+            if kw.lower().startswith(attr_part.lower()) and kw not in seen:
+                # Detect type for the popup chip
+                kw_type = "keyword"
+                if kw.startswith("__"):
+                    kw_type = "dunder"
+                elif kw.startswith("import ") or kw.startswith("from "):
+                    kw_type = "snippet"
+                elif kw[0].isupper():
+                    kw_type = "builtin"
+                merged.append({"name": kw, "type": kw_type, "desc": ""})
+                seen.add(kw)
+
+    return {"ok": True, "completions": merged[:40], "source": "jedi+curated+keywords",
             "prefix": prefix, "token": token}
 
 

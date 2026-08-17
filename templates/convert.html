@@ -509,18 +509,92 @@ import joblib
 import matplotlib
 matplotlib.use("AGG")
 import matplotlib.pyplot as plt
-import io, base64, pickle, sys
+import io, base64, pickle, sys, os
+
+# ─────────────────────────────────────────────────────────────────────────
+#  Pyodide HTTPS patch
+#  ─────────────────────────────────────────────────────────────────────
+#  Pyodide's stdlib has NO real network stack — urllib.request.urlopen
+#  raises "unknown url type: https" the moment it sees an HTTPS URL.
+#  This breaks:
+#    - pandas.read_csv("https://...")
+#    - sklearn.datasets.fetch_california_housing()  (uses urlretrieve)
+#    - sklearn.datasets.fetch_olivetti_faces()       (uses urlretrieve)
+#    - any user code that does urlopen("https://...")
+#
+#  Fix: monkey-patch urllib.request.urlopen AND urlretrieve so HTTPS
+#  URLs are routed through pyodide.http.open_url (which uses the
+#  browser's fetch() under the hood). Local paths still go through
+#  the original implementation unchanged.
+# ─────────────────────────────────────────────────────────────────────────
+try:
+    import urllib.request as _obml_urllib_request
+    from pyodide.http import open_url as _obml_open_url
+
+    _obml_orig_urlopen = _obml_urllib_request.urlopen
+    _obml_orig_urlretrieve = _obml_urllib_request.urlretrieve
+    _obml_io_bytesio = io.BytesIO
+
+    def _obml_is_http_url(url_or_req):
+        """Return True if x is a string http(s) URL or a Request with one."""
+        url = getattr(url_or_req, "full_url", url_or_req)
+        return isinstance(url, str) and (
+            url.startswith("https://") or url.startswith("http://")
+        )
+
+    def _obml_extract_url(url_or_req):
+        """Pull the string URL out of a str or urllib.request.Request."""
+        if hasattr(url_or_req, "full_url"):
+            return url_or_req.full_url
+        return url_or_req
+
+    def _obml_urlopen(url, data=None, timeout=None, cafile=None, capath=None, cadefault=False, context=None):
+        """Drop-in urlopen() that routes http(s):// through pyodide.http.open_url."""
+        if _obml_is_http_url(url):
+            real_url = _obml_extract_url(url)
+            fobj = _obml_open_url(real_url)
+            data_bytes = fobj.read()
+            if isinstance(data_bytes, str):
+                data_bytes = data_bytes.encode("utf-8")
+            return _obml_io_bytesio(data_bytes)
+        # Non-HTTP URL — defer to the original (file://, etc.)
+        return _obml_orig_urlopen(url, data=data, timeout=timeout)
+
+    def _obml_urlretrieve(url, filename=None, reporthook=None, data=None):
+        """Drop-in urlretrieve() that fetches http(s):// via open_url and
+        writes the bytes to the local filename. This is what sklearn's
+        _fetch_remote() calls."""
+        if _obml_is_http_url(url):
+            real_url = _obml_extract_url(url)
+            fobj = _obml_open_url(real_url)
+            data_bytes = fobj.read()
+            if isinstance(data_bytes, str):
+                data_bytes = data_bytes.encode("utf-8")
+            if filename:
+                # Write to the requested local path so sklearn's checksum
+                # verification + joblib.load() can find it.
+                with open(filename, "wb") as f:
+                    f.write(data_bytes)
+                # Mimic the (filename, headers) tuple returned by urlretrieve.
+                class _Headers(dict):
+                    pass
+                return (filename, _Headers({"Content-Type": "application/octet-stream"}))
+            # No filename → return a BytesIO (rare path; sklearn always passes filename)
+            return (_obml_io_bytesio(data_bytes), None)
+        return _obml_orig_urlretrieve(url, filename=filename, reporthook=reporthook, data=data)
+
+    _obml_urllib_request.urlopen = _obml_urlopen
+    _obml_urllib_request.urlretrieve = _obml_urlretrieve
+    print("[kernel] Patched urllib.request.urlopen + urlretrieve for HTTPS URLs.")
+except Exception as e:
+    print(f"[kernel] Warning: could not patch urllib.request: {e}")
 
 # Patch pandas.read_csv so pd.read_csv("https://...") works in Pyodide.
-# Pyodide has no real network stack — urllib.request.urlopen raises
-# "unknown url type: https". We intercept HTTPS/http URLs and route
-# them through pyodide.http.open_url, then hand the bytes back to
-# pandas via io.BytesIO. Local paths still go through the original
-# reader unchanged.
+# (This is now redundant with the urlopen patch above — pd.read_csv uses
+#  urlopen internally for http(s) URLs — but we keep it as a belt-and-
+#  braces fallback in case pandas changes its code path.)
 try:
-    from pyodide.http import open_url as _obml_open_url
     _obml_orig_read_csv = pd.read_csv
-    _obml_io_bytesio = io.BytesIO
 
     def _obml_read_csv(filepath_or_buffer, *args, **kwargs):
         if isinstance(filepath_or_buffer, str) and (

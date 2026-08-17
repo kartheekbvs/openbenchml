@@ -755,7 +755,11 @@
   .autocomplete-popup .ac-item .ac-type.class    { color: #ffa657; background: rgba(255, 166, 87, 0.12); }
   .autocomplete-popup .ac-item .ac-type.module   { color: #79c0ff; background: rgba(121, 192, 255, 0.12); }
   .autocomplete-popup .ac-item .ac-type.param    { color: #ffa657; background: rgba(255, 166, 87, 0.12); }
-  .autocomplete-popup .ac-item .ac-type.keyword  { color: #ff7b72; background: rgba(255, 123, 114, 0.12); }
+  .autocomplete-popup .ac-item .ac-type.keyword   { color: #ff7b72; background: rgba(255, 123, 114, 0.12); }
+  .autocomplete-popup .ac-item .ac-type.dunder    { color: #f0883e; background: rgba(240, 136, 62, 0.12); }
+  .autocomplete-popup .ac-item .ac-type.snippet   { color: #7ee787; background: rgba(126, 231, 135, 0.12); }
+  .autocomplete-popup .ac-item .ac-type.builtin  { color: #79c0ff; background: rgba(121, 192, 255, 0.12); }
+  .autocomplete-popup .ac-item .ac-type.attr      { color: #d2a8ff; background: rgba(188, 140, 255, 0.12); }
   .autocomplete-popup .ac-empty {
     padding: 0.6rem; color: #8b949e; font-size: 0.78rem;
     text-align: center;
@@ -1222,6 +1226,72 @@ function moveCellDown(id) {
 }
 
 // ─── Editor keyboard shortcuts ──────────────────────────────────────────────
+
+// Auto-close brackets / quotes:
+//  - Typing `(` → inserts `()` and puts caret between them
+//  - Typing `[` → inserts `[]`
+//  - Typing `{` → inserts `{}`
+//  - Typing `"` → inserts `""` (or skips if a matching `"` is right of caret)
+//  - Typing `'` → inserts `''`
+//  - Typing a closer when the same closer is right of caret → skip over (don't insert)
+// Returns true if it handled the key (caller should `return`); false otherwise.
+const _AC_PAIRS = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'" };
+function _autoCloseBracket(e, ta, cell) {
+  // Only handle plain keystrokes (no Ctrl/Cmd/Alt — those are shortcuts)
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+
+  const s = ta.selectionStart, en = ta.selectionEnd;
+
+  // ── User typed a closing bracket that's the same as the next char ──
+  // → move caret forward instead of inserting a duplicate.
+  if (e.key === ')' || e.key === ']' || e.key === '}' ||
+      e.key === '"' || e.key === "'") {
+    if (s === en && ta.value[s] === e.key) {
+      e.preventDefault();
+      ta.selectionStart = ta.selectionEnd = s + 1;
+      _hideAutocomplete();
+      return true;
+    }
+  }
+
+  // ── User typed an opening bracket → insert open + close, caret between
+  if (_AC_PAIRS[e.key]) {
+    // For quotes, don't auto-close if there's a non-whitespace char
+    // immediately to the right (e.g. user is typing a quote inside a word).
+    if ((e.key === '"' || e.key === "'") && s === en && s > 0) {
+      const prevChar = ta.value[s - 1];
+      if (prevChar && /\w/.test(prevChar)) {
+        // Typing a quote next to an identifier — assume closing quote.
+        return false;
+      }
+    }
+
+    // If text is selected, wrap it in the pair instead of replacing.
+    if (s !== en) {
+      e.preventDefault();
+      const selected = ta.value.slice(s, en);
+      const open = e.key, close = _AC_PAIRS[e.key];
+      ta.value = ta.value.slice(0, s) + open + selected + close + ta.value.slice(en);
+      // Re-select the wrapped text
+      ta.selectionStart = s + 1;
+      ta.selectionEnd = en + 1;
+      cell.source = ta.value;
+      _maybeTriggerAutocomplete(ta, cell);
+      return true;
+    }
+
+    e.preventDefault();
+    const open = e.key, close = _AC_PAIRS[e.key];
+    ta.value = ta.value.slice(0, s) + open + close + ta.value.slice(s);
+    ta.selectionStart = ta.selectionEnd = s + 1;
+    cell.source = ta.value;
+    _maybeTriggerAutocomplete(ta, cell);
+    return true;
+  }
+
+  return false;
+}
+
 function onEditorKeydown(e, cell) {
   const ta = e.target;
 
@@ -1253,6 +1323,40 @@ function onEditorKeydown(e, cell) {
       _hideAutocomplete();
       return;
     }
+  }
+
+  // ── Auto-close brackets / quotes ──────────────────────────────
+  // If the user types an opening bracket or quote, we insert the
+  // closing pair and leave the caret between them. If the user
+  // types a closing bracket that already matches the next char,
+  // we just move the caret forward instead of double-inserting.
+  // Also: Backspace between an open/close pair deletes both.
+  if (_autoCloseBracket(e, ta, cell)) return;
+
+  // ── Smart Backspace: skip over a matching closer ──────────────
+  if (e.key === 'Backspace' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    const s = ta.selectionStart, en = ta.selectionEnd;
+    if (s === en && s > 0) {
+      const prev = ta.value[s - 1], next = ta.value[s];
+      const pairs = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'" };
+      if (pairs[prev] === next) {
+        e.preventDefault();
+        // Delete both chars
+        ta.value = ta.value.slice(0, s - 1) + ta.value.slice(s + 1);
+        ta.selectionStart = ta.selectionEnd = s - 1;
+        cell.source = ta.value;
+        _maybeTriggerAutocomplete(ta, cell);
+        return;
+      }
+    }
+  }
+
+  // ── Trigger autocomplete on every keystroke when typing a name ─
+  // (keypress fires before input; we let the browser insert the char
+  // and then trigger via the input handler — but for fast typists
+  // we also schedule a check here.)
+  if (e.key.length === 1 && /[A-Za-z0-9_.]/.test(e.key)) {
+    setTimeout(() => _maybeTriggerAutocomplete(ta, cell), 0);
   }
 
   // Shift+Enter → run cell, focus next (or add new)
@@ -1402,8 +1506,9 @@ async function _fetchCompletions(ta, cell) {
   const token = m[0];
   // Trigger conditions:
   //  - token contains a `.` (e.g. `np.`, `df.subset.`), OR
-  //  - token is at least 3 chars (e.g. `imp` → import)
-  if (!token.includes('.') && token.length < 3) {
+  //  - token is at least 2 chars (e.g. `im` → import) — lowered from 3
+  //    so suggestions appear faster, matching Jupyter / VS Code behavior.
+  if (!token.includes('.') && token.length < 2) {
     _hideAutocomplete();
     return;
   }
@@ -1472,6 +1577,19 @@ function _acceptCompletion(ta, cell, name) {
   const m = before.match(/[A-Za-z_][A-Za-z0-9_\.]*$/);
   if (!m) { _hideAutocomplete(); return; }
   const tokenStart = cursor - m[0].length;
+
+  // Snippets (e.g. "import numpy as np") contain spaces — they need
+  // special handling: replace the whole partial word + insert full snippet.
+  if (name.includes(' ')) {
+    ta.value = ta.value.slice(0, tokenStart) + name + ta.value.slice(cursor);
+    const newPos = tokenStart + name.length;
+    ta.selectionStart = ta.selectionEnd = newPos;
+    ta.focus();
+    cell.source = ta.value;
+    _hideAutocomplete();
+    return;
+  }
+
   // If token ends with `.`, keep the dot — only replace what's after it
   let replaceStart = tokenStart;
   let insertName = name;
@@ -1900,50 +2018,80 @@ import joblib
 import matplotlib
 matplotlib.use("AGG")
 import matplotlib.pyplot as plt
-import io, base64, sys
+import io, base64, sys, os
 
-# Patch sklearn dataset fetcher for browser HTTPS
-try:
-    from pyodide.http import open_url
-    import sklearn.datasets._base as _sk_base
-    import os, hashlib
-    def _obml_fetch_remote(remote, dirname=None):
-        if dirname is None:
-            from sklearn.datasets._base import get_data_home
-            dirname = get_data_home()
-        os.makedirs(dirname, exist_ok=True)
-        filename = os.path.join(dirname, remote.filename)
-        if not os.path.exists(filename):
-            data = open_url(remote.url).read()
-            if isinstance(data, str):
-                data = data.encode("utf-8")
-            with open(filename, "wb") as f:
-                f.write(data)
-        checksum = remote.checksum
-        if checksum is not None:
-            with open(filename, "rb") as f:
-                file_hash = hashlib.sha1(f.read()).hexdigest()
-            if file_hash != checksum:
-                raise IOError(f"Checksum mismatch: expected {checksum}, got {file_hash}")
-        return filename
-    _sk_base._fetch_remote = _obml_fetch_remote
-except Exception as e:
-    print(f"[pyodide] Warning: could not patch sklearn fetcher: {e}")
-
-# ── Patch pandas.read_csv so pd.read_csv("https://...") works in Pyodide ──
-# Pyodide has no real network stack — urllib.request.urlopen raises
-# "unknown url type: https". We intercept HTTPS/http URLs and route
-# them through pyodide.http.pyfetch, then hand the resulting bytes
-# back to pandas via io.BytesIO. Local paths still go through the
-# original reader unchanged.
+# ─────────────────────────────────────────────────────────────────────────
+#  Pyodide HTTPS patch
+#  ─────────────────────────────────────────────────────────────────────
+#  Pyodide's stdlib has NO real network stack — urllib.request.urlopen
+#  raises "unknown url type: https" the moment it sees an HTTPS URL.
+#  This breaks:
+#    - pandas.read_csv("https://...")
+#    - sklearn.datasets.fetch_california_housing()  (uses urlretrieve)
+#    - sklearn.datasets.fetch_olivetti_faces()       (uses urlretrieve)
+#    - any user code that does urlopen("https://...")
 #
-# Note: pyfetch is awaitable, but read_csv is sync. Pyodide provides
-# run_sync() (via pyodide.ffi.run_sync) to bridge — but the simplest
-# portable approach is to use the sync wrapper open_url which Pyodide
-# already exposes for the same purpose. We use open_url here.
+#  Fix: monkey-patch urllib.request.urlopen AND urlretrieve so HTTPS
+#  URLs are routed through pyodide.http.open_url (which uses the
+#  browser's fetch() under the hood). Local paths still go through
+#  the original implementation unchanged.
+# ─────────────────────────────────────────────────────────────────────────
 try:
+    import urllib.request as _obml_urllib_request
     from pyodide.http import open_url as _obml_open_url
-    import io as _obml_io
+
+    _obml_orig_urlopen = _obml_urllib_request.urlopen
+    _obml_orig_urlretrieve = _obml_urllib_request.urlretrieve
+    _obml_io_bytesio = io.BytesIO
+
+    def _obml_is_http_url(url_or_req):
+        url = getattr(url_or_req, "full_url", url_or_req)
+        return isinstance(url, str) and (
+            url.startswith("https://") or url.startswith("http://")
+        )
+
+    def _obml_extract_url(url_or_req):
+        if hasattr(url_or_req, "full_url"):
+            return url_or_req.full_url
+        return url_or_req
+
+    def _obml_urlopen(url, data=None, timeout=None, cafile=None, capath=None, cadefault=False, context=None):
+        if _obml_is_http_url(url):
+            real_url = _obml_extract_url(url)
+            fobj = _obml_open_url(real_url)
+            data_bytes = fobj.read()
+            if isinstance(data_bytes, str):
+                data_bytes = data_bytes.encode("utf-8")
+            return _obml_io_bytesio(data_bytes)
+        return _obml_orig_urlopen(url, data=data, timeout=timeout)
+
+    def _obml_urlretrieve(url, filename=None, reporthook=None, data=None):
+        if _obml_is_http_url(url):
+            real_url = _obml_extract_url(url)
+            fobj = _obml_open_url(real_url)
+            data_bytes = fobj.read()
+            if isinstance(data_bytes, str):
+                data_bytes = data_bytes.encode("utf-8")
+            if filename:
+                with open(filename, "wb") as f:
+                    f.write(data_bytes)
+                class _Headers(dict):
+                    pass
+                return (filename, _Headers({"Content-Type": "application/octet-stream"}))
+            return (_obml_io_bytesio(data_bytes), None)
+        return _obml_orig_urlretrieve(url, filename=filename, reporthook=reporthook, data=data)
+
+    _obml_urllib_request.urlopen = _obml_urlopen
+    _obml_urllib_request.urlretrieve = _obml_urlretrieve
+    print("[pyodide] Patched urllib.request.urlopen + urlretrieve for HTTPS URLs.")
+except Exception as e:
+    print(f"[pyodide] Warning: could not patch urllib.request: {e}")
+
+# Patch pandas.read_csv (belt-and-braces; urlopen patch above already
+# covers it, but we keep this in case pandas changes its code path).
+try:
+    from pyodide.http import open_url as _obml_open_url_csv
+    import io as _obml_io_csv
     _obml_orig_read_csv = pd.read_csv
 
     def _obml_read_csv(filepath_or_buffer, *args, **kwargs):
@@ -1951,13 +2099,12 @@ try:
             filepath_or_buffer.startswith("https://")
             or filepath_or_buffer.startswith("http://")
         ):
-            # open_url returns a binary file-like object ready for pandas
-            fobj = _obml_open_url(filepath_or_buffer)
+            fobj = _obml_open_url_csv(filepath_or_buffer)
             data_bytes = fobj.read()
             if isinstance(data_bytes, str):
                 data_bytes = data_bytes.encode("utf-8")
             return _obml_orig_read_csv(
-                _obml_io.BytesIO(data_bytes), *args, **kwargs
+                _obml_io_csv.BytesIO(data_bytes), *args, **kwargs
             )
         return _obml_orig_read_csv(filepath_or_buffer, *args, **kwargs)
 
