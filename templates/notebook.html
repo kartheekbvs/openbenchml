@@ -883,9 +883,25 @@ async function openNotebookOnHF() {
 
       <!-- Variables section -->
       <div class="nb-sidebar-section">
-        <h4>Variables</h4>
+        <h4>Variables <span class="hint-text" id="vars-engine-tag" style="color: var(--text-secondary); font-weight: normal; font-size: 0.7rem;"></span></h4>
         <div id="var-list" class="var-list" style="font-size: 0.78rem;">
           <div class="empty-state" style="padding: 0.6rem;">None yet</div>
+        </div>
+      </div>
+
+      <!-- Pyodide /workspace/ files (browser-side, in-memory) -->
+      <div class="nb-sidebar-section" id="pyodide-files-section">
+        <h4>Pyodide Files <span class="hint-text" style="color: var(--text-secondary); font-weight: normal; font-size: 0.7rem;">/workspace/</span></h4>
+        <div style="display: flex; gap: 0.3rem; margin: 0.3rem 0;">
+          <button class="files-actions-btn" style="flex: 1;" onclick="refreshPyodideFiles()" title="Refresh">&#8635;</button>
+        </div>
+        <div id="pyodide-files-list" class="files-list" style="font-size: 0.78rem;">
+          <div class="empty-state" style="padding: 0.6rem;">Switch to Pyodide engine to see in-browser files.</div>
+        </div>
+        <div class="nb-sidebar-hint" style="margin-top: 0.4rem;">
+          Load: <code>%load_dataset iris</code><br>
+          Save: <code>%save_model mymodel.pkl</code><br>
+          List: <code>%ls</code>
         </div>
       </div>
 
@@ -1759,6 +1775,10 @@ async function runCellServer(cell) {
     shell_command: data.shell_command,
     returncode: data.returncode,
   };
+  // Auto-save notebook after every server-side cell run
+  try { autosaveNotebook(); } catch (e) {}
+  // Refresh server-side variable inspector
+  try { refreshKernelInfo(); } catch (e) {}
 }
 
 async function runCellPyodide(cell) {
@@ -1778,13 +1798,7 @@ async function runCellPyodide(cell) {
     };
   }
   if (code.startsWith('%')) {
-    return {
-      ok: false,
-      stdout: '',
-      stderr: 'Magics (%) are not supported in Pyodide engine. Switch to Server engine.',
-      figures: [],
-      elapsed_ms: 0,
-    };
+    return await runPyodideMagic(code);
   }
 
   const t0 = performance.now();
@@ -1823,7 +1837,186 @@ sys.stderr = __obml_old_stderr__
     };
   } catch (e) {
     return { ok: false, stdout: '', stderr: 'Pyodide error: ' + e.message, figures: [], elapsed_ms: 0 };
+  } finally {
+    // Refresh Pyodide-side UI panels so users see live file/variable state.
+    try { refreshPyodideFiles(); } catch (e) {}
+    try { refreshPyodideVariables(); } catch (e) {}
+    try { autosaveNotebook(); } catch (e) {}
   }
+}
+
+// ─── Pyodide magics + variable inspector + file browser ─────────────────────
+// Mirror of the server-side %whos / %reset / %pip magics, plus Colab-style
+// %load_dataset, %save_model, %load_model, %ls that operate on /workspace/.
+
+async function runPyodideMagic(code) {
+  if (!pyodideReady) {
+    return { ok: false, stdout: '', stderr: 'Pyodide is still loading.', figures: [], elapsed_ms: 0 };
+  }
+  const t0 = performance.now();
+  try {
+    // Run the magic inside Pyodide. _obml_handle_magic() returns either a
+    // dict (for structured commands) or a plain string (for %whos/%who).
+    // We wrap the result in a JSON string so it always round-trips cleanly.
+    const raw = await pyodideInstance.runPythonAsync(`
+import json as _json
+_result = _obml_handle_magic(${JSON.stringify(code)})
+if isinstance(_result, (dict, list)):
+    _out = _json.dumps(_result)
+else:
+    _out = _json.dumps({"__text__": str(_result)})
+_out
+`);
+    const data = JSON.parse(raw);
+    let stdout = '', stderr = '';
+    if (data && data.__text__ !== undefined) {
+      stdout = data.__text__ + '\n';
+    } else if (data && data.error) {
+      stderr = data.error + '\n';
+    } else if (data && data.path) {
+      // %save_model — return path + size, and trigger a browser download
+      stdout = `Saved ${data.filename} → ${data.path} (${(data.size / 1024).toFixed(1)} KB)\n`;
+      stdout += `Download link: /workspace/models/${data.filename}\n`;
+      // Trigger a browser-side download of the just-saved model
+      try { _downloadPyodideFile(`/workspace/models/${data.filename}`, data.filename); } catch (e) {}
+    } else if (data && data.ok) {
+      stdout = `Loaded model into variable '${data.var}'\n`;
+    } else if (Array.isArray(data)) {
+      // %ls result — list of paths
+      stdout = data.join('\n') + '\n';
+    } else if (data) {
+      stdout = JSON.stringify(data, null, 2) + '\n';
+    }
+    return { ok: !stderr, stdout, stderr, figures: [], elapsed_ms: Math.round(performance.now() - t0) };
+  } catch (e) {
+    return { ok: false, stdout: '', stderr: 'Magic error: ' + e.message, figures: [], elapsed_ms: 0 };
+  }
+}
+
+async function refreshPyodideVariables() {
+  const varList = document.getElementById('var-list');
+  if (!varList) return;
+  if (currentEngine !== 'pyodide' || !pyodideReady) return;
+  try {
+    const raw = await pyodideInstance.runPythonAsync(`
+_json = __import__('json')
+_out = []
+for _k, _v in list(globals().items()):
+    if _k.startswith('_') or _k in {'np','pd','sklearn','scipy','joblib','plt','matplotlib','micropip'}:
+        continue
+    _info = {"name": _k, "type": type(_v).__name__}
+    try:
+        if hasattr(_v, 'shape'):
+            _info["shape"] = list(_v.shape)
+        elif hasattr(_v, '__len__') and not isinstance(_v, str):
+            _info["len"] = len(_v)
+    except: pass
+    _out.append(_info)
+_json.dumps(_out)
+`);
+    const vars = JSON.parse(raw);
+    if (!vars.length) {
+      varList.innerHTML = '<div class="empty-state" style="padding: 0.6rem;">No variables yet. Run a cell to define some.</div>';
+      return;
+    }
+    varList.innerHTML = vars.map(v => {
+      let extra = '';
+      if (v.shape) extra = ` <span class="var-type">${v.shape.join('x')}</span>`;
+      else if (v.len !== undefined) extra = ` <span class="var-type">len=${v.len}</span>`;
+      return `<div class="var-row"><span class="var-name">${escapeHtml(v.name)}</span> <span class="var-type">${escapeHtml(v.type)}</span>${extra}</div>`;
+    }).join('');
+  } catch (e) {
+    // silent
+  }
+}
+
+async function refreshPyodideFiles() {
+  const list = document.getElementById('pyodide-files-list');
+  if (!list) return;
+  if (currentEngine !== 'pyodide' || !pyodideReady) {
+    list.innerHTML = '<div class="empty-state" style="padding: 0.6rem;">Switch to Pyodide engine to see in-browser files.</div>';
+    return;
+  }
+  try {
+    const raw = await pyodideInstance.runPythonAsync(`
+import os, json as _json
+_out = []
+for _root, _dirs, _files in os.walk('/workspace'):
+    for _f in sorted(_files):
+        _full = os.path.join(_root, _f)
+        _rel = os.path.relpath(_full, '/workspace')
+        _out.append({"path": _rel, "size": os.path.getsize(_full)})
+_json.dumps(_out)
+`);
+    const files = JSON.parse(raw);
+    if (!files.length) {
+      list.innerHTML = '<div class="empty-state" style="padding: 0.6rem;">No files yet. Try <code>%load_dataset iris</code> or save a model with <code>%save_model mymodel.pkl</code>.</div>';
+      return;
+    }
+    list.innerHTML = files.map(f => {
+      const icon = _fileIcon(f.path);
+      return `<div class="file-row">
+        <span class="file-icon">${icon}</span>
+        <span class="file-name">${escapeHtml(f.path)}</span>
+        <span class="file-size">${(f.size / 1024).toFixed(1)} KB</span>
+        <span class="file-actions">
+          <button class="files-actions-btn" onclick="downloadPyodideFile('${escapeHtml(f.path)}')" title="Download">&#8681;</button>
+        </span>
+      </div>`;
+    }).join('');
+  } catch (e) {
+    list.innerHTML = '<div class="empty-state" style="padding: 0.6rem;">Pyodide not ready.</div>';
+  }
+}
+
+async function downloadPyodideFile(relPath) {
+  if (!pyodideReady) { alert('Pyodide not ready.'); return; }
+  try {
+    const full = '/workspace/' + relPath.replace(/^\/+/, '');
+    // Read file bytes from Pyodide FS, build a Blob URL, and trigger download.
+    const raw = await pyodideInstance.runPythonAsync(`
+import base64 as _b64
+with open(${JSON.stringify(full)}, 'rb') as _f:
+    _b64.b64encode(_f.read()).decode('ascii')
+`);
+    const bytes = atob(raw);
+    const buf = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i);
+    const blob = new Blob([buf], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = relPath.split('/').pop();
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 1000);
+  } catch (e) {
+    alert('Download failed: ' + e.message);
+  }
+}
+
+function _downloadPyodideFile(fullPath, filename) {
+  // Triggered by %save_model — fetch file bytes and download.
+  if (!pyodideReady) return;
+  pyodideInstance.runPythonAsync(`
+import base64 as _b64
+with open(${JSON.stringify(fullPath)}, 'rb') as _f:
+    _b64.b64encode(_f.read()).decode('ascii')
+`).then(raw => {
+    const bytes = atob(raw);
+    const buf = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) buf[i] = bytes.charCodeAt(i);
+    const blob = new Blob([buf], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { a.remove(); URL.revokeObjectURL(url); }, 1000);
+  }).catch(e => console.warn('download failed:', e));
 }
 
 async function runAllCells() {
@@ -1902,7 +2095,44 @@ function renderOutput(cell, result) {
 }
 
 // ─── Package install (calls /api/notebook/install) ─────────────────────────
+// Client-side heavy package pre-warn so users don't even hit the server with
+// tensorflow / torch — we show the warning immediately and skip the request.
+const _HEAVY_PKG_CLIENT = [
+  ['tensorflow', 'tensorflow-cpu', 550],
+  ['torch',     'torch CPU wheel from https://download.pytorch.org/whl/cpu', 850],
+  ['torchvision', 'Pyodide engine or E2B sandbox', 350],
+  ['torchaudio',   'Pyodide engine or E2B sandbox', 350],
+  ['transformers', 'Pyodide engine or E2B sandbox', 450],
+  ['opencv-python', 'opencv-python-headless', 280],
+  ['opencv-contrib', 'opencv-contrib-python-headless', 320],
+  ['paddlepaddle', 'paddlepaddle-cpu or Pyodide engine', 450],
+  ['mxnet',         'Pyodide engine or E2B sandbox', 320],
+  ['jax',           'jaxlib-cpu or Pyodide engine', 400],
+];
+
+function _clientHeavyCheck(pkg) {
+  const p = pkg.toLowerCase();
+  for (const [needle, alt, mb] of _HEAVY_PKG_CLIENT) {
+    if (p.includes(needle)) return { needle, alt, mb };
+  }
+  return null;
+}
+
 async function installPackage(pkg, cellId) {
+  // Client-side heavy package pre-warn
+  const heavy = _clientHeavyCheck(pkg);
+  if (heavy) {
+    const ok = confirm(
+      `'${pkg}' is a heavy package (≈${heavy.mb} MB install footprint) and may\n` +
+      `OOM the Render sandbox.\n\n` +
+      `Suggested alternative: ${heavy.alt}\n\n` +
+      `Click OK to attempt the install anyway, or Cancel to abort.`
+    );
+    if (!ok) {
+      setKernelStatus('install cancelled (heavy)', 'ready');
+      return;
+    }
+  }
   // Disable all install buttons with this pkg
   document.querySelectorAll(`.install-btn`).forEach(b => { b.disabled = true; b.textContent = 'installing…'; });
   setKernelStatus('installing ' + pkg + '…', 'running');
@@ -1918,6 +2148,10 @@ async function installPackage(pkg, cellId) {
       if (cellId) {
         setTimeout(() => runCell(cellId), 500);
       }
+    } else if (data.blocked) {
+      // Server-side heavy-package guard fired — show the full reason
+      setKernelStatus('install blocked (heavy)', 'error');
+      alert(data.stderr || 'Package blocked (heavy).');
     } else {
       setKernelStatus('install failed', 'error');
       alert('Install failed:\n' + (data.stderr || 'Unknown error'));
@@ -1959,14 +2193,21 @@ async function resetKernel() {
 function switchEngine(eng) {
   currentEngine = eng;
   document.getElementById('info-engine').textContent = eng;
+  const tag = document.getElementById('vars-engine-tag');
+  if (tag) tag.textContent = '(' + eng + ')';
   if (eng === 'pyodide') {
     document.getElementById('pyodide-loader').classList.add('active');
     if (!pyodideReady && !pyodideLoading) loadPyodideEngine();
     setKernelStatus('loading pyodide…', 'running');
+    // Refresh Pyodide-side panels once ready (loadPyodideEngine does this too)
+    setTimeout(() => { refreshPyodideFiles(); refreshPyodideVariables(); }, 1000);
   } else {
     document.getElementById('pyodide-loader').classList.remove('active');
     setKernelStatus('kernel ready (server)', 'ready');
+    // For server engine, the server-side health endpoint populates variables
+    setTimeout(() => { refreshKernelInfo(); }, 200);
   }
+  autosaveNotebook();
 }
 
 // ─── Pyodide loader ────────────────────────────────────────────────────────
@@ -2155,6 +2396,139 @@ def __obml_get_figures__():
         plt.close(fig)
     return out
 print("[pyodide] ready — np, pd, sklearn, scipy, matplotlib, joblib imported.")
+
+# ─── Colab-style workspace magics ──────────────────────────────────────────
+# Defines _obml_handle_magic() so user code like '%load_dataset iris' or
+# '%save_model mymodel.pkl' works in the Pyodide engine (mirrors the server-
+# side %whos / %reset / %pip magics). Operates on /workspace/.
+def _obml_handle_magic(code):
+    import os, json
+    line = code.strip()
+    parts = line.split(None, 1)
+    magic = parts[0]
+    rest = parts[1].strip() if len(parts) > 1 else ""
+
+    _keep = {"np", "pd", "sklearn", "scipy", "joblib", "plt", "matplotlib",
+             "micropip", "os", "sys", "io", "json", "base64"}
+
+    if magic == "%ls":
+        out = []
+        for root, dirs, files in os.walk('/workspace'):
+            for d in sorted(dirs):
+                out.append(os.path.join(root, d) + '/')
+            for f in sorted(files):
+                out.append(os.path.join(root, f))
+        return out
+
+    if magic == "%load_dataset":
+        # %load_dataset iris  →  loads /workspace/datasets/registry/iris.csv
+        name = rest.split()[0] if rest else ""
+        if not name:
+            return {"error": "Usage: %load_dataset <name>"}
+        # Map common aliases
+        aliases = {
+            "cali": "cal_housing", "california": "cal_housing",
+            "boston": "boston_housing", "diabetes": "pima_diabetes",
+        }
+        name = aliases.get(name, name)
+        candidates = [
+            f"/workspace/datasets/registry/{name}.csv",
+            f"/workspace/datasets/registry/{name.replace('-', '_')}.csv",
+            f"/workspace/datasets/user/{name}.csv",
+        ]
+        path = next((p for p in candidates if os.path.exists(p)), None)
+        if not path:
+            avail = sorted(os.listdir('/workspace/datasets/registry')) if os.path.exists('/workspace/datasets/registry') else []
+            return {"error": f"Dataset '{name}' not in registry. Available: {', '.join(avail)}"}
+        # Read into a DataFrame and bind to a sensible variable name
+        import pandas as _pd
+        df = _pd.read_csv(path)
+        var_name = name.replace('-', '_').replace('.', '_') + "_df"
+        globals()[var_name] = df
+        return {"__text__": f"Loaded {path} → {var_name} (shape={df.shape[0]}x{df.shape[1]})"}
+
+    if magic == "%save_model":
+        args = rest.split()
+        if not args:
+            return {"error": "Usage: %save_model <var_name> [filename.pkl]"}
+        var_name = args[0]
+        filename = args[1] if len(args) > 1 else var_name + ".pkl"
+        if var_name not in globals():
+            return {"error": f"'{var_name}' not defined in current session"}
+        model = globals()[var_name]
+        os.makedirs('/workspace/models', exist_ok=True)
+        out_path = '/workspace/models/' + filename
+        import joblib as _jl
+        _jl.dump(model, out_path)
+        size = os.path.getsize(out_path)
+        return {"path": out_path, "size": size, "filename": filename}
+
+    if magic == "%load_model":
+        args = rest.split()
+        if not args:
+            return {"error": "Usage: %load_model <filename> [var_name]"}
+        filename = args[0]
+        var_name = args[1] if len(args) > 1 else "model"
+        in_path = '/workspace/models/' + filename
+        if not os.path.exists(in_path):
+            avail = sorted(os.listdir('/workspace/models')) if os.path.exists('/workspace/models') else []
+            return {"error": f"'{in_path}' not found. Available: {', '.join(avail) or '(none)'}"}
+        import joblib as _jl
+        globals()[var_name] = _jl.load(in_path)
+        return {"ok": True, "var": var_name}
+
+    if magic == "%whos" or magic == "%who":
+        user_vars = [(k, type(v).__name__) for k, v in globals().items()
+                     if not k.startswith("_") and k not in _keep]
+        if magic == "%who":
+            return {"__text__": "  ".join(k for k, _ in user_vars) or "(no user variables)"}
+        if not user_vars:
+            return {"__text__": "No user-defined variables."}
+        rows = ["Variable          Type", "----------------  --------"]
+        for k, t in sorted(user_vars):
+            rows.append(f"{k:<18}{t}")
+        return {"__text__": "\\n".join(rows)}
+
+    if magic == "%reset":
+        n_before = len([k for k in list(globals().keys()) if not k.startswith("_") and k not in _keep])
+        for k in list(globals().keys()):
+            if not k.startswith("_") and k not in _keep:
+                del globals()[k]
+        return {"__text__": f"Reset session — cleared {n_before} variables."}
+
+    if magic == "%pip":
+        if not rest:
+            return {"error": "Usage: %pip install <package>"}
+        try:
+            import micropip
+        except ImportError:
+            return {"error": "micropip not available in this Pyodide build"}
+        # Strip leading 'install ' if present
+        pkg = rest[8:].strip() if rest.startswith("install ") else rest
+        import asyncio
+        try:
+            asyncio.get_event_loop().run_until_complete(micropip.install(pkg))
+            return {"__text__": f"Installed {pkg}"}
+        except Exception as e:
+            return {"error": f"pip install failed: {e}"}
+
+    if magic == "%time":
+        import time as _time
+        if not rest:
+            return {"error": "Usage: %time <python statement>"}
+        t0 = _time.time()
+        try:
+            exec(rest, globals())
+        except Exception as e:
+            return {"error": f"{type(e).__name__}: {e}"}
+        elapsed = (_time.time() - t0) * 1000
+        return {"__text__": f"Wall time: {elapsed:.1f} ms"}
+
+    if magic == "%history":
+        return {"__text__": "Use the cell execution log on the left to see history."}
+
+    return {"error": f"Unknown magic: {magic}. Supported: %ls, %load_dataset, %save_model, %load_model, %whos, %who, %reset, %pip, %time, %history."}
+print("[pyodide] _obml_handle_magic defined — magics ready (%ls, %load_dataset, %save_model, %load_model, %whos, %reset, %pip)")
 `);
 
     // ─────────────────────────────────────────────────────────────────────
@@ -2204,10 +2578,65 @@ print("[pyodide] ready — np, pd, sklearn, scipy, matplotlib, joblib imported."
       console.warn('[pyodide] could not pre-seed sklearn dataset cache:', seedErr.message || seedErr);
     }
 
+    // ─────────────────────────────────────────────────────────────────────
+    // Colab-style /workspace/ tree + dataset registry pre-seed.
+    // Mounts a structured workspace in Pyodide FS at boot time so user
+    // code can read/write files like a real Colab session:
+    //   /workspace/datasets/registry/   ← pre-bundled CSVs (Iris, Titanic, ...)
+    //   /workspace/datasets/user/      ← user-uploaded / created datasets
+    //   /workspace/models/             ← trained .pkl artifacts
+    //   /workspace/outputs/            ← plots, CSV exports, predictions
+    //   /workspace/tmp/                ← scratch / intermediate
+    // ─────────────────────────────────────────────────────────────────────
+    try {
+      const FS = pyodideInstance.FS;
+      for (const d of [
+        '/workspace',
+        '/workspace/datasets',
+        '/workspace/datasets/registry',
+        '/workspace/datasets/user',
+        '/workspace/models',
+        '/workspace/outputs',
+        '/workspace/notebooks',
+        '/workspace/tmp',
+      ]) {
+        try { FS.mkdirTree(d); } catch (e) {}
+      }
+
+      // Pre-seed the registry with bundled CSVs from /static/datasets/registry/
+      // Users can do: pd.read_csv('/workspace/datasets/registry/iris.csv')
+      // or: %load_dataset iris
+      const _registryCsvs = [
+        'iris.csv', 'boston_housing.csv', 'titanic.csv',
+        'pima_diabetes.csv', 'wine_quality_red.csv', 'wine_quality_white.csv',
+        'penguins.csv', 'heart_disease.csv', 'auto_mpg.csv',
+        'banknote_authentication.csv',
+      ];
+      let seeded = 0;
+      for (const name of _registryCsvs) {
+        try {
+          const r = await fetch('/static/datasets/registry/' + name);
+          if (r.ok) {
+            const buf = await r.arrayBuffer();
+            FS.writeFile('/workspace/datasets/registry/' + name, new Uint8Array(buf));
+            seeded++;
+          }
+        } catch (e) { /* skip */ }
+      }
+      console.log('[pyodide] /workspace mounted, registry seeded with ' + seeded + ' datasets');
+    } catch (e) {
+      console.warn('[pyodide] workspace mount failed:', e.message || e);
+    }
+
     pyodideReady = true;
     pyodideLoading = false;
     document.getElementById('pyodide-loader').classList.remove('active');
     setKernelStatus('pyodide ready', 'ready');
+
+    // Refresh the Pyodide-side file browser + variable inspector now that the
+    // kernel is ready (no-op if the UI hasn't been rendered yet).
+    try { refreshPyodideFiles(); } catch (e) {}
+    try { refreshPyodideVariables(); } catch (e) {}
   } catch (err) {
     pyodideLoading = false;
     setKernelStatus('pyodide failed', 'error');
@@ -2259,23 +2688,148 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ─── IndexedDB autosave + restore (Colab-style session persistence) ─────────
+// Snapshots the current notebook (cells + engine) into IndexedDB every 30s
+// and on every cell run. On page load, if a snapshot exists, we prompt the
+// user to restore. Survives page refresh / accidental close.
+//
+// We deliberately do NOT snapshot variable values (could be huge dataframes
+// or trained models) — only cell sources + engine selection. For full
+// state save, use %save_model to write artifacts to /workspace/models/.
+const _IDB_NAME = 'openbenchml';
+const _IDB_STORE = 'notebook_state';
+const _IDB_KEY = 'autosave';
+
+function _idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(_IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(_IDB_STORE)) {
+        db.createObjectStore(_IDB_STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function autosaveNotebook() {
+  try {
+    const db = await _idbOpen();
+    const state = {
+      cells: cells.map(c => ({ id: c.id, type: c.type, source: c.source })),
+      engine: currentEngine,
+      savedAt: Date.now(),
+    };
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(_IDB_STORE, 'readwrite');
+      tx.objectStore(_IDB_STORE).put(state, _IDB_KEY);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch (e) {
+    // silent — autosave must never break user workflow
+  }
+}
+
+async function _idbLoadAutosave() {
+  try {
+    const db = await _idbOpen();
+    const result = await new Promise((resolve) => {
+      const tx = db.transaction(_IDB_STORE, 'readonly');
+      const req = tx.objectStore(_IDB_STORE).get(_IDB_KEY);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => resolve(null);
+    });
+    db.close();
+    return result;
+  } catch (e) { return null; }
+}
+
+async function _idbClearAutosave() {
+  try {
+    const db = await _idbOpen();
+    await new Promise((resolve) => {
+      const tx = db.transaction(_IDB_STORE, 'readwrite');
+      tx.objectStore(_IDB_STORE).delete(_IDB_KEY);
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+    });
+    db.close();
+  } catch (e) {}
+}
+
+async function _maybeRestoreAutosave() {
+  const snap = await _idbLoadAutosave();
+  if (!snap || !snap.cells || !snap.cells.length) return;
+  const ageMs = Date.now() - (snap.savedAt || 0);
+  // Only prompt if snapshot is recent (last 4h)
+  if (ageMs > 4 * 60 * 60 * 1000) {
+    await _idbClearAutosave();
+    return;
+  }
+  // Don't prompt if ?prefill= was given (learn tab intentional override)
+  {% if prefill_code %}
+  return;
+  {% endif %}
+
+  const ageMin = Math.round(ageMs / 60000);
+  const msg = `Restore your previous notebook session?\n\nSaved ${ageMin} min ago with ${snap.cells.length} cell(s) on ${snap.engine} engine.\n\nOK = restore, Cancel = start fresh.`;
+  if (!confirm(msg)) {
+    await _idbClearAutosave();
+    return;
+  }
+  // Restore: clear current cells, add the saved ones
+  for (const cell of cells.slice()) {
+    const el = document.getElementById('cell-' + cell.id);
+    if (el) el.remove();
+  }
+  cells.length = 0;
+  for (const c of snap.cells) {
+    if (c.type === 'code') addCodeCell(c.source);
+    else if (c.type === 'markdown') addMarkdownCell(c.source);
+  }
+  // Restore engine if it's Pyodide
+  if (snap.engine === 'pyodide' && currentEngine !== 'pyodide') {
+    const engineSelect = document.getElementById('engine-select');
+    if (engineSelect) {
+      engineSelect.value = 'pyodide';
+      engineSelect.dispatchEvent(new Event('change'));
+    }
+  }
+  console.log('[autosave] restored', snap.cells.length, 'cells from', new Date(snap.savedAt).toISOString());
+}
+
+// Periodic autosave (every 30s) — independent of cell runs
+setInterval(() => { try { autosaveNotebook(); } catch (e) {} }, 30000);
+// Save before unload too
+window.addEventListener('beforeunload', () => { try { autosaveNotebook(); } catch (e) {} });
+
 // ─── Boot ───────────────────────────────────────────────────────────────────
 (function boot() {
-  // Start with one code cell. If ?prefill= was passed (from the Learn tab
-  // "Open in Notebook" button), use that code; otherwise use the welcome sample.
-  {% if prefill_code %}
-  addCodeCell({{ prefill_code | tojson }});
-  {% else %}
-  addCodeCell({{ sample_code | tojson }});
-  {% endif %}
-  // Auto-run the first cell to give the user some state
-  setTimeout(() => {
-    refreshKernelInfo();
-    setInterval(refreshKernelInfo, 15000);  // refresh every 15s
-    // Load sidebar contents on boot
-    refreshFiles();
-    refreshPackages();
-  }, 500);
+  // Restore previous session if available (or use prefill_code / sample_code)
+  _maybeRestoreAutosave().finally(() => {
+    // If after restore there are no cells, add the default welcome
+    if (cells.length === 0) {
+      {% if prefill_code %}
+      addCodeCell({{ prefill_code | tojson }});
+      {% else %}
+      addCodeCell({{ sample_code | tojson }});
+      {% endif %}
+    }
+    // Auto-run the first cell to give the user some state
+    setTimeout(() => {
+      refreshKernelInfo();
+      setInterval(refreshKernelInfo, 15000);  // refresh every 15s
+      // Load sidebar contents on boot
+      refreshFiles();
+      refreshPackages();
+      refreshPyodideFiles();
+      refreshPyodideVariables();
+    }, 500);
+  });
 })();
 
 // ═══════════════════════════════════════════════════════════════════════════

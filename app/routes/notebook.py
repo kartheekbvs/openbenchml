@@ -882,6 +882,11 @@ async def notebook_install_api(
     This is a server-side install — it persists for the lifetime of the
     Render container (until next redeploy). All users share the same
     Python environment.
+
+    Heavy-package guard: tensorflow, torch, transformers, etc. are
+    known to OOM the Render sandbox (≈512 MB RSS budget). When detected,
+    we refuse the install up front and return a helpful error pointing
+    to lighter alternatives or the in-browser Pyodide engine.
     """
     user: Optional[User] = await get_current_user_from_cookie(request, db)
     if user is None:
@@ -891,6 +896,79 @@ async def notebook_install_api(
     pkg = payload.package.strip()
     if not re.match(r"^[a-zA-Z0-9_\-\.\[\]>=<~ ;,]+$", pkg):
         raise HTTPException(status_code=400, detail="Invalid package name")
+
+    # ── Heavy-package guard ──────────────────────────────────────────────
+    # Each entry: (substring match, estimated_install_mb, suggested alternative)
+    # These are the packages that historically OOM Render's free/starter
+    # instances when pip downloads + builds + imports them. The check is
+    # intentionally broad (substring) so e.g. "tensorflow==2.15.0" or
+    # "tensorflow-gpu" all trip the guard.
+    _HEAVY_PACKAGES = [
+        ("tensorflow",      550, "tensorflow-cpu (≈280 MB, no GPU drivers) — or switch to Pyodide engine for in-browser TF.js"),
+        ("torch",           850, "torch CPU-only wheel: pip install torch --index-url https://download.pytorch.org/whl/cpu"),
+        ("torchvision",     350, "Install in Pyodide engine (micropip) or use a non-Render sandbox like E2B / Modal"),
+        ("torchaudio",      350, "Install in Pyodide engine (micropip) or use a non-Render sandbox like E2B / Modal"),
+        ("transformers",    450, "transformers + sentencepiece + tokenizers ≈ 1 GB combined. Use E2B sandbox or Pyodide."),
+        ("opencv-python",   280, "opencv-python-headless (smaller, no GUI deps) or use Pyodide engine"),
+        ("opencv-contrib",  320, "opencv-contrib-python-headless (smaller) or Pyodide engine"),
+        ("scipy-image",     100, "scikit-image (smaller wheel) or Pyodide engine"),
+        ("pytorch",         850, "Use 'torch' from pytorch.org CPU wheel index, or Pyodide engine"),
+        ("jax",             400, "jaxlib (CPU only) is smaller; install jax-cpu instead, or use Pyodide engine"),
+        ("xgboost-gpu",     250, "Use 'xgboost' (CPU) instead"),
+        ("lightgbm-gpu",    250, "Use 'lightgbm' (CPU) instead"),
+        ("mxnet",           320, "MXNet is deprecated — consider PyTorch CPU wheel or Pyodide engine"),
+        ("paddlepaddle",    450, "paddlepaddle-cpu is smaller; or use Pyodide engine"),
+        ("spacy[full]",    450, "Install just 'spacy' + the language model you need"),
+    ]
+    pkg_lower = pkg.lower()
+    import os as _os
+    allow_heavy = _os.environ.get("OBML_ALLOW_HEAVY_INSTALLS", "0") == "1"
+    _heavy_warn = ""
+    for needle, est_mb, alt in _HEAVY_PACKAGES:
+        if needle in pkg_lower:
+            if allow_heavy:
+                # Operator override — proceed but warn in stdout
+                _heavy_warn = (
+                    f"[warn] '{pkg}' is heavy (≈{est_mb} MB) but OBML_ALLOW_HEAVY_INSTALLS=1\n"
+                    f"is set; proceeding. If the sandbox OOMs, the process will be SIGKILLed.\n"
+                )
+                # fall through to actual install below
+                break
+            return {
+                "ok": False,
+                "stdout": "",
+                "stderr": (
+                    f"'{pkg}' is a heavy package (≈{est_mb} MB install footprint) and would\n"
+                    f"likely OOM this Render sandbox (memory budget ≈ {_SERVER_RSS_LIMIT_BYTES // (1024*1024)} MB).\n\n"
+                    f"Suggested alternatives:\n"
+                    f"  • {alt}\n"
+                    f"  • Run the install in a separate sandbox service (e.g. E2B, Modal,\n"
+                    f"    Fly.io Machines) and connect it via the WebSocket terminal.\n"
+                    f"  • Switch the Notebook engine to Pyodide (in-browser WASM) — no server\n"
+                    f"    memory pressure, but only pure-Python / pre-ported wheels work.\n\n"
+                    f"If you really need to install '{pkg}' on this server, set the env var\n"
+                    f"OBML_ALLOW_HEAVY_INSTALLS=1 and restart. The install will then proceed\n"
+                    f"but may crash the sandbox."
+                ),
+                "command": f"(blocked) pip install {pkg}",
+                "package": pkg,
+                "blocked": True,
+                "estimated_mb": est_mb,
+                "alternative": alt,
+            }
+
+    # OOM pre-check: if the server is already close to the limit, refuse.
+    mem_warn = _check_memory_budget()
+    if mem_warn:
+        return {
+            "ok": False,
+            "stdout": "",
+            "stderr": f"Server memory too close to the limit ({mem_warn}). "
+                      f"Wait ~1 min for the reaper to free sessions, then retry.",
+            "command": f"(blocked by OOM guard) pip install {pkg}",
+            "package": pkg,
+            "blocked": True,
+        }
 
     session = _get_or_create_session(user.id)
     # --break-system-packages is needed on Debian/Ubuntu 12+ which enforces PEP 668.
@@ -903,7 +981,7 @@ async def notebook_install_api(
 
     return {
         "ok": result["ok"],
-        "stdout": result["stdout"],
+        "stdout": (_heavy_warn if allow_heavy else "") + result["stdout"],
         "stderr": result["stderr"],
         "command": cmd,
         "package": pkg,

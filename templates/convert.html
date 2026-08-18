@@ -719,6 +719,37 @@ print("[kernel] Pyodide ready — np, pd, sklearn, scipy, matplotlib, joblib imp
                 appendLiveOutput(`[kernel] Warning: could not pre-seed California Housing .pkz cache.`, "stderr");
                 appendLiveOutput("[kernel] fetch_california_housing() may still try to download — use the Server engine as a fallback.", "stderr");
             }
+
+            // ─── Colab-style /workspace/ tree + dataset registry pre-seed ───
+            try {
+                const FS = pyodide.FS;
+                for (const d of [
+                    '/workspace', '/workspace/datasets', '/workspace/datasets/registry',
+                    '/workspace/datasets/user', '/workspace/models', '/workspace/outputs',
+                    '/workspace/notebooks', '/workspace/tmp',
+                ]) { try { FS.mkdirTree(d); } catch (e) {} }
+                const _registryCsvs = [
+                    'iris.csv', 'boston_housing.csv', 'titanic.csv',
+                    'pima_diabetes.csv', 'wine_quality_red.csv', 'wine_quality_white.csv',
+                    'penguins.csv', 'heart_disease.csv', 'auto_mpg.csv',
+                    'banknote_authentication.csv',
+                ];
+                let seeded = 0;
+                for (const name of _registryCsvs) {
+                    try {
+                        const r = await fetch('/static/datasets/registry/' + name);
+                        if (r.ok) {
+                            const buf = await r.arrayBuffer();
+                            FS.writeFile('/workspace/datasets/registry/' + name, new Uint8Array(buf));
+                            seeded++;
+                        }
+                    } catch (e) { /* skip */ }
+                }
+                console.log('[convert] /workspace mounted, registry seeded with ' + seeded + ' datasets');
+                appendLiveOutput('[kernel] /workspace mounted — ' + seeded + ' registry datasets available.', "success");
+            } catch (e) {
+                console.warn('[convert] workspace mount failed:', e);
+            }
         } catch (seedErr) {
             console.error('[convert] pre-seed failed:', seedErr);
             appendLiveOutput("[kernel] Warning: could not pre-seed California Housing dataset: " + (seedErr.message || seedErr), "stderr");
