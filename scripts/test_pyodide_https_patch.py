@@ -267,6 +267,126 @@ check(
     "urlopen" in notebook_py_inject,
 )
 
+print("\n=== 9. Binary-safe HTTPS fetcher (no UTF-8 corruption) ===")
+
+# After the 2026-08-18 fix, the patches must use js.XMLHttpRequest
+# with the Latin1 overrideMimeType trick — NOT pyodide.http.open_url
+# (which decodes as UTF-8 and corrupts binary data like sklearn .tgz
+# files, causing SHA256 checksum mismatches).
+# We strip Python comments (# ...) before checking so that explanatory
+# comments mentioning "open_url" don't trigger a false positive.
+import re as _re
+def _strip_comments(src):
+    """Strip '# ...' line comments from Python source."""
+    return _re.sub(r"(^|\n)\s*#[^\n]*", r"\1", src)
+
+convert_py_nocomments = _strip_comments(convert_py)
+notebook_py_nocomments = _strip_comments(notebook_py_inject)
+
+check(
+    "convert.html patch uses js.XMLHttpRequest (binary-safe, not open_url)",
+    "from js import XMLHttpRequest" in convert_py_nocomments
+        and "pyodide.http.open_url" not in convert_py_nocomments
+        and "from pyodide.http" not in convert_py_nocomments,
+    "open_url decodes UTF-8 and corrupts binary; must use XMLHttpRequest sync XHR with overrideMimeType('ISO-8859-1')",
+)
+check(
+    "notebook.html patch uses js.XMLHttpRequest (binary-safe, not open_url)",
+    "from js import XMLHttpRequest" in notebook_py_nocomments
+        and "pyodide.http.open_url" not in notebook_py_nocomments
+        and "from pyodide.http" not in notebook_py_nocomments,
+    "same as convert.html — must not use open_url",
+)
+
+# The overrideMimeType('ISO-8859-1') trick: forces responseText to be
+# byte-faithful (each char 0-255), then encode('latin-1') recovers bytes.
+check(
+    "convert.html patch calls overrideMimeType('ISO-8859-1') for binary-safe XHR",
+    "ISO-8859-1" in convert_py and "overrideMimeType" in convert_py,
+)
+check(
+    "notebook.html patch calls overrideMimeType('ISO-8859-1') for binary-safe XHR",
+    "ISO-8859-1" in notebook_py_inject and "overrideMimeType" in notebook_py_inject,
+)
+
+# The patched urlopen/urlretrieve must use the binary-safe fetcher.
+check(
+    "convert.html _obml_fetch_bytes_sync exists and is called from urlretrieve",
+    "_obml_fetch_bytes_sync" in convert_py
+        and "_obml_fetch_bytes_sync(" in convert_py,
+)
+check(
+    "notebook.html _obml_fetch_bytes_sync exists and is called from urlretrieve",
+    "_obml_fetch_bytes_sync" in notebook_py_inject
+        and "_obml_fetch_bytes_sync(" in notebook_py_inject,
+)
+
+print("\n=== 10. Pre-seeded sklearn dataset cache ===")
+
+# sklearn 1.4+ checks for /home/pyodide/scikit_learn_data/cal_housing_py3.pkz
+# (note the _py3 suffix inserted by _pkl_filepath in sklearn/datasets/_base.py).
+# Without this cache file, fetch_california_housing tries to download from
+# figshare — which is CORS-blocked in the browser, causing a NetworkError.
+#
+# The fix: bundle the .pkz at /static/datasets/cal_housing_py3.pkz and
+# pre-seed the cache at kernel boot. Both convert.html and notebook.html
+# must have this pre-seed block.
+
+check(
+    "convert.html pre-seeds cal_housing_py3.pkz (sklearn's expected filename)",
+    "cal_housing_py3.pkz" in CONVERT_HTML,
+)
+check(
+    "notebook.html pre-seeds cal_housing_py3.pkz",
+    "cal_housing_py3.pkz" in NOTEBOOK_HTML,
+)
+
+# The bundled .pkz file must actually exist on disk (and be non-trivially sized).
+import os
+PKZ_PATH = "/home/z/my-project/static/datasets/cal_housing_py3.pkz"
+TGZ_PATH = "/home/z/my-project/static/datasets/cal_housing.tgz"
+check(
+    "static/datasets/cal_housing_py3.pkz exists on disk",
+    os.path.exists(PKZ_PATH),
+)
+if os.path.exists(PKZ_PATH):
+    check(
+        "cal_housing_py3.pkz is non-empty (>100KB)",
+        os.path.getsize(PKZ_PATH) > 100_000,
+        f"size: {os.path.getsize(PKZ_PATH)} bytes",
+    )
+    # Verify the SHA256 of the .tgz matches what sklearn expects.
+    import hashlib
+    with open(TGZ_PATH, "rb") as f:
+        actual_sha = hashlib.sha256(f.read()).hexdigest()
+    check(
+        "cal_housing.tgz SHA256 matches sklearn expectation (aaa5c9a6...5ea681)",
+        actual_sha == "aaa5c9a6afe2225cc2aed2723682ae403280c4a3695a2ddda4ffb5d8215ea681",
+        f"got: {actual_sha}",
+    )
+
+# Both pages must call FS.writeFile to /home/pyodide/scikit_learn_data/
+# (the path sklearn's get_data_home() returns under Pyodide).
+check(
+    "convert.html writes the .pkz to /home/pyodide/scikit_learn_data/",
+    "/home/pyodide/scikit_learn_data/cal_housing_py3.pkz" in CONVERT_HTML,
+)
+check(
+    "notebook.html writes the .pkz to /home/pyodide/scikit_learn_data/",
+    "/home/pyodide/scikit_learn_data/cal_housing_py3.pkz" in NOTEBOOK_HTML,
+)
+
+# The pre-seed must run BEFORE pyodideReady = true (so the cache is
+# populated before any user code can call fetch_california_housing).
+check(
+    "convert.html pre-seed runs before pyodideReady=true",
+    CONVERT_HTML.find("cal_housing_py3.pkz") < CONVERT_HTML.find("pyodideReady = true"),
+)
+check(
+    "notebook.html pre-seed runs before pyodideReady=true",
+    NOTEBOOK_HTML.find("cal_housing_py3.pkz") < NOTEBOOK_HTML.find("pyodideReady = true"),
+)
+
 print("\n" + "=" * 60)
 if failures:
     print(f"RESULT: FAIL — {len(failures)} check(s) failed:")

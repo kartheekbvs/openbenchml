@@ -512,7 +512,7 @@ import matplotlib.pyplot as plt
 import io, base64, pickle, sys, os
 
 # ─────────────────────────────────────────────────────────────────────────
-#  Pyodide HTTPS patch
+#  Pyodide HTTPS patch — BINARY-SAFE edition
 #  ─────────────────────────────────────────────────────────────────────
 #  Pyodide's stdlib has NO real network stack — urllib.request.urlopen
 #  raises "unknown url type: https" the moment it sees an HTTPS URL.
@@ -522,18 +522,24 @@ import io, base64, pickle, sys, os
 #    - sklearn.datasets.fetch_olivetti_faces()       (uses urlretrieve)
 #    - any user code that does urlopen("https://...")
 #
-#  Fix: monkey-patch urllib.request.urlopen AND urlretrieve so HTTPS
-#  URLs are routed through pyodide.http.open_url (which uses the
-#  browser's fetch() under the hood). Local paths still go through
-#  the original implementation unchanged.
+#  IMPORTANT: pyodide.http.open_url() returns a StringIO with the body
+#  decoded as UTF-8 — this CORRUPTS binary data (e.g. sklearn's .tgz
+#  dataset files), causing SHA256 checksum mismatches like:
+#    "OSError: ...cal_housing.tgz has an SHA256 checksum differing
+#     from expected, file may be corrupted."
+#
+#  Fix: use js.XMLHttpRequest in SYNCHRONOUS mode with
+#  responseType="arraybuffer" to fetch raw bytes intact, then route
+#  through urllib.request.urlopen / urlretrieve / pd.read_csv patches.
 # ─────────────────────────────────────────────────────────────────────────
 try:
     import urllib.request as _obml_urllib_request
-    from pyodide.http import open_url as _obml_open_url
+    from js import XMLHttpRequest as _obml_XHR
 
     _obml_orig_urlopen = _obml_urllib_request.urlopen
     _obml_orig_urlretrieve = _obml_urllib_request.urlretrieve
     _obml_io_bytesio = io.BytesIO
+
 
     def _obml_is_http_url(url_or_req):
         """Return True if x is a string http(s) URL or a Request with one."""
@@ -542,34 +548,69 @@ try:
             url.startswith("https://") or url.startswith("http://")
         )
 
+
     def _obml_extract_url(url_or_req):
         """Pull the string URL out of a str or urllib.request.Request."""
         if hasattr(url_or_req, "full_url"):
             return url_or_req.full_url
         return url_or_req
 
+
+    def _obml_fetch_bytes_sync(url):
+        """Synchronously fetch URL bytes via JS XMLHttpRequest.
+
+        Sync XHR can't use responseType='arraybuffer' — the browser
+        throws InvalidAccessError. We use the overrideMimeType trick:
+        force Latin1 interpretation so responseText contains each raw
+        byte as a single char (0-255). Pyodide auto-converts the JS
+        string to a Python string; we then re-encode via Latin1 to
+        recover the original bytes.
+
+        NOTE: For binary responses where the browser still decodes as
+        UTF-8 (some servers override our overrideMimeType), this will
+        raise a clear UnicodeEncodeError. The recommended path for
+        known-binary content (like sklearn datasets) is to pre-bundle
+        the file locally and serve from /static/ — see the pre-seed
+        block in initPyodide() above.
+        """
+        req = _obml_XHR.new()
+        req.open("GET", url, False)  # False = synchronous mode
+        # Force Latin1 so responseText is byte-faithful
+        req.overrideMimeType("text/plain; charset=ISO-8859-1")
+        req.send()
+        status = int(req.status)
+        if status != 200:
+            raise OSError(f"HTTP {status} fetching {url}")
+        text = req.responseText  # Pyodide auto-converts JS string → Python str
+        try:
+            return text.encode("latin-1")
+        except UnicodeEncodeError as e:
+            raise OSError(
+                f"Could not fetch binary content from {url} via sync XHR — "
+                f"browser ignored overrideMimeType and decoded as UTF-8. "
+                f"For sklearn datasets, the kernel pre-seeds the cache "
+                f"from /static/datasets/; for other binary HTTPS URLs, "
+                f"use the Server engine instead. (detail: {e})"
+            )
+
+
     def _obml_urlopen(url, data=None, timeout=None, cafile=None, capath=None, cadefault=False, context=None):
-        """Drop-in urlopen() that routes http(s):// through pyodide.http.open_url."""
+        """Drop-in urlopen() that routes http(s):// through XMLHttpRequest."""
         if _obml_is_http_url(url):
             real_url = _obml_extract_url(url)
-            fobj = _obml_open_url(real_url)
-            data_bytes = fobj.read()
-            if isinstance(data_bytes, str):
-                data_bytes = data_bytes.encode("utf-8")
+            data_bytes = _obml_fetch_bytes_sync(real_url)
             return _obml_io_bytesio(data_bytes)
         # Non-HTTP URL — defer to the original (file://, etc.)
         return _obml_orig_urlopen(url, data=data, timeout=timeout)
 
+
     def _obml_urlretrieve(url, filename=None, reporthook=None, data=None):
-        """Drop-in urlretrieve() that fetches http(s):// via open_url and
-        writes the bytes to the local filename. This is what sklearn's
-        _fetch_remote() calls."""
+        """Drop-in urlretrieve() that fetches http(s):// via XMLHttpRequest
+        and writes the bytes to the local filename. This is what sklearn's
+        _fetch_remote() calls — binary-safe so the SHA256 matches."""
         if _obml_is_http_url(url):
             real_url = _obml_extract_url(url)
-            fobj = _obml_open_url(real_url)
-            data_bytes = fobj.read()
-            if isinstance(data_bytes, str):
-                data_bytes = data_bytes.encode("utf-8")
+            data_bytes = _obml_fetch_bytes_sync(real_url)
             if filename:
                 # Write to the requested local path so sklearn's checksum
                 # verification + joblib.load() can find it.
@@ -585,14 +626,13 @@ try:
 
     _obml_urllib_request.urlopen = _obml_urlopen
     _obml_urllib_request.urlretrieve = _obml_urlretrieve
-    print("[kernel] Patched urllib.request.urlopen + urlretrieve for HTTPS URLs.")
+    print("[kernel] Patched urllib.request.urlopen + urlretrieve (binary-safe via XMLHttpRequest).")
 except Exception as e:
     print(f"[kernel] Warning: could not patch urllib.request: {e}")
 
 # Patch pandas.read_csv so pd.read_csv("https://...") works in Pyodide.
-# (This is now redundant with the urlopen patch above — pd.read_csv uses
-#  urlopen internally for http(s) URLs — but we keep it as a belt-and-
-#  braces fallback in case pandas changes its code path.)
+# Uses the binary-safe _obml_fetch_bytes_sync helper so binary CSV files
+# (e.g. UTF-16 encoded) are not corrupted by UTF-8 decoding.
 try:
     _obml_orig_read_csv = pd.read_csv
 
@@ -601,22 +641,89 @@ try:
             filepath_or_buffer.startswith("https://")
             or filepath_or_buffer.startswith("http://")
         ):
-            fobj = _obml_open_url(filepath_or_buffer)
-            data_bytes = fobj.read()
-            if isinstance(data_bytes, str):
-                data_bytes = data_bytes.encode("utf-8")
+            data_bytes = _obml_fetch_bytes_sync(filepath_or_buffer)
             return _obml_orig_read_csv(
                 _obml_io_bytesio(data_bytes), *args, **kwargs
             )
         return _obml_orig_read_csv(filepath_or_buffer, *args, **kwargs)
 
     pd.read_csv = _obml_read_csv
-    print("[kernel] Patched pandas.read_csv for HTTPS URLs.")
+    print("[kernel] Patched pandas.read_csv for HTTPS URLs (binary-safe).")
 except Exception as e:
     print(f"[kernel] Warning: could not patch pandas.read_csv: {e}")
 
 print("[kernel] Pyodide ready — np, pd, sklearn, scipy, matplotlib, joblib imported.")
 `);
+
+        // ─────────────────────────────────────────────────────────────────────
+        // Pre-seed sklearn dataset cache so fetch_california_housing() etc.
+        // work without needing to download cross-origin (CORS-blocked) data.
+        //
+        // The California Housing dataset is bundled at
+        // /static/datasets/cal_housing.tgz with the SHA256 that sklearn
+        // expects. We fetch it (same-origin, binary-safe via pyfetch.bytes())
+        // and write it to /home/pyodide/scikit_learn_data/cal_housing.tgz
+        // BEFORE the user calls fetch_california_housing — so when the
+        // sklearn code runs, the file already exists in the cache and the
+        // download step is skipped entirely.
+        // ─────────────────────────────────────────────────────────────────────
+        try {
+            console.log('[convert] pre-seeding sklearn dataset cache…');
+            appendLiveOutput("[kernel] pre-seeding sklearn dataset cache…", "stderr");
+            // Use plain fetch() — same-origin, returns ArrayBuffer (binary-safe).
+            // Pre-seed BOTH the .tgz (in case sklearn version checks for it)
+            // AND the .pkz (the actual cached file sklearn 1.4+ looks for).
+            const FS = pyodide.FS;
+            try { FS.mkdirTree('/home/pyodide'); } catch (e) {}
+            try { FS.mkdirTree('/home/pyodide/scikit_learn_data'); } catch (e) {}
+
+            // Pre-seed cal_housing_py3.pkz — this is the file sklearn 1.4+
+            // ACTUALLY looks for (note the _py3 suffix inserted by
+            // _pkl_filepath() in sklearn/datasets/_base.py). Cache hit
+            // skips the entire download + tarfile.extract + joblib.dump
+            // pipeline.
+            let pkzOk = false;
+            try {
+                const pkzResp = await fetch('/static/datasets/cal_housing_py3.pkz');
+                if (pkzResp.ok) {
+                    const pkzBuf = await pkzResp.arrayBuffer();
+                    const pkzBytes = new Uint8Array(pkzBuf);
+                    FS.writeFile('/home/pyodide/scikit_learn_data/cal_housing_py3.pkz', pkzBytes);
+                    // Also write without the _py3 suffix in case a different
+                    // sklearn version looks for that filename.
+                    FS.writeFile('/home/pyodide/scikit_learn_data/cal_housing.pkz', pkzBytes);
+                    console.log('[convert] cached cal_housing_py3.pkz (' + Math.round(pkzBytes.length / 1024) + ' KB)');
+                    pkzOk = true;
+                }
+            } catch (e) {
+                console.warn('[convert] could not pre-seed cal_housing_py3.pkz:', e);
+            }
+
+            // Also pre-seed the raw .tgz in case a different sklearn version
+            // looks for that file instead.
+            try {
+                const tgzResp = await fetch('/static/datasets/cal_housing.tgz');
+                if (tgzResp.ok) {
+                    const tgzBuf = await tgzResp.arrayBuffer();
+                    const tgzBytes = new Uint8Array(tgzBuf);
+                    FS.writeFile('/home/pyodide/scikit_learn_data/cal_housing.tgz', tgzBytes);
+                    console.log('[convert] cached cal_housing.tgz (' + Math.round(tgzBytes.length / 1024) + ' KB)');
+                }
+            } catch (e) {
+                console.warn('[convert] could not pre-seed cal_housing.tgz:', e);
+            }
+
+            if (pkzOk) {
+                appendLiveOutput(`[kernel] cached California Housing dataset (.pkz) — fetch_california_housing() will load from cache.`, "success");
+            } else {
+                appendLiveOutput(`[kernel] Warning: could not pre-seed California Housing .pkz cache.`, "stderr");
+                appendLiveOutput("[kernel] fetch_california_housing() may still try to download — use the Server engine as a fallback.", "stderr");
+            }
+        } catch (seedErr) {
+            console.error('[convert] pre-seed failed:', seedErr);
+            appendLiveOutput("[kernel] Warning: could not pre-seed California Housing dataset: " + (seedErr.message || seedErr), "stderr");
+            appendLiveOutput("[kernel] fetch_california_housing() may still fail with CORS — use the Server engine as a fallback.", "stderr");
+        }
 
         pyodideReady = true;
         setKernelStatus('kernel: ready', 'ready');

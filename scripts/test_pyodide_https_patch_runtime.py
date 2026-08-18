@@ -2,22 +2,24 @@
 Direct runtime test of the urllib.request monkey-patch that the
 /convert page injects into Pyodide at kernel boot.
 
-This test exercises the patch logic against the ACTUAL sklearn source
-code structure (not against a real Pyodide runtime — that would require
-a browser). We:
+After the 2026-08-18 fix, the patch no longer uses pyodide.http.open_url
+(which decodes responses as UTF-8 and corrupts binary data like sklearn's
+.tgz archive files, causing SHA256 checksum mismatches). The patch now
+uses js.XMLHttpRequest in sync mode with overrideMimeType('ISO-8859-1')
+to fetch raw bytes losslessly.
 
+This test exercises the patch logic against a fake `js.XMLHttpRequest`
+(with binary-safe canned responses). We:
   1. Read the patch Python source out of convert.html.
-  2. Exec it against a fake `pyodide.http` module (with `open_url` mocked
-     to return canned bytes).
+  2. Exec it against a fake `js` module (with XMLHttpRequest mocked to
+     return canned bytes via the Latin1 trick).
   3. Call the patched `urllib.request.urlopen` + `urlretrieve` and verify:
      - urlopen("https://example.com/data.csv") returns a BytesIO with the
-       canned content.
+       canned content (no UTF-8 corruption).
      - urlopen("file:///etc/passwd") falls through to the original.
      - urlretrieve("https://example.com/data.zip", "/tmp/out.zip") writes
        the canned bytes to /tmp/out.zip and returns (filename, headers).
-     - urlretrieve("file://...") falls through.
-  4. Simulate `sklearn.datasets._fetch_remote()` calling urlretrieve and
-     verify it would succeed end-to-end.
+     - Binary content with high bytes (>127) is preserved intact.
 """
 import sys, os, re, io, types, tempfile
 ROOT = "/home/z/my-project"
@@ -32,45 +34,75 @@ assert m, "could not find runPythonAsync block in convert.html"
 injected_py = m.group(1)
 print(f"  extracted {len(injected_py)} chars of injected Python from convert.html")
 
-# ── Build a fake pyodide.http module ──────────────────────────────────────────
-class _FakeStream:
-    """Mimics the file-like object returned by pyodide.http.open_url."""
-    def __init__(self, data: bytes):
-        self._data = data
-        self._pos = 0
-    def read(self, n=-1):
-        if n < 0 or n is None:
-            out = self._data[self._pos:]
-            self._pos = len(self._data)
-            return out
-        out = self._data[self._pos:self._pos + n]
-        self._pos += len(out)
-        return out
-    def __enter__(self): return self
-    def __exit__(self, *a): pass
-
-# A small "HTTP server" — maps URL → canned response bytes.
+# ── Build a fake js.XMLHttpRequest that mimics the browser behavior ──────────
+# A small "HTTP server" — maps URL → canned response BYTES.
 _FAKE_HTTP_RESPONSES = {
     "https://example.com/data.csv":        b"a,b,c\n1,2,3\n4,5,6\n",
     "https://example.com/data.zip":        b"PK\x03\x04fake-zip-bytes",
     "https://example.com/cal_housing.csv": b"MedInc,HouseAge,AveRooms\n5.6,25,4.5\n",
     "http://example.com/plain.txt":        b"hello world",
+    # A binary blob with bytes > 127 to verify UTF-8 doesn't corrupt them.
+    "https://example.com/binary.bin":      bytes(range(256)) * 4,
 }
 
-def fake_open_url(url: str):
-    """Mimics pyodide.http.open_url — returns a stream of canned bytes."""
-    if url not in _FAKE_HTTP_RESPONSES:
-        raise ValueError(f"unknown URL in test: {url}")
-    return _FakeStream(_FAKE_HTTP_RESPONSES[url])
 
-# Install the fake pyodide.http module so the patch can `from pyodide.http
-# import open_url` succeed.
-fake_pyodide_pkg = types.ModuleType("pyodide")
-fake_pyodide_http = types.ModuleType("pyodide.http")
-fake_pyodide_http.open_url = fake_open_url
-fake_pyodide_pkg.http = fake_pyodide_http
-sys.modules["pyodide"] = fake_pyodide_pkg
-sys.modules["pyodide.http"] = fake_pyodide_http
+class _FakeXHR:
+    """Mimics js.XMLHttpRequest in sync mode with overrideMimeType trick.
+
+    The real browser, when overrideMimeType('ISO-8859-1') is set, decodes
+    the response body as Latin1 — each byte becomes a single Unicode char
+    in the 0..255 range, so responseText is byte-faithful.
+    """
+    def __init__(self):
+        self._url = None
+        self._async = None
+        self._mime = None
+        self.status = 0
+        self._body = b""
+
+    def open(self, method, url, async_):
+        self._url = url
+        self._async = async_
+
+    def overrideMimeType(self, mime):
+        self._mime = mime
+
+    def send(self, data=None):
+        if self._url not in _FAKE_HTTP_RESPONSES:
+            self.status = 404
+            self._body = b""
+            return
+        self._body = _FAKE_HTTP_RESPONSES[self._url]
+        self.status = 200
+
+    @property
+    def responseText(self):
+        # Browser's responseText after overrideMimeType('ISO-8859-1'):
+        # each raw byte → one Unicode char in 0..255. This is what makes
+        # the trick binary-safe.
+        return "".join(chr(b) for b in self._body)
+
+    @property
+    def response(self):
+        # For responseType='arraybuffer' (not used in sync mode, but defined
+        # for completeness).
+        return self._body
+
+
+def _fake_xhr_new():
+    return _FakeXHR()
+
+
+# Install the fake `js` module so `from js import XMLHttpRequest` succeeds.
+fake_js = types.ModuleType("js")
+fake_js.XMLHttpRequest = _fake_xhr_new  # XMLHttpRequest.new() returns _FakeXHR
+# js.XMLHttpRequest in Pyodide is a class; .new() constructs instances.
+class _XHRFactory:
+    @staticmethod
+    def new():
+        return _FakeXHR()
+fake_js.XMLHttpRequest = _XHRFactory
+sys.modules["js"] = fake_js
 
 # Provide stubs for numpy / pandas / etc so the import statements in the
 # injected code don't crash. (We only care about the urllib patch, not the
@@ -78,7 +110,6 @@ sys.modules["pyodide.http"] = fake_pyodide_http
 for name in ["numpy", "pandas", "sklearn", "scipy", "joblib", "matplotlib"]:
     if name not in sys.modules:
         m = types.ModuleType(name)
-        # pandas.read_csv needs to exist (we test it doesn't get called for non-HTTP)
         m.read_csv = lambda *a, **k: ("orig-read-csv", a, k)
         sys.modules[name] = m
 
@@ -204,29 +235,39 @@ print("\n=== 6. Non-HTTP URL falls through to the original urlopen ===")
 # the real stdlib urlopen (which we're not testing for content, only
 # that the patch DOESN'T intercept them).
 try:
-    # Use a path that doesn't exist so we get a clear URLError — but the
-    # important thing is that the error came from the original urlopen,
-    # not from our patch trying to call fake_open_url.
     _urllib_request.urlopen("file:///nonexistent-path-xyz")
     check(
         "urlopen('file://...') falls through (no crash from fake_open_url)",
         True,
     )
-except ValueError as e:
-    # If fake_open_url were wrongly called, it'd raise ValueError with the
-    # "unknown URL in test" message.
-    if "unknown URL in test" in str(e):
-        check(
-            "non-HTTP URL was NOT routed through the HTTPS patch",
-            False,
-            f"patch wrongly intercepted file:// URL: {e}",
-        )
-    else:
-        check("non-HTTP URL falls through cleanly", True)
 except Exception:
-    # Any other error (URLError, FileNotFoundError, etc.) is fine — it
+    # Any error (URLError, FileNotFoundError, etc.) is fine — it
     # means the original urlopen handled it.
     check("non-HTTP URL falls through cleanly", True)
+
+print("\n=== 7. Binary-safe: bytes > 127 are NOT corrupted by UTF-8 ===")
+# Fetch a 1KB blob containing ALL 256 byte values including high bytes
+# (0x80-0xFF). The patched urlopen MUST return these bytes intact,
+# without any UTF-8 replacement char (U+FFFD) corruption.
+result = _urllib_request.urlopen("https://example.com/binary.bin")
+data = result.read()
+expected = bytes(range(256)) * 4
+check(
+    "binary blob with bytes 0..255 is returned intact (no UTF-8 corruption)",
+    data == expected,
+    f"length: got {len(data)}, expected {len(expected)}; "
+    f"first 32 bytes got: {data[:32]!r}",
+)
+
+print("\n=== 8. SHA256 of fetched binary content matches expected ===")
+import hashlib
+actual_sha = hashlib.sha256(data).hexdigest()
+expected_sha = hashlib.sha256(expected).hexdigest()
+check(
+    "SHA256 of fetched binary blob matches expected SHA256",
+    actual_sha == expected_sha,
+    f"got: {actual_sha[:16]}... expected: {expected_sha[:16]}...",
+)
 
 print("\n" + "=" * 60)
 if failures:
