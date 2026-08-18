@@ -1189,6 +1189,59 @@ async def notebook_download_file_api(
     )
 
 
+# ── Colab-style /content/<filename> route ──────────────────────────────
+# Mirrors Google Colab's `/content/<file>` URL convention so users can
+# reference files the same way they would in a Colab notebook:
+#   - Click the link in the file browser → opens in a new tab
+#   - Reference in user code via pd.read_csv('/content/myfile.csv')
+#   - Use as the canonical "shareable" URL for an uploaded asset
+#
+# Files are served with `inline` Content-Disposition so the browser
+# previews them when possible (CSV → table-ish, image → <img>, etc.)
+# instead of forcing a download. The original filename is preserved
+# in the `filename=` parameter for "Save As" cases.
+@router.get("/content/{path:path}")
+async def notebook_content_file_api(
+    path: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Serve a workspace file at a Colab-style /content/<name> URL.
+
+    Same auth + sandboxing as the regular download endpoint, but:
+      - Content-Disposition: inline (so the browser previews, not downloads)
+      - Renders in the user's browser tab so it can be linked to from
+        the file browser, code comments, etc.
+    """
+    user: Optional[User] = await get_current_user_from_cookie(request, db)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    user_dir = _get_user_file_dir(user.id)
+    target = _safe_resolve(user_dir, path)
+    if not target.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: /content/{path}")
+    if target.is_dir():
+        raise HTTPException(status_code=400, detail=f"Path is a directory: /content/{path}")
+
+    import mimetypes
+    media_type, _ = mimetypes.guess_type(target.name)
+    if not media_type:
+        media_type = "application/octet-stream"
+
+    # Use Response with inline disposition so the browser PREVIEWS the
+    # file (CSV → rendered text, PNG → <img>, JSON → pretty-printed)
+    # rather than triggering a download. This matches the Colab UX.
+    from fastapi.responses import Response
+    with open(target, "rb") as f:
+        body = f.read()
+    headers = {
+        "Content-Disposition": f'inline; filename="{target.name}"',
+        "Content-Length": str(len(body)),
+    }
+    return Response(content=body, media_type=media_type, headers=headers)
+
+
 @router.delete("/api/notebook/files/{path:path}")
 async def notebook_delete_file_api(
     path: str,

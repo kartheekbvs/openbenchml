@@ -426,7 +426,25 @@
   .files-list .file-row .file-name {
     flex: 1; font-family: 'SFMono-Regular', Consolas, monospace;
     font-size: 0.85rem; color: var(--text-primary);
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    /* Show the FULL filename — no truncation. Allow wrap to up to 2 lines
+       so users can read long file names without hover. */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: normal;
+    word-break: break-all;
+    line-height: 1.3;
+    max-height: 2.6em;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+  .files-list .file-row .file-name a {
+    color: var(--accent);
+    text-decoration: none;
+    word-break: break-all;
+  }
+  .files-list .file-row .file-name a:hover {
+    text-decoration: underline;
   }
   .files-list .file-row .file-size {
     font-size: 0.74rem; color: var(--text-secondary);
@@ -451,6 +469,7 @@
   }
   .files-list .file-row .file-children .child-row .child-name {
     flex: 1; font-family: monospace; font-size: 0.8rem;
+    white-space: normal; word-break: break-all; line-height: 1.3;
   }
   .files-list .empty-state {
     padding: 2.5rem 1rem; text-align: center; color: var(--text-secondary);
@@ -1787,8 +1806,48 @@ async function runCellPyodide(cell) {
     return { ok: false, stdout: '', stderr: 'Pyodide is still loading. Wait a few seconds and try again.', figures: [], elapsed_ms: 0 };
   }
   const code = cell.source;
+  const stripped = code.trim();
+
+  // ── pip install recognition (Colab-style) ──────────────────────────────
+  // Accept: pip install X / pip3 install X / !pip install X / %pip install X
+  // All route to micropip.install() in Pyodide. Pure-Python wheels work
+  // out of the box; heavy C-extension packages (tensorflow, torch) will
+  // fail with a friendly message pointing to alternatives.
+  const pipMatch = stripped.match(/^!?\s*(?:%pip|pip3?|python\s+-m\s+pip)\s+(.+)$/i);
+  if (pipMatch) {
+    const args = pipMatch[1].trim();
+    // Only handle "install <pkgs>" — pass through "list" / "show" / "freeze"
+    // as informational commands.
+    const installMatch = args.match(/^install\s+(.+)$/i);
+    if (installMatch) {
+      return await _pyodidePipInstall(installMatch[1].trim());
+    }
+    if (/^(list|freeze|show)\b/i.test(args)) {
+      return await _pyodidePipList(args);
+    }
+    return {
+      ok: false,
+      stdout: '',
+      stderr: `pip ${args} is not supported in Pyodide. Use 'pip install <pkg>' or '%pip install <pkg>'.`,
+      figures: [], elapsed_ms: 0,
+    };
+  }
+
   // Shell commands in pyodide — limited support
   if (code.startsWith('!')) {
+    // Allow a small set of harmless shell-equivalents for convenience
+    const shellCmd = code.slice(1).trim();
+    // !ls / !pwd / !echo → just run as Python equivalents
+    if (/^ls\b/.test(shellCmd)) {
+      return await runPyodideMagic('%ls');
+    }
+    if (shellCmd === 'pwd') {
+      return { ok: true, stdout: '/workspace\n', stderr: '', figures: [], elapsed_ms: 0 };
+    }
+    if (/^echo\b/.test(shellCmd)) {
+      const msg = shellCmd.replace(/^echo\s+/, '').replace(/^["']|["']$/g, '');
+      return { ok: true, stdout: msg + '\n', stderr: '', figures: [], elapsed_ms: 0 };
+    }
     return {
       ok: false,
       stdout: '',
@@ -1848,6 +1907,125 @@ sys.stderr = __obml_old_stderr__
 // ─── Pyodide magics + variable inspector + file browser ─────────────────────
 // Mirror of the server-side %whos / %reset / %pip magics, plus Colab-style
 // %load_dataset, %save_model, %load_model, %ls that operate on /workspace/.
+
+// Heavy-package list (mirrors server-side). These are known to either
+// (a) have no Pyodide wheel (C-extensions) or (b) be very large. We warn
+// up front so the user doesn't wait for a 30-second micropip timeout.
+const _PYODIDE_HEAVY_PKGS = [
+  ['tensorflow', 'tensorflow is not available in Pyodide. Try the Server engine (will be blocked by OOM guard) or use a hosted runtime like Google Colab.'],
+  ['torch', 'torch is not available in Pyodide. Try the Server engine + CPU wheel from https://download.pytorch.org/whl/cpu, or use Google Colab.'],
+  ['torchvision', 'torchvision requires torch — same restrictions apply.'],
+  ['torchaudio', 'torchaudio requires torch — same restrictions apply.'],
+  ['transformers', 'transformers is heavy and has limited Pyodide support. Use the Server engine + HuggingFace Hub, or Google Colab.'],
+  ['opencv-python', 'opencv-python is a C-extension; use the Server engine, or "scikit-image" which is partially Pyodide-compatible.'],
+  ['cv2', 'cv2/opencv is a C-extension; use the Server engine, or "scikit-image".'],
+  ['paddlepaddle', 'paddlepaddle is not available in Pyodide.'],
+  ['jax', 'jax is not available in Pyodide. Use jaxlib CPU wheel on the Server engine, or Google Colab.'],
+  ['mxnet', 'mxnet is deprecated and not available in Pyodide.'],
+  ['xgboost', 'xgboost may have a Pyodide wheel — try "pip install xgboost" directly; if it fails, fall back to the Server engine.'],
+  ['lightgbm', 'lightgbm may have a Pyodide wheel — try "pip install lightgbm" directly; if it fails, fall back to the Server engine.'],
+];
+
+function _pyodideHeavyPkgWarn(pkg) {
+  const p = pkg.toLowerCase().split(/[=<>!~\[]/)[0].trim();
+  for (const [needle, msg] of _PYODIDE_HEAVY_PKGS) {
+    if (p === needle || p.includes(needle)) return msg;
+  }
+  return null;
+}
+
+async function _pyodidePipInstall(pkgSpec) {
+  // Split multi-package installs and strip flags like --upgrade, -U, --no-deps
+  const parts = pkgSpec.split(/\s+/).filter(s => s && !s.startsWith('-'));
+  if (!parts.length) {
+    return { ok: false, stdout: '', stderr: 'No package name given', figures: [], elapsed_ms: 0 };
+  }
+  // Pre-check for heavy C-extension packages
+  const heavyWarnings = [];
+  for (const p of parts) {
+    const w = _pyodideHeavyPkgWarn(p);
+    if (w) heavyWarnings.push(`${p}: ${w}`);
+  }
+  if (heavyWarnings.length) {
+    return {
+      ok: false,
+      stdout: '',
+      stderr: 'Refused to install in Pyodide:\n  • ' + heavyWarnings.join('\n  • ') +
+              '\n\nTip: switch to the Server engine (top-right) — the server has a heavy-package guard too, but you can override it with OBML_ALLOW_HEAVY_INSTALLS=1 if needed.',
+      figures: [], elapsed_ms: 0,
+    };
+  }
+  const t0 = performance.now();
+  try {
+    // micropip.install accepts a list — pass all at once so deps resolve.
+    // Strip version specifiers from the display name only, not the install.
+    const raw = await pyodideInstance.runPythonAsync(`
+import json as _json, asyncio as _aio
+try:
+    import micropip as _mp
+except Exception as _e:
+    _json.dumps({"error": f"micropip not available: {_e}"})
+else:
+    try:
+        _pkgs = ${JSON.stringify(parts)}
+        _aio.get_event_loop().run_until_complete(_mp.install(_pkgs))
+        _json.dumps({"ok": True, "pkgs": _pkgs})
+    except Exception as _e:
+        _json.dumps({"error": f"{type(_e).__name__}: {_e}"})
+`);
+    const data = JSON.parse(raw);
+    const elapsed_ms = Math.round(performance.now() - t0);
+    if (data.error) {
+      return {
+        ok: false,
+        stdout: '',
+        stderr: `pip install failed: ${data.error}\n` +
+                (data.error.includes('no package named')
+                  ? '\nNote: only pure-Python wheels on PyPI are installable in Pyodide.\nFor C-extension packages (numpy, scipy etc. are already bundled),\nswitch to the Server engine.'
+                  : ''),
+        figures: [], elapsed_ms,
+      };
+    }
+    return {
+      ok: true,
+      stdout: `Successfully installed: ${data.pkgs.join(', ')}\n` +
+              `[pyodide] ${data.pkgs.length} package(s) installed via micropip.\n`,
+      stderr: '', figures: [], elapsed_ms,
+    };
+  } catch (e) {
+    return { ok: false, stdout: '', stderr: 'pip install error: ' + e.message, figures: [], elapsed_ms: Math.round(performance.now() - t0) };
+  } finally {
+    try { refreshPyodideFiles(); } catch (e) {}
+    try { refreshPyodideVariables(); } catch (e) {}
+    try { autosaveNotebook(); } catch (e) {}
+  }
+}
+
+async function _pyodidePipList(args) {
+  // Mirror `pip list` — show what's importable
+  try {
+    const raw = await pyodideInstance.runPythonAsync(`
+import sys, json as _json
+_out = []
+for _m, _v in sorted(getattr(sys, 'modules', {}).items()):
+    if _m.startswith('_'): continue
+    try:
+        _ver = getattr(__import__(_m.split('.')[0]), '__version__', '?')
+    except Exception:
+        _ver = '?'
+    _out.append((_m, _ver))
+_json.dumps(_out)
+`);
+    const rows = JSON.parse(raw);
+    const out = ['Package          Version', '---------------- -------'];
+    for (const [m, v] of rows) {
+      out.push(m.padEnd(17) + ' ' + v);
+    }
+    return { ok: true, stdout: out.join('\n') + '\n', stderr: '', figures: [], elapsed_ms: 0 };
+  } catch (e) {
+    return { ok: false, stdout: '', stderr: 'pip list failed: ' + e.message, figures: [], elapsed_ms: 0 };
+  }
+}
 
 async function runPyodideMagic(code) {
   if (!pyodideReady) {
@@ -2366,10 +2544,18 @@ except Exception as e:
 # Patch pandas.read_csv (belt-and-braces; urlopen patch above already
 # covers it, but we keep this in case pandas changes its code path).
 # Uses the binary-safe _obml_fetch_bytes_sync helper.
+#
+# Also handles LOCAL-NAME fallback for files the user uploaded via the
+# sidebar (which live on the server, not in Pyodide FS). When the user
+# runs pd.read_csv('myfile.csv') and the file isn't in Pyodide's FS,
+# we transparently fetch it from /api/notebook/files/<name> and read
+# the bytes instead — so server-uploaded files "just work" in Pyodide.
 try:
     _obml_orig_read_csv = pd.read_csv
+    _obml_os_path_exists = os.path.exists
 
     def _obml_read_csv(filepath_or_buffer, *args, **kwargs):
+        # Case 1: HTTPS/HTTP URL → fetch bytes via XHR
         if isinstance(filepath_or_buffer, str) and (
             filepath_or_buffer.startswith("https://")
             or filepath_or_buffer.startswith("http://")
@@ -2378,12 +2564,55 @@ try:
             return _obml_orig_read_csv(
                 _obml_io_bytesio(data_bytes), *args, **kwargs
             )
+        # Case 2: bare local filename that's NOT in Pyodide FS — try the
+        # server workspace. This makes uploaded files readable from
+        # Pyodide without the user having to know the /workspace/ path.
+        if isinstance(filepath_or_buffer, str) and not _obml_os_path_exists(filepath_or_buffer):
+            # Strip leading ./ and any leading /workspace/datasets/user/
+            _obml_fname = filepath_or_buffer.lstrip("./").lstrip("/")
+            # Skip obviously-internal paths (sql://, postgres://, etc.)
+            if "://" not in _obml_fname:
+                try:
+                    _obml_srv_bytes = _obml_fetch_bytes_sync(
+                        "/api/notebook/files/" + _obml_fname
+                    )
+                    return _obml_orig_read_csv(
+                        _obml_io_bytesio(_obml_srv_bytes), *args, **kwargs
+                    )
+                except Exception:
+                    # File doesn't exist on the server either — fall through
+                    # to the original call so the user gets the normal
+                    # FileNotFoundError.
+                    pass
         return _obml_orig_read_csv(filepath_or_buffer, *args, **kwargs)
 
     pd.read_csv = _obml_read_csv
-    print("[pyodide] Patched pandas.read_csv for HTTPS URLs (binary-safe).")
+    print("[pyodide] Patched pandas.read_csv for HTTPS URLs + server-side files (binary-safe).")
 except Exception as e:
     print(f"[pyodide] Warning: could not patch pandas.read_csv: {e}")
+
+# Also patch open() for read mode so user code that does
+#   with open('myfile.csv') as f: ...
+# can read server-uploaded files transparently from Pyodide.
+try:
+    _obml_orig_open = open
+    def _obml_open(name, *args, **kwargs):
+        if isinstance(name, str) and not os.path.exists(name) and "://" not in name:
+            _obml_fname = name.lstrip("./").lstrip("/")
+            if _obml_fname and not _obml_fname.startswith("/"):
+                try:
+                    _obml_srv_bytes = _obml_fetch_bytes_sync(
+                        "/api/notebook/files/" + _obml_fname
+                    )
+                    return _obml_orig_open(_obml_io_bytesio(_obml_srv_bytes), *args, **kwargs)
+                except Exception:
+                    pass
+        return _obml_orig_open(name, *args, **kwargs)
+    import builtins as _obml_builtins
+    _obml_builtins.open = _obml_open
+    print("[pyodide] Patched open() to fall back to server workspace files.")
+except Exception as e:
+    print(f"[pyodide] Warning: could not patch open(): {e}")
 
 def __obml_get_figures__():
     out = []
@@ -2626,6 +2855,14 @@ print("[pyodide] _obml_handle_magic defined — magics ready (%ls, %load_dataset
       console.log('[pyodide] /workspace mounted, registry seeded with ' + seeded + ' datasets');
     } catch (e) {
       console.warn('[pyodide] workspace mount failed:', e.message || e);
+    }
+
+    // ── Mirror server-side uploaded files into Pyodide FS ─────────────
+    // This is what makes `pd.read_csv('my_upload.csv')` work in the
+    // Pyodide engine — uploaded files live on the server by default,
+    // so we mirror them into /workspace/datasets/user/ on boot.
+    try { await _syncServerFilesToPyodide(); } catch (e) {
+      console.warn('[pyodide] server file sync failed (non-fatal):', e.message || e);
     }
 
     pyodideReady = true;
@@ -3009,10 +3246,17 @@ function _renderFileRow(f) {
     '<div class="file-children">' +
       f.children.map(c => _renderChildRow(c)).join('') +
     '</div>' : '';
+  // Colab-style clickable link to /content/<filename>.
+  // Opens in a new tab; server serves the file inline (preview) when
+  // possible and as a download otherwise. For directories we don't
+  // generate a link — they expand/collapse in place.
+  const nameHtml = f.is_dir
+    ? `<span class="file-name" onclick="this.parentElement.classList.toggle('expanded')" style="cursor: pointer;">${escapeHtml(f.name)}</span>`
+    : `<span class="file-name"><a href="/content/${encodeURIComponent(f.path)}" target="_blank" title="Open /content/${escapeHtml(f.path)} in a new tab">${escapeHtml(f.name)}</a></span>`;
   return `
     <div class="file-row ${f.is_dir ? 'is-dir' : ''}" data-path="${escapeHtml(f.path)}">
       <span class="file-icon">${icon}</span>
-      <span class="file-name" ${f.is_dir ? `onclick="this.parentElement.classList.toggle('expanded')" style="cursor: pointer;"` : ''}>${escapeHtml(f.name)}</span>
+      ${nameHtml}
       <span class="file-size">${f.size_human}</span>
       <span class="file-modified">${_fmtDate(f.modified)}</span>
       <span class="file-actions">
@@ -3027,10 +3271,14 @@ function _renderFileRow(f) {
 
 function _renderChildRow(c) {
   const icon = c.is_dir ? '&#128193;' : _fileIcon(c.name);
+  // Colab-style /content/ link for nested files too
+  const nameHtml = c.is_dir
+    ? `<span class="child-name">${escapeHtml(c.name)}</span>`
+    : `<span class="child-name"><a href="/content/${encodeURIComponent(c.path)}" target="_blank" title="Open /content/${escapeHtml(c.path)}">${escapeHtml(c.name)}</a></span>`;
   return `
     <div class="child-row">
       <span class="file-icon">${icon}</span>
-      <span class="child-name">${escapeHtml(c.name)}</span>
+      ${nameHtml}
       <span class="file-size">${c.size_human}</span>
       <span class="file-actions">
         ${!c.is_dir ? `<button class="files-actions-btn" onclick="downloadFile('${escapeHtml(c.path)}')" title="Download">&#8681;</button>` : ''}
@@ -3087,12 +3335,29 @@ async function uploadFiles(fileList) {
       if (r.ok && data.ok) {
         progressRow.innerHTML = `
           <span class="file-icon" style="color: var(--success-bright);">&#10003;</span>
-          <span class="file-name">Uploaded ${escapeHtml(file.name)} — ${data.size_human}</span>
+          <span class="file-name">Uploaded <a href="/content/${encodeURIComponent(data.path || file.name)}" target="_blank" title="Open /content/${escapeHtml(data.path || file.name)}">${escapeHtml(file.name)}</a> — ${data.size_human}</span>
           <span class="file-size">${data.size_human}</span>
           <span class="file-modified">just now</span>
           <span class="file-actions"></span>
         `;
         setTimeout(() => { progressRow.remove(); refreshFiles(); }, 800);
+        // ── Also mirror into Pyodide FS so pd.read_csv(file.name) works ──
+        // in the Pyodide engine without needing to fetch from the server
+        // on every cell run. If Pyodide isn't loaded yet, the file will
+        // be auto-synced when Pyodide boots (see _syncServerFilesToPyodide).
+        if (typeof pyodideReady !== 'undefined' && pyodideReady && pyodideInstance) {
+          try {
+            const buf = await file.arrayBuffer();
+            pyodideInstance.FS.writeFile(
+              '/workspace/datasets/user/' + file.name,
+              new Uint8Array(buf)
+            );
+            console.log('[pyodide] Mirrored uploaded file → /workspace/datasets/user/' + file.name);
+            try { refreshPyodideFiles(); } catch (e) {}
+          } catch (e) {
+            console.warn('[pyodide] Could not mirror uploaded file:', e.message || e);
+          }
+        }
       } else {
         progressRow.innerHTML = `
           <span class="file-icon" style="color: var(--danger-bright);">&#10007;</span>
@@ -3114,6 +3379,37 @@ async function uploadFiles(fileList) {
   }
   // Reset input so the same file can be re-selected
   document.getElementById('file-input').value = '';
+}
+
+// Mirror all server-side user files into /workspace/datasets/user/ in
+// Pyodide FS. Called once at Pyodide boot (so users switching to the
+// Pyodide engine see their previously-uploaded files immediately).
+async function _syncServerFilesToPyodide() {
+  if (!pyodideReady || !pyodideInstance) return;
+  try {
+    const data = await _fetchJson('/api/notebook/files', {}, 10000);
+    if (!data.ok || !data.files) return;
+    let synced = 0;
+    for (const f of data.files) {
+      if (f.is_dir) continue;
+      // Skip files > 50 MB to avoid blowing the WASM heap
+      if (f.size > 50 * 1024 * 1024) continue;
+      try {
+        const r = await fetch('/api/notebook/files/' + encodeURIComponent(f.path));
+        if (!r.ok) continue;
+        const buf = await r.arrayBuffer();
+        pyodideInstance.FS.writeFile(
+          '/workspace/datasets/user/' + f.name,
+          new Uint8Array(buf)
+        );
+        synced++;
+      } catch (e) { /* skip */ }
+    }
+    console.log(`[pyodide] Synced ${synced} user file(s) from server → /workspace/datasets/user/`);
+    try { refreshPyodideFiles(); } catch (e) {}
+  } catch (e) {
+    console.warn('[pyodide] server-file sync failed:', e.message || e);
+  }
 }
 
 function downloadFile(path) {
@@ -3165,14 +3461,17 @@ function insertFileHint(path, isDir) {
   if (!lastCell || lastCell.type !== 'code' || lastCell.source.trim()) {
     lastCell = addCodeCell('', lastCell ? lastCell.id : null);
   }
+  // Insert a comment showing the Colab-style /content/ link + the actual
+  // read code. The comment is helpful for the user to reference later.
+  const contentLink = `/content/${path}`;
   if (isDir) {
-    lastCell.source = `import os\nfor f in os.listdir('${path}'):\n    print(f)`;
+    lastCell.source = `# Files in '${path}' — view at ${contentLink}\nimport os\nfor f in os.listdir('${path}'):\n    print(f)`;
   } else if (path.toLowerCase().endsWith('.csv')) {
-    lastCell.source = `df = pd.read_csv('${path}')\nprint(df.shape)\ndf.head()`;
+    lastCell.source = `# Loaded from /content/${path}  (link: ${contentLink})\ndf = pd.read_csv('${path}')\nprint(df.shape)\ndf.head()`;
   } else if (path.toLowerCase().endsWith('.json')) {
-    lastCell.source = `import json\nwith open('${path}') as f:\n    data = json.load(f)\nprint(type(data), len(data) if hasattr(data, '__len__') else '')`;
+    lastCell.source = `# Loaded from /content/${path}\nimport json\nwith open('${path}') as f:\n    data = json.load(f)\nprint(type(data), len(data) if hasattr(data, '__len__') else '')`;
   } else {
-    lastCell.source = `with open('${path}') as f:\n    content = f.read()\nprint(content[:500])`;
+    lastCell.source = `# Loaded from /content/${path}\nwith open('${path}') as f:\n    content = f.read()\nprint(content[:500])`;
   }
   rerenderAll();
   selectCell(lastCell.id);
