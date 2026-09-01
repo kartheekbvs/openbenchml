@@ -582,6 +582,15 @@
 
 {% block content %}
 
+{# ══════════════ MODE TOGGLE (Concepts vs Project) ══════════════ #}
+{# Shows on the landing page only — gives the user a clear way to switch #}
+{# between the existing concept-based Learn section and the new project- #}
+{# based "Learn with Project" course (Student Performance Predictor).  #}
+<div style="display: flex; gap: 0.4rem; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 10px; padding: 0.3rem; margin-bottom: 1.5rem; width: fit-content;">
+  <a href="/learn" style="padding: 0.4rem 1rem; border-radius: 7px; text-decoration: none; background: var(--accent); color: white; font-size: 0.88rem; font-weight: 500;">Concepts</a>
+  <a href="/learn/project" style="padding: 0.4rem 1rem; border-radius: 7px; text-decoration: none; color: var(--text-secondary); font-size: 0.88rem; font-weight: 500;">&#128640; Learn with Project</a>
+</div>
+
 {% if view == "landing" %}
   {# ════════════════════════════════════════════════════════════════
      LANDING VIEW — all categories as a card grid
@@ -595,6 +604,23 @@
           <span class="stat-pill">100% tied to real code</span>
       </div>
   </div>
+
+  {# ══════════════ PROJECT COURSE TEASER ══════════════ #}
+  {# A single highlighted card that points users to the new "Learn with #}
+  {# Project" mode — the 12-stage Student Performance Predictor course.  #}
+  {# This is intentionally OUTSIDE the regular category grid so the     #}
+  {# existing Learn content stays untouched.                             #}
+  <a href="/learn/project" style="display: block; text-decoration: none; color: inherit; background: linear-gradient(135deg, rgba(160,192,0,0.10), rgba(88,166,255,0.06)); border: 1px solid var(--accent); border-radius: 14px; padding: 1.5rem; margin-bottom: 1.5rem; transition: all 0.15s;">
+    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+      <div style="font-size: 2.2rem;">&#128640;</div>
+      <div style="flex: 1; min-width: 280px;">
+        <div style="font-size: 0.78rem; color: var(--accent); font-weight: 600; letter-spacing: 0.5px; margin-bottom: 0.2rem;">NEW &middot; LEARN WITH PROJECT</div>
+        <h2 style="font-size: 1.25rem; margin: 0 0 0.3rem 0; color: var(--text-primary);">Build a Student Performance Predictor &mdash; 12 stages, 5 layers</h2>
+        <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.5;">A complete walk-through that connects Python &rarr; ML &rarr; FastAPI &rarr; Jinja &rarr; HTML by building ONE real project. Every stage has a tiny task, a check, an explicit "which routes are wired up" box, and a "is a response model needed here?" answer. Same teaching style as a mentor session.</p>
+      </div>
+      <div style="font-size: 1.6rem; color: var(--accent);">&rarr;</div>
+    </div>
+  </a>
 
   <div class="category-grid">
       {% for cat in tree %}

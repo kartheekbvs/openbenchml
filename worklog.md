@@ -132,3 +132,75 @@ Stage Summary:
     app/routes/notebook.py     — /content/{path:path} route (inline preview)
     scripts/test_pyodide_pip_csv_content.py  — new 20-check static analysis suite
 - All 4 user-reported issues resolved.
+
+---
+Task ID: learn-with-project-toggle
+Agent: main
+Task: Add a new "Learn with Project" toggle to the existing /learn section. Must NOT disturb the current Learn content. The new mode should teach FastAPI + Jinja2 + ML intuition step-by-step following the "concept -> tiny task -> check -> next" loop the user demonstrated in the chat. User specifically asked for: detailed learning of Jinja2 and FastAPI, the intuition behind them, explicit "which routes" callouts, and explicit "is a response model necessary here?" answers per stage.
+
+Work Log:
+- Created app/routes/learn_project.py — defines PROJECT_COURSE (13 stages, 0-12) + 2 routes:
+    GET  /learn/project          -> overview (all 13 stages as a path)
+    GET  /learn/project/{slug}   -> single stage page
+- The 13 stages walk through building a Student Performance Predictor end-to-end:
+    Stage  0: Why this project? The 5-layer motive (Python -> ML -> FastAPI -> Jinja -> HTML)
+    Stage  1: Meet the dataset — head/shape/info/describe (4 questions you always ask)
+    Stage  2: 3 plots that tell you if ML is even possible
+    Stage  3: Clean the data + split into X and y
+    Stage  4: First ML model — 4 lines (train_test_split + fit + predict + score)
+    Stage  5: What does R^2 = 0.80 mean? (MAE, MSE, RMSE, R^2)
+    Stage  6: Error analysis — sort by Abs_Error, investigate worst predictions
+    Stage  7: Try a better model — RandomForest vs LinearRegression
+    Stage  8: FIRST FastAPI route — POST /predict (JSON in, JSON out)
+    Stage  9: Jinja2 templates + HTML form (base.html + home.html + result.html)
+    Stage 10: CSS — cards layout, hover effects, accent color
+    Stage 11: /model-info page — surface metrics + feature importance
+    Stage 12: Deploy to Render + final folder structure recap
+- Each stage has 14 fields:
+    stage, slug, title, summary, intuition, tiny_task, check,
+    routes_box, is_response_model_needed, response_model_explanation,
+    files, explanation, common_mistakes, next_preview
+- The "routes_box" field explicitly lists which routes are wired up at each stage
+  (e.g. Stage 8: "POST /predict -> takes StudentInput JSON, returns PredictResponse JSON")
+- The "is_response_model_needed" + "response_model_explanation" fields directly answer
+  the user's question "is it necessary response model if it necessary give detailed".
+  Answer: only for JSON routes (Stage 8), NOT for HTML routes (Stages 9, 11).
+  Stage 12 has a final recap table showing all 4 routes and which need response_model.
+- The teaching style mirrors the chat conversation the user pasted:
+    1. CONCEPT  -> one-sentence intuition (intuition field)
+    2. TINY TASK -> 2-5 line code the user writes (tiny_task field)
+    3. CHECK     -> expected output (check field)
+    4. NEXT      -> preview of next stage (next_preview field)
+- Created templates/learn_project.html with:
+    * Mode toggle (Concepts / Learn with Project) at the top
+    * Overview view: 13 stages as a clickable path with layer tags
+    * Stage view: progress bar, prev/next buttons, all 7 content boxes
+      (intuition, tiny_task, check, routes, response_model, mistakes, next)
+    * Sidebar with all 13 stages + project stack summary
+    * Color-coded boxes (intuition=blue, task=green, check=green, routes=purple,
+      response_model=orange, mistakes=red, next=accent)
+- Modified templates/learn.html — added TWO things at the top of the landing page:
+    1. A mode toggle (Concepts active / Learn with Project inactive)
+    2. A teaser card with rocket icon highlighting the new 12-stage course
+  The existing LEARN_TREE content is untouched.
+- Modified app/main.py — imported + included learn_project_route.router.
+- Created scripts/test_learn_project.py — 77 static checks (all PASS).
+
+Stage Summary:
+- All 77 new static checks PASS.
+- All 82 prior checks (test_colab_workspace_features.py) still PASS — no regression.
+- All 20 prior checks (test_pyodide_pip_csv_content.py) still PASS — no regression.
+- Total: 179 checks PASS, 0 FAIL.
+- 13 stages × 14 fields = 182 fields, all populated.
+- 25 code files across all stages (CSV, Python, HTML, CSS, YAML, bash).
+- Existing /learn content UNDISTURBED — only added toggle + teaser card.
+- New routes:
+    GET /learn/project          (overview)
+    GET /learn/project/{slug}   (single stage, e.g. /learn/project/project-stage-08-fastapi-predict)
+- Files created:
+    app/routes/learn_project.py             (450 lines, 13 stages + 2 routes)
+    templates/learn_project.html            (430 lines, overview + stage views)
+    scripts/test_learn_project.py           (200 lines, 77 checks)
+- Files modified:
+    app/main.py                              (+2 lines: import + include router)
+    templates/learn.html                     (+20 lines: toggle + teaser card)

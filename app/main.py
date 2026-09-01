@@ -282,6 +282,7 @@ from app.routes import competitions, comments  # noqa: E402
 from app.routes import convert  # noqa: E402
 from app.routes import notebook as notebook_route  # noqa: E402
 from app.routes import learn as learn_route  # noqa: E402
+from app.routes import learn_project as learn_project_route  # noqa: E402
 from app.routes import auth_bridge  # noqa: E402
 
 app.include_router(auth.router)
@@ -295,6 +296,7 @@ app.include_router(comments.router)
 app.include_router(convert.router)
 app.include_router(notebook_route.router)
 app.include_router(learn_route.router)
+app.include_router(learn_project_route.router)
 app.include_router(auth_bridge.router)
 
 

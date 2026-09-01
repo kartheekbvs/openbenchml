@@ -1,0 +1,736 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if view == "stage" %}{{ stage.title }} &mdash; Learn with Project &mdash; OpenBenchML
+  {% else %}Learn with Project &mdash; OpenBenchML{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ─── Hero ──────────────────────────────────────────────────── */
+  .project-hero {
+    background: linear-gradient(135deg, rgba(160,192,0,0.10), rgba(88,166,255,0.06));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+  }
+  .project-hero h1 {
+    font-size: 1.9rem;
+    margin-bottom: 0.6rem;
+    color: var(--text-primary);
+  }
+  .project-hero p {
+    color: var(--text-secondary);
+    line-height: 1.6;
+    max-width: 760px;
+  }
+  .project-hero .stats-row {
+    display: flex; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap;
+  }
+  .stat-pill {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    padding: 0.3rem 0.8rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+  }
+
+  /* ─── Toggle (Concepts vs Project) ─────────────────────────── */
+  .mode-toggle {
+    display: flex; gap: 0.4rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.3rem;
+    margin-bottom: 1.5rem;
+    width: fit-content;
+  }
+  .mode-toggle a {
+    padding: 0.4rem 1rem;
+    border-radius: 7px;
+    text-decoration: none;
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+    font-weight: 500;
+    transition: all 0.15s;
+  }
+  .mode-toggle a.active {
+    background: var(--accent);
+    color: white;
+  }
+  .mode-toggle a:hover:not(.active) {
+    color: var(--text-primary);
+    background: var(--bg-primary);
+  }
+
+  /* ─── Breadcrumb ───────────────────────────────────────────── */
+  .learn-breadcrumb {
+    display: flex; align-items: center; gap: 0.4rem;
+    color: var(--text-secondary);
+    font-size: 0.86rem;
+    margin-bottom: 1rem;
+  }
+  .learn-breadcrumb a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .learn-breadcrumb .sep { opacity: 0.5; }
+
+  /* ─── Stage path (overview) ────────────────────────────────── */
+  .stage-path {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.7rem;
+    margin-bottom: 2rem;
+  }
+  .stage-row {
+    display: flex;
+    gap: 1rem;
+    padding: 1rem 1.2rem;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    text-decoration: none;
+    color: var(--text-primary);
+    transition: all 0.15s;
+    align-items: flex-start;
+  }
+  .stage-row:hover {
+    border-color: var(--accent);
+    transform: translateX(3px);
+    box-shadow: 0 4px 12px rgba(160,192,0,0.08);
+  }
+  .stage-num {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 2.5rem;
+    text-align: center;
+    line-height: 1;
+  }
+  .stage-body { flex: 1; }
+  .stage-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+  }
+  .stage-summary {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+  .stage-layer-tag {
+    display: inline-block;
+    background: rgba(160,192,0,0.12);
+    color: var(--accent);
+    font-size: 0.72rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    margin-top: 0.4rem;
+    font-family: monospace;
+  }
+  .stage-arrow {
+    color: var(--accent);
+    font-size: 1.4rem;
+    align-self: center;
+  }
+
+  /* ─── Stage page layout ────────────────────────────────────── */
+  .stage-page {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 2rem;
+    align-items: start;
+  }
+  @media (max-width: 980px) {
+    .stage-page { grid-template-columns: 1fr; }
+  }
+  .stage-content { min-width: 0; }
+  .stage-sidebar {
+    position: sticky;
+    top: 1rem;
+    display: flex; flex-direction: column;
+    gap: 1rem;
+  }
+
+  /* ─── Stage badge + progress ───────────────────────────────── */
+  .stage-badge {
+    display: inline-block;
+    background: var(--accent);
+    color: white;
+    padding: 0.3rem 0.8rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    margin-bottom: 0.6rem;
+  }
+  .stage-progress-bar {
+    display: flex; gap: 3px;
+    margin-bottom: 1.2rem;
+  }
+  .stage-progress-bar .seg {
+    flex: 1;
+    height: 5px;
+    background: var(--bg-elevated);
+    border-radius: 2px;
+  }
+  .stage-progress-bar .seg.done { background: var(--accent); }
+  .stage-progress-bar .seg.current {
+    background: var(--accent);
+    box-shadow: 0 0 0 2px rgba(160,192,0,0.3);
+  }
+
+  /* ─── Stage content blocks ─────────────────────────────────── */
+  .stage-content h1 {
+    font-size: 1.6rem;
+    margin-bottom: 0.5rem;
+  }
+  .stage-content .stage-summary-line {
+    color: var(--text-secondary);
+    font-size: 1rem;
+    margin-bottom: 1.4rem;
+    line-height: 1.5;
+  }
+  .stage-content h3 {
+    font-size: 1.1rem;
+    margin: 1.5rem 0 0.6rem 0;
+    color: var(--text-primary);
+  }
+  .stage-content p {
+    line-height: 1.7;
+    color: var(--text-primary);
+    margin-bottom: 0.8rem;
+  }
+
+  .intuition-box {
+    background: rgba(88,166,255,0.06);
+    border-left: 3px solid #58a6ff;
+    padding: 1rem 1.2rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+    white-space: pre-line;
+    line-height: 1.7;
+  }
+
+  .tiny-task-box {
+    background: rgba(160,192,0,0.08);
+    border-left: 3px solid var(--accent);
+    padding: 1rem 1.2rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+  }
+  .tiny-task-box strong {
+    color: var(--accent);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+  .tiny-task-box pre {
+    background: var(--bg-primary);
+    padding: 0.7rem;
+    border-radius: 5px;
+    overflow-x: auto;
+    margin-top: 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  .check-box {
+    background: rgba(63,185,80,0.06);
+    border-left: 3px solid #3fb950;
+    padding: 1rem 1.2rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+    white-space: pre-line;
+    line-height: 1.7;
+  }
+  .check-box strong {
+    color: #3fb950;
+    display: block;
+    margin-bottom: 0.4rem;
+  }
+
+  .routes-box {
+    background: rgba(188,140,255,0.06);
+    border-left: 3px solid #bc8cff;
+    padding: 1rem 1.2rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+    white-space: pre-line;
+    line-height: 1.7;
+  }
+  .routes-box strong {
+    color: #bc8cff;
+    display: block;
+    margin-bottom: 0.4rem;
+  }
+  .routes-box .rm-tag {
+    display: inline-block;
+    background: rgba(188,140,255,0.15);
+    color: #bc8cff;
+    padding: 0.1rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+    font-family: monospace;
+  }
+
+  .response-model-box {
+    background: rgba(255,166,87,0.06);
+    border-left: 3px solid #ffa657;
+    padding: 1rem 1.2rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+    line-height: 1.7;
+  }
+  .response-model-box strong {
+    color: #ffa657;
+    display: block;
+    margin-bottom: 0.4rem;
+  }
+  .response-model-box .rm-needed {
+    display: inline-block;
+    background: rgba(255,166,87,0.18);
+    color: #ffa657;
+    padding: 0.1rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+  }
+  .response-model-box .rm-not-needed {
+    display: inline-block;
+    background: rgba(63,185,80,0.15);
+    color: #3fb950;
+    padding: 0.1rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+  }
+
+  .common-mistakes-box {
+    background: rgba(248,81,73,0.05);
+    border-left: 3px solid #f85149;
+    padding: 1rem 1.2rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+  }
+  .common-mistakes-box strong {
+    color: #f85149;
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+  .common-mistakes-box ul {
+    padding-left: 1.2rem;
+    line-height: 1.7;
+  }
+
+  .next-preview-box {
+    background: var(--bg-elevated);
+    border: 1px dashed var(--border);
+    padding: 1rem 1.2rem;
+    border-radius: 6px;
+    margin: 1rem 0;
+    line-height: 1.6;
+  }
+  .next-preview-box strong {
+    color: var(--accent);
+    display: block;
+    margin-bottom: 0.3rem;
+  }
+
+  /* ─── File blocks ──────────────────────────────────────────── */
+  .project-files { margin: 0.6rem 0 1rem 0; }
+  .project-file {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 0.7rem;
+    overflow: hidden;
+  }
+  .project-file .file-header {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.5rem 0.8rem;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+  }
+  .project-file .file-lang {
+    margin-left: auto;
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    padding: 0.1rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-family: monospace;
+  }
+  .project-file pre {
+    margin: 0;
+    padding: 0.8rem;
+    overflow-x: auto;
+    font-size: 0.83rem;
+    line-height: 1.5;
+    color: var(--text-primary);
+  }
+
+  /* ─── Nav buttons ──────────────────────────────────────────── */
+  .prev-stage-link, .next-stage-link {
+    display: flex; align-items: center; justify-content: space-between;
+    text-decoration: none;
+    color: var(--text-primary);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    padding: 0.8rem 1rem;
+    border-radius: 8px;
+    margin: 0.6rem 0;
+    transition: all 0.15s;
+  }
+  .prev-stage-link:hover, .next-stage-link:hover {
+    border-color: var(--accent);
+    background: rgba(160,192,0,0.04);
+  }
+  .prev-stage-link { color: var(--text-secondary); }
+  .next-stage-link {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  .next-stage-link:hover {
+    background: #8aab00;
+    color: white;
+  }
+  .ns-label { font-size: 0.75rem; opacity: 0.8; }
+  .ns-title { font-size: 0.95rem; font-weight: 600; margin-top: 0.2rem; }
+  .ns-arrow { font-size: 1.4rem; }
+
+  /* ─── Sidebar cards ────────────────────────────────────────── */
+  .sidebar-card {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .sidebar-card .card-header {
+    padding: 0.6rem 0.9rem;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
+  .sidebar-card .card-body { padding: 0.4rem; }
+  .sidebar-card ul {
+    list-style: none;
+    padding: 0; margin: 0;
+  }
+  .sidebar-card ul li a {
+    display: block;
+    padding: 0.4rem 0.6rem;
+    border-radius: 5px;
+    text-decoration: none;
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    line-height: 1.4;
+  }
+  .sidebar-card ul li a:hover {
+    background: var(--bg-elevated);
+  }
+  .sidebar-card ul li a.active {
+    background: rgba(160,192,0,0.12);
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .sidebar-card ul li a .num {
+    color: var(--text-secondary);
+    margin-right: 0.4rem;
+    font-family: monospace;
+    font-size: 0.78rem;
+  }
+
+  /* ─── Architecture diagram ─────────────────────────────────── */
+  .arch-diagram {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.2rem;
+    margin: 1rem 0;
+    font-family: monospace;
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--text-primary);
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .arch-diagram .arrow { color: var(--accent); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ══════════════ MODE TOGGLE ══════════════ #}
+<div class="mode-toggle">
+  <a href="/learn" class="">Concepts</a>
+  <a href="/learn/project" class="active">Learn with Project</a>
+</div>
+
+{% if view == "overview" %}
+  {# ══════════════ OVERVIEW ══════════════ #}
+  <div class="project-hero">
+    <h1>&#128640; Learn with Project &mdash; Student Performance Predictor</h1>
+    <p>A 12-stage walk-through that builds a REAL ML web app from scratch. Every stage teaches ONE concept, gives you a 2-5 line tiny task, shows what to expect, and previews the next stage. The teaching style follows the loop: <strong>concept &rarr; tiny task &rarr; check &rarr; next</strong> &mdash; same loop you'd use with a mentor.</p>
+
+    <p style="margin-top: 1rem;">The 5 layers naturally connect because each one solves a gap the previous one couldn't:</p>
+
+    <div class="arch-diagram"><span class="arrow">Student</span>
+   |  enters info
+   v
+<span class="arrow">HTML form</span>
+   |
+   v
+<span class="arrow">Jinja template</span>  (renders form + result with shared shell)
+   |
+   v
+<span class="arrow">FastAPI route</span>   (POST /predict)
+   |
+   v
+<span class="arrow">Python / ML</span>     (loads model.pkl, calls .predict)
+   |
+   v
+<span class="arrow">Trained model</span>   (created offline by train.py)
+   |
+   v
+<span class="arrow">Prediction</span>      (a float, e.g. 81.4)
+   |
+   v
+<span class="arrow">Jinja result page</span>
+   |
+   v
+<span class="arrow">Student sees the number</span></div>
+
+    <div class="stats-row">
+      <span class="stat-pill">{{ course | length }} stages</span>
+      <span class="stat-pill">4 routes total</span>
+      <span class="stat-pill">~600 lines of code</span>
+      <span class="stat-pill">Python &rarr; ML &rarr; FastAPI &rarr; Jinja &rarr; HTML</span>
+    </div>
+  </div>
+
+  <div class="stage-path">
+    {% for s in course %}
+    <a class="stage-row" href="/learn/project/{{ s.slug }}">
+      <div class="stage-num">{{ s.stage }}</div>
+      <div class="stage-body">
+        <div class="stage-title">{{ s.title }}</div>
+        <div class="stage-summary">{{ s.summary }}</div>
+        {% if s.stage <= 7 %}
+          <span class="stage-layer-tag">Python + ML (offline)</span>
+        {% elif s.stage == 8 %}
+          <span class="stage-layer-tag">FastAPI (first route)</span>
+        {% elif s.stage == 9 %}
+          <span class="stage-layer-tag">Jinja2 templates</span>
+        {% elif s.stage == 10 %}
+          <span class="stage-layer-tag">CSS + cards</span>
+        {% elif s.stage == 11 %}
+          <span class="stage-layer-tag">Model transparency</span>
+        {% else %}
+          <span class="stage-layer-tag">Deploy + recap</span>
+        {% endif %}
+      </div>
+      <div class="stage-arrow">&rsaquo;</div>
+    </a>
+    {% endfor %}
+  </div>
+
+{% elif view == "stage" %}
+  {# ══════════════ STAGE PAGE ══════════════ #}
+  <div class="learn-breadcrumb">
+    <a href="/learn/project">&#128640; Learn with Project</a>
+    <span class="sep">/</span>
+    <span>Stage {{ stage.stage }} &mdash; {{ stage.title }}</span>
+  </div>
+
+  <div class="stage-page">
+    <div class="stage-content">
+
+      <span class="stage-badge">&#128640; Stage {{ stage.stage }} of {{ total_stages }}</span>
+
+      <div class="stage-progress-bar">
+        {% for i in range(total_stages) %}
+          <div class="seg {% if i < stage.stage %}done{% elif i == stage.stage %}current{% endif %}"></div>
+        {% endfor %}
+      </div>
+
+      {% if prev_stage %}
+      <a class="prev-stage-link" href="/learn/project/{{ prev_stage.slug }}">
+        <div>
+          <div class="ns-label">&larr; Previous &mdash; Stage {{ prev_stage.stage }}</div>
+          <div class="ns-title">{{ prev_stage.title }}</div>
+        </div>
+        <span class="ns-arrow">&larr;</span>
+      </a>
+      {% endif %}
+
+      <h1>{{ stage.title }}</h1>
+      <p class="stage-summary-line">{{ stage.summary }}</p>
+
+      {# Intuition #}
+      {% if stage.intuition %}
+      <div class="intuition-box">
+        <strong>&#129504; The intuition</strong>
+        {{ stage.intuition }}
+      </div>
+      {% endif %}
+
+      {# Tiny task #}
+      {% if stage.tiny_task %}
+      <div class="tiny-task-box">
+        <strong>&#9999;&#65039; Tiny task &mdash; write this yourself</strong>
+        {{ stage.tiny_task }}
+      </div>
+      {% endif %}
+
+      {# Check #}
+      {% if stage.check %}
+      <div class="check-box">
+        <strong>&#9989; Check &mdash; what you should see</strong>
+        {{ stage.check }}
+      </div>
+      {% endif %}
+
+      {# Files #}
+      {% if stage.files %}
+      <h3>&#129518; Code files for this stage</h3>
+      <div class="project-files">
+        {% for f in stage.files %}
+        <div class="project-file">
+          <div class="file-header">
+            <span>&#128196;</span>
+            <span>{{ f.name }}</span>
+            <span class="file-lang">{{ f.lang }}</span>
+          </div>
+          <pre>{{ f.code }}</pre>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      {# Explanation #}
+      {% if stage.explanation %}
+      <h3>How it works</h3>
+      <p>{{ stage.explanation }}</p>
+      {% endif %}
+
+      {# Routes box #}
+      {% if stage.routes_box %}
+      <div class="routes-box">
+        <strong>&#128679; Routes &mdash; what's wired up at this stage</strong>
+        {{ stage.routes_box }}
+        {% if stage.is_response_model_needed and stage.is_response_model_needed.startswith('YES') %}
+          <span class="rm-tag">response_model needed here</span>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {# Response model box #}
+      {% if stage.response_model_explanation %}
+      <div class="response-model-box">
+        <strong>&#129518; Is a response model necessary here?</strong>
+        {% if stage.is_response_model_needed and stage.is_response_model_needed.startswith('YES') %}
+          <span class="rm-needed">YES &mdash; declare a Pydantic response_model</span>
+        {% else %}
+          <span class="rm-not-needed">NO &mdash; use response_class=HTMLResponse</span>
+        {% endif %}
+        <p style="margin-top: 0.4rem;">{{ stage.response_model_explanation }}</p>
+      </div>
+      {% endif %}
+
+      {# Common mistakes #}
+      {% if stage.common_mistakes %}
+      <div class="common-mistakes-box">
+        <strong>&#9888;&#65039; Common mistakes to avoid</strong>
+        <ul>
+          {% for m in stage.common_mistakes %}
+          <li>{{ m }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      {# Next preview #}
+      {% if stage.next_preview %}
+      <div class="next-preview-box">
+        <strong>&#128064; What's next</strong>
+        {{ stage.next_preview }}
+      </div>
+      {% endif %}
+
+      {# Next stage link #}
+      {% if next_stage %}
+      <a class="next-stage-link" href="/learn/project/{{ next_stage.slug }}">
+        <div>
+          <div class="ns-label">Next &mdash; Stage {{ next_stage.stage }}</div>
+          <div class="ns-title">{{ next_stage.title }}</div>
+        </div>
+        <span class="ns-arrow">&rarr;</span>
+      </a>
+      {% else %}
+      <div class="next-stage-link" style="opacity:0.7; cursor:default;">
+        <div>
+          <div class="ns-label">&#127881; Course complete</div>
+          <div class="ns-title">You've built a complete ML web app. Now ship it!</div>
+        </div>
+        <span class="ns-arrow">&#10003;</span>
+      </div>
+      {% endif %}
+
+    </div>
+
+    {# Sidebar #}
+    <div class="stage-sidebar">
+      <div class="sidebar-card">
+        <div class="card-header">All 12 stages</div>
+        <div class="card-body">
+          <ul>
+            {% for s in course %}
+            <li>
+              <a href="/learn/project/{{ s.slug }}" {% if s.slug == stage.slug %}class="active"{% endif %}>
+                <span class="num">{{ s.stage }}</span>{{ s.title }}
+              </a>
+            </li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+
+      <div class="sidebar-card">
+        <div class="card-header">Project stack</div>
+        <div class="card-body" style="padding: 0.7rem; font-size: 0.82rem; line-height: 1.7; color: var(--text-secondary);">
+          <div>&#128013; Python &mdash; the language</div>
+          <div>&#129504; ML &mdash; scikit-learn</div>
+          <div>&#9889; FastAPI &mdash; the server</div>
+          <div>&#128196; Jinja2 &mdash; templates</div>
+          <div>&#127912; HTML + CSS &mdash; the page</div>
+          <hr style="border: none; border-top: 1px solid var(--border); margin: 0.5rem 0;">
+          <div style="font-size: 0.78rem;">12 stages &middot; 4 routes &middot; ~600 lines</div>
+        </div>
+      </div>
+
+      <div class="sidebar-card">
+        <div class="card-header">Other learn modes</div>
+        <div class="card-body">
+          <ul>
+            <li><a href="/learn">&larr; All concepts (LEARN_TREE)</a></li>
+            <li><a href="/learn/cat/build">&larr; Build OpenBenchML (10 steps)</a></li>
+            <li><a href="/about">&larr; How OpenBenchML works</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+{% else %}
+  <div style="text-align:center; padding: 4rem;">Unknown view.</div>
+{% endif %}
+
+{% endblock %}
