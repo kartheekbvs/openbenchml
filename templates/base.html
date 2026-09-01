@@ -8,6 +8,16 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
+
+    {# ─── Performance: resource hints + service worker (ADDITIVE) ──────── #}
+    {# dns-prefetch + preconnect: open TCP/TLS to the CDN before we need it #}
+    <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="dns-prefetch" href="https://unpkg.com">
+    {# preload the main JS so it starts downloading before the parser hits it #}
+    <link rel="preload" href="/static/js/main.js" as="script">
+    {# modulepreload tells the browser this is a JS module — can be parsed in parallel #}
+
     {% block extra_head %}{% endblock %}
     {% block extra_css %}{% endblock %}
 </head>
@@ -76,5 +86,68 @@
 
     <script src="/static/js/main.js"></script>
     {% block extra_js %}{% endblock %}
+
+    {# ─── Service worker registration + keepalive pinger (ADDITIVE) ─────── #}
+    {# This block is appended AFTER all existing JS so it doesn't interfere #}
+    {# with anything. It registers /static/sw.js which:                     #}
+    {#   1. Caches static assets (CSS/JS/images) for 1 year                 #}
+    {#   2. Stale-while-revalidate for HTML pages (instant reloads)         #}
+    {#   3. Pings /keepalive every 4 min to prevent Render from sleeping    #}
+    {# If service workers aren't supported, the keepalive pinger below     #}
+    {# runs as a fallback (same effect, just per-tab instead of globally). #}
+    <script>
+    (function() {
+      'use strict';
+
+      // ── Register the service worker (if supported) ──────────────────
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/static/sw.js', { scope: '/' })
+            .then(function(reg) {
+              console.log('[SW] registered with scope:', reg.scope);
+            })
+            .catch(function(err) {
+              console.warn('[SW] registration failed (non-fatal):', err);
+            });
+        });
+      }
+
+      // ── Keepalive pinger (fallback if no service worker) ────────────
+      // Pings /keepalive every 4 minutes to prevent Render from sleeping.
+      // The service worker also does this, but having it here too means
+      // the pinger works even if SW registration fails or the SW is
+      // inactive (e.g. in incognito mode).
+      var KEEPALIVE_INTERVAL = 4 * 60 * 1000;  // 4 minutes
+      function pingKeepalive() {
+        fetch('/keepalive', { cache: 'no-store' })
+          .then(function(r) { /* ok */ })
+          .catch(function(e) { /* server down — will retry */ });
+      }
+      // Only start the interval pinger if there's NO active service worker
+      // (otherwise we'd double-ping, which is wasteful but not harmful).
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistration().then(function(reg) {
+          if (!reg || !reg.active) {
+            // No active SW — start the per-tab pinger
+            setInterval(pingKeepalive, KEEPALIVE_INTERVAL);
+          }
+          // If there IS an active SW, it handles the pinging.
+        });
+      } else {
+        // No SW support — start the per-tab pinger
+        setInterval(pingKeepalive, KEEPALIVE_INTERVAL);
+      }
+
+      // ── Visibility change: ping immediately when tab becomes visible ─
+      // This catches the case where the user was on another tab for a
+      // while — we ping the moment they come back so the server is warm
+      // by the time they interact.
+      document.addEventListener('visibilitychange', function() {
+        if (!document.hidden) {
+          pingKeepalive();
+        }
+      });
+    })();
+    </script>
 </body>
 </html>

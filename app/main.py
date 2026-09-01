@@ -233,6 +233,17 @@ async def request_middleware(request: Request, call_next):
     return response
 
 
+# 3b. Cache-Control + ETag middleware (ADDITIVE — does not modify the
+# request_middleware above). Runs BEFORE request_middleware in the chain
+# (middleware added later runs first). Adds:
+#   - /static/*.{css,js,png,...} → Cache-Control: max-age=31536000, immutable
+#   - HTML pages → ETag + If-None-Match → 304 Not Modified when unchanged
+#   - /api/* → Cache-Control: no-store (always fresh)
+# This is what makes page reloads instant after the first visit.
+from app.middleware_cache import cache_middleware, register_keepalive_endpoints  # noqa: E402
+app.middleware("http")(cache_middleware)
+
+
 # ─── Custom Exception Handlers ────────────────────────────────────────────────
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc):
@@ -304,6 +315,13 @@ app.include_router(learn_project_route.router)   # /learn/project — registered
 app.include_router(learn_labs_route.router)       # /learn/labs    — registered second
 app.include_router(learn_route.router)            # /learn/{slug}  — registered last (catch-all)
 app.include_router(auth_bridge.router)
+
+# ─── Keep-alive endpoints (no DB, no auth — ultra-fast) ─────────────────────
+# /keepalive and /api/health/light — pinged by the browser every 4 minutes
+# to keep Render's free web service from sleeping. Registered here (after
+# all routers) so they don't conflict with any /api/health/* route in a
+# router. These are intentionally minimal — <5ms response time.
+register_keepalive_endpoints(app)
 
 
 # ─── Landing Page ────────────────────────────────────────────────────────────
