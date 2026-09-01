@@ -155,6 +155,17 @@
   }
   .editor-header .reset-btn:hover { color: var(--text-primary); }
 
+  /* ─── Sub-editor header (for CSS labs with dual editors) ──── */
+  .sub-editor-header {
+    padding: 0.4rem 0.9rem;
+    background: rgba(160,192,0,0.06);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.78rem;
+    font-family: monospace;
+    color: var(--text-secondary);
+    font-weight: 600;
+  }
+
   .code-editor {
     width: 100%; min-height: 380px;
     padding: 0.8rem; border: none; outline: none; resize: vertical;
@@ -378,12 +389,43 @@
         {% endif %}
         <button class="reset-btn" onclick="resetLabCode()">&#8635; Reset</button>
       </div>
+
+      {# ── CSS labs: TWO editors (CSS on top, HTML below) ── #}
+      {# This is the key fix — the user can see BOTH the CSS rules AND #}
+      {# the HTML structure they apply to. So `.card { ... }` is clearly #}
+      {# connected to `<div class="card">...</div>` in the HTML editor.  #}
+      {% if lab.language == 'css' %}
+        {# CSS editor #}
+        <div class="sub-editor-header">style.css &mdash; the CSS rules</div>
+        <textarea
+          class="code-editor"
+          id="lab-code-editor"
+          spellcheck="false"
+          oninput="onLabCodeChange()"
+          style="min-height: 240px;"
+        >{{ lab.starter_code }}</textarea>
+
+        {# HTML editor — shows the structure the CSS applies to #}
+        <div class="sub-editor-header" style="border-top: 1px solid var(--border);">
+          index.html &mdash; the HTML structure (what the CSS targets)
+        </div>
+        <textarea
+          class="code-editor"
+          id="lab-html-editor"
+          spellcheck="false"
+          oninput="onLabCodeChange()"
+          style="min-height: 140px; border-top: none;"
+        >{{ lab.html_template }}</textarea>
+
+      {# ── HTML / Python / FastAPI labs: single editor (unchanged) ── #}
+      {% else %}
       <textarea
         class="code-editor"
         id="lab-code-editor"
         spellcheck="false"
         oninput="onLabCodeChange()"
       >{{ lab.starter_code }}</textarea>
+      {% endif %}
     </div>
 
     {# ── Preview pane ── #}
@@ -499,7 +541,12 @@ function updateLivePreview() {
 
   let html;
   if (_labLanguage === 'css') {
-    // CSS lab: combine user's CSS with the pre-defined HTML template
+    // CSS lab: combine user's CSS with the user-editable HTML.
+    // The HTML editor (id="lab-html-editor") holds the structure the
+    // CSS applies to. If the user edited the HTML, we use their version;
+    // otherwise we fall back to the original _labHtmlTemplate.
+    const htmlEditor = document.getElementById('lab-html-editor');
+    const htmlContent = htmlEditor ? htmlEditor.value : (_labHtmlTemplate || '');
     html = `<!DOCTYPE html>
 <html>
 <head>
@@ -509,7 +556,7 @@ function updateLivePreview() {
   </style>
 </head>
 <body>
-  ${_labHtmlTemplate || '<div>Edit the CSS to see changes here.</div>'}
+  ${htmlContent || '<div>Edit the CSS to see changes here.</div>'}
 </body>
 </html>`;
   } else {
@@ -539,6 +586,11 @@ function updateLivePreview() {
 function resetLabCode() {
   if (!confirm('Reset code to the original starter? Your changes will be lost.')) return;
   document.getElementById('lab-code-editor').value = _starterCode;
+  // For CSS labs, also reset the HTML editor to the original template
+  if (_labLanguage === 'css') {
+    const htmlEditor = document.getElementById('lab-html-editor');
+    if (htmlEditor) htmlEditor.value = _labHtmlTemplate || '';
+  }
   onLabCodeChange();
 }
 
@@ -760,20 +812,23 @@ window.addEventListener('DOMContentLoaded', () => {
     {% endif %}
   }
 
-  // Tab key in the textarea inserts 2 spaces instead of changing focus
-  const editor = document.getElementById('lab-code-editor');
-  if (editor) {
-    editor.addEventListener('keydown', (e) => {
+  // Tab key in the textarea inserts 2 spaces instead of changing focus.
+  // Apply to BOTH editors (CSS + HTML) for CSS labs.
+  function attachTabHandler(editorEl) {
+    if (!editorEl) return;
+    editorEl.addEventListener('keydown', (e) => {
       if (e.key === 'Tab') {
         e.preventDefault();
-        const start = editor.selectionStart;
-        const end = editor.selectionEnd;
-        editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end);
-        editor.selectionStart = editor.selectionEnd = start + 2;
+        const start = editorEl.selectionStart;
+        const end = editorEl.selectionEnd;
+        editorEl.value = editorEl.value.substring(0, start) + '  ' + editorEl.value.substring(end);
+        editorEl.selectionStart = editorEl.selectionEnd = start + 2;
         onLabCodeChange();
       }
     });
   }
+  attachTabHandler(document.getElementById('lab-code-editor'));
+  attachTabHandler(document.getElementById('lab-html-editor'));
 });
 {% endif %}
 </script>
