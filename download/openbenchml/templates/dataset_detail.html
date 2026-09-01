@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% set current_user = user %}
+
+{% block title %}{{ dataset.name }} — OpenBenchML{% endblock %}
+
+{% block content %}
+<div class="d-flex align-center justify-between" style="margin-bottom: 2rem;">
+    <div>
+        <h1 style="margin-bottom: 0.25rem;">{{ dataset.name }}</h1>
+        <p class="text-muted">Dataset details and recent benchmark results.</p>
+    </div>
+    <a href="/datasets" class="btn btn-secondary btn-sm">&#8592; All Datasets</a>
+</div>
+
+<!-- Info Card -->
+<div class="card" style="margin-bottom: 2rem;">
+    <div class="card-header">
+        <h3>Dataset Information</h3>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1.25rem;">
+        <div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 0.25rem;">Task Type</div>
+            <div><span class="badge badge-info">{{ dataset.task_type }}</span></div>
+        </div>
+        <div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 0.25rem;">Difficulty</div>
+            <div>
+                {% if dataset.difficulty == "beginner" %}
+                <span class="badge badge-completed">{{ dataset.difficulty }}</span>
+                {% elif dataset.difficulty == "intermediate" %}
+                <span class="badge badge-pending">{{ dataset.difficulty }}</span>
+                {% elif dataset.difficulty == "advanced" %}
+                <span class="badge badge-failed">{{ dataset.difficulty }}</span>
+                {% else %}
+                <span class="badge badge-info">{{ dataset.difficulty }}</span>
+                {% endif %}
+            </div>
+        </div>
+        <div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 0.25rem;">Samples</div>
+            <div style="font-weight: 700; color: var(--text-primary);">{{ dataset.samples or '—' }}</div>
+        </div>
+        <div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 0.25rem;">Features</div>
+            <div style="font-weight: 700; color: var(--text-primary);">{{ dataset.features or '—' }}</div>
+        </div>
+    </div>
+    {% if dataset.description %}
+    <div style="margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+        <div style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-secondary); margin-bottom: 0.5rem;">Description</div>
+        <p class="text-muted" style="margin-bottom: 0; line-height: 1.7;">{{ dataset.description }}</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Recent Benchmarks -->
+<div class="card" style="margin-bottom: 2rem;">
+    <div class="card-header">
+        <h3>Recent Benchmarks</h3>
+        {% if recent_jobs %}
+        <span class="text-muted" style="font-size: 0.8rem;">Top {{ recent_jobs|length }} results</span>
+        {% endif %}
+    </div>
+    {% if recent_jobs %}
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Model</th>
+                    <th>Accuracy</th>
+                    <th>F1 Score</th>
+                    <th>Latency (ms)</th>
+                    <th>Finished</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in recent_jobs %}
+                <tr>
+                    <td>
+                        {% set rank = loop.index %}
+                        {% if rank == 1 %}
+                        <span class="rank-badge rank-gold">1</span>
+                        {% elif rank == 2 %}
+                        <span class="rank-badge rank-silver">2</span>
+                        {% elif rank == 3 %}
+                        <span class="rank-badge rank-bronze">3</span>
+                        {% else %}
+                        <span style="font-weight: 600; color: var(--text-secondary);">{{ rank }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="/results/{{ job.id }}" style="font-weight: 600; color: var(--text-primary);">
+                            {{ job.model.model_name if job.model else "Unknown" }}
+                        </a>
+                    </td>
+                    <td>
+                        {% if job.result and job.result.accuracy is not none %}
+                        <span style="font-weight: 700; color: var(--success);">{{ "%.4f"|format(job.result.accuracy) }}</span>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if job.result and job.result.f1_score is not none %}
+                        {{ "%.4f"|format(job.result.f1_score) }}
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if job.result and job.result.latency_ms is not none %}
+                        {{ "%.1f"|format(job.result.latency_ms) }}
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ job.finished_at.strftime("%b %d, %H:%M") if job.finished_at else "—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted" style="padding: 1rem 0;">No completed benchmarks for this dataset yet. Be the first to run one!</p>
+    {% endif %}
+</div>
+
+<!-- Action Button -->
+{% if user %}
+<div class="text-center">
+    <a href="/benchmark?dataset_id={{ dataset.id }}" class="btn btn-primary btn-lg">&#9889; Run Benchmark with This Dataset</a>
+</div>
+{% else %}
+<div class="text-center">
+    <a href="/login" class="btn btn-primary btn-lg">Login to Run a Benchmark</a>
+</div>
+{% endif %}
+{% endblock %}

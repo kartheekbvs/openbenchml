@@ -1,0 +1,593 @@
+"""
+OpenBenchML Model & Dataset Loader
+====================================
+Responsible for loading ML models from disk (multi-framework) and
+preparing benchmark datasets (built-in sklearn, synthetic generators,
+or custom files).
+
+The public API consumed by ``benchmark_service`` is:
+
+* :func:`load_model`  – deserialise a saved model artifact.
+* :func:`load_dataset` – prepare a train/test split with metadata.
+* :func:`list_builtin_datasets` – enumerate available built-in datasets.
+
+This module is **the foundation of the core engine**. It must never
+silently swallow a bad argument — every error path raises a clear,
+actionable exception so the benchmark service can persist a useful
+error message for the user.
+"""
+
+import logging
+import os
+from typing import Any, Dict, List, Optional
+
+import joblib
+import numpy as np
+from sklearn.datasets import (
+    load_iris,
+    load_wine,
+    load_breast_cancer,
+    load_digits,
+    load_diabetes,
+    load_linnerud,
+    fetch_california_housing,
+    fetch_olivetti_faces,
+    make_classification,
+    make_regression,
+    make_moons,
+    make_circles,
+    make_blobs,
+    make_friedman1,
+    make_friedman2,
+    make_friedman3,
+    make_hastie_10_2,
+)
+from sklearn.model_selection import train_test_split
+
+logger = logging.getLogger(__name__)
+
+# ─── Built-in dataset registry ────────────────────────────────────────────────
+# The "key" matches the lowercase dataset.name as stored in the DB.
+# Each entry records the loader function, the task type, an
+# optional size cap (large datasets are subsampled to keep benchmarks
+# fast and predictable in shared environments), and an optional
+# ``params`` dict passed to the loader (used by synthetic generators).
+#
+# Three families of datasets are supported:
+#
+#   1. **Classic sklearn** – ``load_iris``, ``load_wine``, ...  These
+#      return a ``Bunch`` with ``.data`` / ``.target`` / ``.feature_names``.
+#   2. **Synthetic generators** – ``make_classification``, ``make_moons``,
+#      ...  These return ``(X, y)`` tuples.  We use ``params`` to control
+#      shape and difficulty.  Great for stress-testing models with
+#      controllable complexity.
+#   3. **Fetcher datasets** – ``fetch_california_housing``,
+#      ``fetch_olivetti_faces``.  Larger datasets, often subsampled.
+#
+# Adding a new dataset is a one-line change here.  The seed.py module
+# mirrors this list so the database is consistent.
+_BUILTIN_DATASETS: Dict[str, Dict[str, Any]] = {
+    # ── Classic sklearn classification ────────────────────────────────────
+    "iris":          {"loader": load_iris,           "task_type": "classification"},
+    "wine":          {"loader": load_wine,           "task_type": "classification"},
+    "breastcancer":  {"loader": load_breast_cancer,  "task_type": "classification"},
+    "digits":        {"loader": load_digits,         "task_type": "classification"},
+
+    # ── Classic sklearn regression ────────────────────────────────────────
+    "diabetes":          {"loader": load_diabetes,           "task_type": "regression"},
+    "californiahousing": {"loader": fetch_california_housing,
+                          "task_type": "regression",
+                          "max_samples": 2000},   # subsample for speed
+    "linnerud":          {"loader": load_linnerud,
+                          "task_type": "regression"},
+
+    # ── Image classification ──────────────────────────────────────────────
+    "olivettifaces": {"loader": fetch_olivetti_faces,
+                       "task_type": "classification",
+                       "max_samples": 200},
+
+    # ── Synthetic: classification ─────────────────────────────────────────
+    "makeclassification": {
+        "loader": make_classification,
+        "task_type": "classification",
+        "params": {"n_samples": 1000, "n_features": 20, "n_informative": 10,
+                   "n_classes": 3, "n_clusters_per_class": 2, "random_state": 42},
+    },
+    "makemoons": {
+        "loader": make_moons,
+        "task_type": "classification",
+        "params": {"n_samples": 800, "noise": 0.25, "random_state": 42},
+    },
+    "makecircles": {
+        "loader": make_circles,
+        "task_type": "classification",
+        "params": {"n_samples": 800, "noise": 0.20, "factor": 0.5, "random_state": 42},
+    },
+    "makeblobs": {
+        "loader": make_blobs,
+        "task_type": "classification",
+        "params": {"n_samples": 900, "n_features": 8, "centers": 4,
+                   "cluster_std": 1.0, "random_state": 42},
+    },
+    "makehastie": {
+        "loader": make_hastie_10_2,
+        "task_type": "classification",
+        "params": {"n_samples": 2000, "random_state": 42},
+    },
+
+    # ── Synthetic: regression ─────────────────────────────────────────────
+    "makeregression": {
+        "loader": make_regression,
+        "task_type": "regression",
+        "params": {"n_samples": 1000, "n_features": 15, "n_informative": 10,
+                   "noise": 10.0, "random_state": 42},
+    },
+    "makefriedman1": {
+        "loader": make_friedman1,
+        "task_type": "regression",
+        "params": {"n_samples": 1000, "n_features": 10, "noise": 1.0,
+                   "random_state": 42},
+    },
+    "makefriedman2": {
+        "loader": make_friedman2,
+        "task_type": "regression",
+        "params": {"n_samples": 1000, "noise": 1.0, "random_state": 42},
+    },
+    "makefriedman3": {
+        "loader": make_friedman3,
+        "task_type": "regression",
+        "params": {"n_samples": 1000, "noise": 1.0, "random_state": 42},
+    },
+}
+
+
+def list_builtin_datasets() -> List[Dict[str, Any]]:
+    """Return a list of all built-in dataset descriptors.
+
+    Each descriptor contains ``name``, ``task_type``, ``max_samples``
+    (if applicable), and ``synthetic`` flag.  Used by the datasets
+    route to render the public catalogue and by ``seed.py`` to
+    populate the database on first run.
+    """
+    out: List[Dict[str, Any]] = []
+    for key, entry in _BUILTIN_DATASETS.items():
+        out.append({
+            "name": key,
+            "task_type": entry["task_type"],
+            "max_samples": entry.get("max_samples"),
+            "synthetic": "params" in entry,
+        })
+    return out
+
+
+# ─── Model loading ─────────────────────────────────────────────────────────────
+
+def load_model(file_path: str, framework: str) -> Any:
+    """Load a saved ML model from disk based on its framework.
+
+    Supported frameworks and their loading strategies:
+
+    * **scikit-learn** – :func:`joblib.load`
+    * **pytorch** – :func:`torch.load` with ``map_location='cpu'``
+    * **onnx** – :class:`onnxruntime.InferenceSession`
+    * **xgboost** – :class:`xgboost.Booster` or :func:`joblib.load`
+    * **lightgbm** – :class:`lightgbm.Booster` or :func:`joblib.load`
+    * **tensorflow** – :func:`tf.keras.models.load_model`
+
+    Args:
+        file_path: Absolute or relative path to the serialized model file.
+        framework: One of the supported framework identifiers
+            (``scikit-learn``, ``pytorch``, ``onnx``, ``xgboost``,
+            ``lightgbm``, ``tensorflow``).
+
+    Returns:
+        The loaded model object (type varies by framework).
+
+    Raises:
+        FileNotFoundError: If *file_path* does not exist on disk.
+        ValueError: If *framework* is not recognised.
+        RuntimeError: If the model cannot be deserialised.
+    """
+    if not file_path or not os.path.isfile(file_path):
+        raise FileNotFoundError(f"Model file not found: {file_path!r}")
+
+    framework = (framework or "").lower().strip()
+    logger.info("Loading model from '%s' (framework=%s)", file_path, framework)
+
+    try:
+        if framework == "scikit-learn":
+            return _load_sklearn_model(file_path)
+
+        elif framework == "pytorch":
+            return _load_pytorch_model(file_path)
+
+        elif framework == "onnx":
+            return _load_onnx_model(file_path)
+
+        elif framework == "xgboost":
+            return _load_xgboost_model(file_path)
+
+        elif framework == "lightgbm":
+            return _load_lightgbm_model(file_path)
+
+        elif framework == "tensorflow":
+            return _load_tensorflow_model(file_path)
+
+        else:
+            raise ValueError(
+                f"Unsupported framework: '{framework}'. "
+                f"Supported: scikit-learn, pytorch, onnx, xgboost, lightgbm, tensorflow"
+            )
+    except (FileNotFoundError, ValueError):
+        raise
+    except Exception as exc:
+        raise RuntimeError(
+            f"Failed to load model from '{file_path}' (framework={framework}): {exc}"
+        ) from exc
+
+
+# ─── Framework-specific private loaders ────────────────────────────────────────
+
+def _load_sklearn_model(file_path: str) -> Any:
+    """Deserialise a scikit-learn model via joblib."""
+    model = joblib.load(file_path)
+    logger.debug("Loaded scikit-learn model: %s", type(model).__name__)
+    return model
+
+
+def _load_pytorch_model(file_path: str) -> Any:
+    """Deserialise a PyTorch model via ``torch.load``."""
+    import torch
+
+    model = torch.load(file_path, map_location="cpu", weights_only=False)
+
+    # If the checkpoint is a dict (common pattern), try to extract the
+    # state-dict or the model object.
+    if isinstance(model, dict):
+        if "model" in model:
+            model = model["model"]
+        elif "state_dict" in model:
+            logger.warning(
+                "Checkpoint contains only state_dict – the model class "
+                "definition must be available in the Python path."
+            )
+
+    if hasattr(model, "eval"):
+        model.eval()
+
+    logger.debug("Loaded PyTorch model: %s", type(model).__name__)
+    return model
+
+
+def _load_onnx_model(file_path: str) -> Any:
+    """Load an ONNX model as an :class:`onnxruntime.InferenceSession`."""
+    import onnxruntime as ort
+
+    session = ort.InferenceSession(file_path)
+    logger.debug(
+        "Loaded ONNX session with %d input(s): %s",
+        len(session.get_inputs()),
+        [inp.name for inp in session.get_inputs()],
+    )
+    return session
+
+
+def _load_xgboost_model(file_path: str) -> Any:
+    """Load an XGBoost model. Tries native format first, then joblib."""
+    import xgboost as xgb
+
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext in (".json", ".ubj", ".bin"):
+        booster = xgb.Booster()
+        booster.load_model(file_path)
+        logger.debug("Loaded XGBoost Booster from native format (%s)", ext)
+        return booster
+    else:
+        try:
+            model = joblib.load(file_path)
+            logger.debug("Loaded XGBoost model via joblib: %s", type(model).__name__)
+            return model
+        except Exception:
+            booster = xgb.Booster()
+            booster.load_model(file_path)
+            logger.debug("Loaded XGBoost Booster (joblib fallback failed, used native)")
+            return booster
+
+
+def _load_lightgbm_model(file_path: str) -> Any:
+    """Load a LightGBM model. Tries native format first, then joblib."""
+    import lightgbm as lgb
+
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext in (".txt", ".model"):
+        booster = lgb.Booster(model_file=file_path)
+        logger.debug("Loaded LightGBM Booster from native format (%s)", ext)
+        return booster
+    else:
+        try:
+            model = joblib.load(file_path)
+            logger.debug("Loaded LightGBM model via joblib: %s", type(model).__name__)
+            return model
+        except Exception:
+            booster = lgb.Booster(model_file=file_path)
+            logger.debug("Loaded LightGBM Booster (joblib fallback failed, used native)")
+            return booster
+
+
+def _load_tensorflow_model(file_path: str) -> Any:
+    """Load a TensorFlow / Keras model."""
+    import tensorflow as tf
+
+    model = tf.keras.models.load_model(file_path)
+    logger.debug("Loaded TensorFlow/Keras model: %s", type(model).__name__)
+    return model
+
+
+# ─── Dataset loading ───────────────────────────────────────────────────────────
+
+def load_dataset(
+    dataset_name: Optional[str],
+    task_type: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Load a benchmark dataset and return a train/test split with metadata.
+
+    Resolution order:
+
+    1. If *dataset_name* is the lowercased name of a built-in dataset
+       (e.g. ``"iris"``, ``"californiahousing"``, ``"makemoons"``),
+       the corresponding loader is invoked.
+    2. Otherwise, if *dataset_name* is a path to an existing file, the
+       file is loaded as a custom dataset (.npz / .joblib / .pkl).
+    3. Otherwise a :class:`ValueError` is raised with a clear message.
+
+    Args:
+        dataset_name: Name of a built-in dataset **or** path to a custom
+            dataset file on disk.  ``None`` or empty string is treated
+            as "no dataset specified" and raises ``ValueError``.
+        task_type: Hint for the task type (``classification`` or
+            ``regression``).  When *None* the value is inferred from
+            the built-in registry or defaults to ``classification``
+            for custom datasets.
+
+    Returns:
+        A dictionary with the following keys:
+
+        * ``X_train`` – training features  (np.ndarray)
+        * ``X_test``  – test features       (np.ndarray)
+        * ``y_train`` – training labels     (np.ndarray)
+        * ``y_test``  – test labels         (np.ndarray)
+        * ``task_type``       – str
+        * ``feature_names``   – list[str] | None
+
+    Raises:
+        ValueError: If *dataset_name* is empty/None, or unrecognised.
+        FileNotFoundError: If *dataset_name* looks like a file path but
+            does not exist.
+    """
+    if not dataset_name or not str(dataset_name).strip():
+        raise ValueError(
+            "No dataset name or path provided. Built-in datasets: "
+            f"{sorted(_BUILTIN_DATASETS.keys())}"
+        )
+
+    logger.info("Loading dataset: '%s' (task_type=%s)", dataset_name, task_type)
+
+    # ── Built-in sklearn / synthetic datasets ─────────────────────────────
+    normalised = str(dataset_name).lower().strip().replace("-", "_").replace(" ", "_")
+    if normalised in _BUILTIN_DATASETS:
+        return _load_sklearn_dataset(normalised)
+
+    # ── Custom dataset from file ──────────────────────────────────────────
+    if os.path.isfile(dataset_name):
+        return _load_custom_dataset(dataset_name, task_type)
+
+    raise ValueError(
+        f"Dataset '{dataset_name}' is not a built-in dataset and no file "
+        f"was found at that path.  Built-in datasets: "
+        f"{sorted(_BUILTIN_DATASETS.keys())}"
+    )
+
+
+def _load_sklearn_dataset(name: str) -> Dict[str, Any]:
+    """Internal helper for loading a built-in dataset.
+
+    Handles three loader shapes transparently:
+
+    * Bunch-returning loaders (``load_iris``, etc.) — call with no args.
+    * Tuple-returning synthetic generators (``make_classification``,
+      ``make_moons``, ...) — call with the ``params`` dict.
+    * Fetcher functions (``fetch_california_housing``,
+      ``fetch_olivetti_faces``) — call with ``as_frame=False``.
+
+    Args:
+        name: Key in :data:`_BUILTIN_DATASETS` (e.g. ``"iris"``).
+
+    Returns:
+        Dataset dictionary (see :func:`load_dataset`).
+    """
+    entry = _BUILTIN_DATASETS[name]
+    loader_fn = entry["loader"]
+    resolved_task = entry["task_type"]
+    max_samples = entry.get("max_samples")
+    params = entry.get("params")
+
+    logger.debug("Loading built-in dataset '%s' (params=%s)", name, params)
+
+    # ── Synthetic generator (returns (X, y) tuple) ────────────────────────
+    if params is not None:
+        X, y = loader_fn(**params)
+        X = np.asarray(X)
+        y = np.asarray(y)
+        feature_names = [f"feature_{i}" for i in range(X.shape[1])]
+    else:
+        # ── Bunch-returning loader (sklearn classic + fetcher) ────────────
+        # fetch_* functions accept as_frame but Bunch always has .data/.target
+        try:
+            bunch = loader_fn()
+        except TypeError:
+            # Some fetchers accept extra kwargs; retry without args.
+            bunch = loader_fn
+
+        X: np.ndarray = np.asarray(bunch.data)
+        y: np.ndarray = np.asarray(bunch.target)
+        feature_names: list = (
+            list(bunch.feature_names)
+            if hasattr(bunch, "feature_names") and bunch.feature_names is not None
+            else [f"feature_{i}" for i in range(X.shape[1])]
+        )
+
+    # ── Optional subsampling for very large datasets ──────────────────────
+    if max_samples is not None and X.shape[0] > max_samples:
+        rng = np.random.default_rng(seed=42)
+        idx = rng.choice(X.shape[0], size=max_samples, replace=False)
+        X = X[idx]
+        y = y[idx]
+        logger.info(
+            "Subsampled '%s' from %d → %d rows for benchmark speed",
+            name, len(idx), max_samples,
+        )
+
+    return _split_data(X, y, resolved_task, feature_names=feature_names)
+
+
+def _load_custom_dataset(
+    file_path: str,
+    task_type: Optional[str],
+) -> Dict[str, Any]:
+    """Load a custom dataset from a file on disk.
+
+    Supported formats:
+
+    * ``.npz``  – NumPy compressed archive with ``X`` and ``y`` keys.
+    * ``.joblib`` / ``.pkl`` – Joblib/pickle file containing a dict
+      with ``X`` and ``y`` keys, **or** a tuple ``(X, y)``.
+
+    Args:
+        file_path: Path to the dataset file.
+        task_type: ``classification`` or ``regression``.  Defaults to
+            ``classification`` when *None*.
+
+    Returns:
+        Dataset dictionary (see :func:`load_dataset`).
+    """
+    resolved_task = task_type or "classification"
+    ext = os.path.splitext(file_path)[1].lower()
+
+    X: Optional[np.ndarray] = None
+    y: Optional[np.ndarray] = None
+
+    if ext == ".npz":
+        data = np.load(file_path, allow_pickle=True)
+        if "X" not in data or "y" not in data:
+            raise ValueError(
+                f"NPZ file '{file_path}' must contain 'X' and 'y' arrays. "
+                f"Found keys: {list(data.keys())}"
+            )
+        X = data["X"]
+        y = data["y"]
+
+    elif ext in (".joblib", ".pkl"):
+        payload = joblib.load(file_path)
+        if isinstance(payload, dict):
+            if "X" not in payload or "y" not in payload:
+                raise ValueError(
+                    f"Dict in '{file_path}' must contain 'X' and 'y' keys. "
+                    f"Found keys: {list(payload.keys())}"
+                )
+            X = payload["X"]
+            y = payload["y"]
+        elif isinstance(payload, (tuple, list)) and len(payload) == 2:
+            X, y = payload
+        else:
+            raise ValueError(
+                f"Unexpected payload type in '{file_path}': {type(payload).__name__}"
+            )
+    else:
+        raise ValueError(
+            f"Unsupported dataset file format: '{ext}'. "
+            f"Supported: .npz, .joblib, .pkl"
+        )
+
+    X = np.asarray(X)
+    y = np.asarray(y)
+
+    n_features = X.shape[1] if X.ndim > 1 else 1
+    feature_names = [f"feature_{i}" for i in range(n_features)]
+
+    logger.info(
+        "Loaded custom dataset from '%s': %d samples, %d features",
+        file_path,
+        X.shape[0],
+        n_features,
+    )
+    return _split_data(X, y, resolved_task, feature_names=feature_names)
+
+
+def _split_data(
+    X: np.ndarray,
+    y: np.ndarray,
+    task_type: str,
+    *,
+    test_size: float = 0.2,
+    random_state: int = 42,
+    feature_names: Optional[list] = None,
+) -> Dict[str, Any]:
+    """Split data into train/test sets with appropriate stratification.
+
+    Classification tasks are stratified on ``y`` to preserve class
+    distributions.  Regression tasks use a plain random split.
+
+    Args:
+        X: Feature matrix of shape ``(n_samples, n_features)``.
+        y: Target vector of shape ``(n_samples,)``.
+        task_type: ``classification`` or ``regression``.
+        test_size: Fraction of the data reserved for testing.
+        random_state: Seed for reproducibility.
+        feature_names: Optional list of feature names.
+
+    Returns:
+        Dictionary with keys ``X_train``, ``X_test``, ``y_train``,
+        ``y_test``, ``task_type``, ``feature_names``.
+    """
+    stratify = y if task_type == "classification" else None
+
+    # Stratification requires at least 2 samples per class in each split.
+    if stratify is not None:
+        unique, counts = np.unique(y, return_counts=True)
+        if len(unique) < 2 or counts.min() < 2:
+            logger.warning(
+                "Cannot stratify: %d unique classes, min count=%d. "
+                "Falling back to non-stratified split.",
+                len(unique),
+                counts.min(),
+            )
+            stratify = None
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=test_size,
+        random_state=random_state,
+        stratify=stratify,
+    )
+
+    n_features = X.shape[1] if X.ndim > 1 else 1
+    if feature_names is None:
+        feature_names = [f"feature_{i}" for i in range(n_features)]
+
+    logger.info(
+        "Split data: train=%d, test=%d, features=%d, task=%s",
+        X_train.shape[0],
+        X_test.shape[0],
+        n_features,
+        task_type,
+    )
+
+    return {
+        "X_train": X_train,
+        "X_test": X_test,
+        "y_train": y_train,
+        "y_test": y_test,
+        "task_type": task_type,
+        "feature_names": feature_names,
+    }

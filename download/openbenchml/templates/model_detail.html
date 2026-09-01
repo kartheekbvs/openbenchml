@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% set current_user = user %}
+
+{% block title %}{{ model.model_name }} — OpenBenchML{% endblock %}
+
+{% block content %}
+<!-- Page Header with Model Name + Framework Badge -->
+<div class="d-flex align-center justify-between" style="margin-bottom: 2rem;">
+    <div>
+        <h1 style="margin-bottom: 0.25rem;">
+            {{ model.model_name }}
+            <span class="badge badge-info" style="font-size: 0.75rem; vertical-align: middle; margin-left: 0.5rem;">{{ model.framework }}</span>
+        </h1>
+        <p class="text-muted">Model details and benchmark history.</p>
+    </div>
+    <div class="d-flex gap-1">
+        <a href="/benchmark?model_id={{ model.id }}" class="btn btn-success">&#9889; Run New Benchmark</a>
+        <form method="POST" action="/models/{{ model.id }}/delete" style="display: inline;"
+              onsubmit="return confirm('Are you sure you want to delete {{ model.model_name }}? This action cannot be undone.');">
+            <button type="submit" class="btn btn-danger">&#128465; Delete Model</button>
+        </form>
+    </div>
+</div>
+
+<!-- Model Info Card -->
+<div class="card" style="margin-bottom: 2rem;">
+    <div class="card-header">
+        <h3>Model Information</h3>
+    </div>
+    <div class="grid-3" style="gap: 1.25rem;">
+        <div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Name</div>
+            <div style="font-weight: 600; color: var(--text-primary);">{{ model.model_name }}</div>
+        </div>
+        <div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Framework</div>
+            <div><span class="badge badge-info">{{ model.framework }}</span></div>
+        </div>
+        <div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Size</div>
+            <div style="font-weight: 600; color: var(--text-primary);">
+                {% if model.size_kb >= 1024 %}
+                {{ "%.1f"|format(model.size_kb / 1024) }} MB
+                {% else %}
+                {{ "%.1f"|format(model.size_kb) }} KB
+                {% endif %}
+            </div>
+        </div>
+        <div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Version</div>
+            <div style="font-weight: 600; color: var(--text-primary);">{{ model.version or "v1" }}</div>
+        </div>
+        <div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Upload Date</div>
+            <div style="font-weight: 600; color: var(--text-primary);">{{ model.created_at.strftime("%B %d, %Y at %H:%M") if model.created_at else "—" }}</div>
+        </div>
+        <div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Description</div>
+            <div style="color: var(--text-primary);">{{ model.description or "No description provided." }}</div>
+        </div>
+    </div>
+</div>
+
+<!-- Benchmark History Section -->
+<div class="card">
+    <div class="card-header">
+        <h3>Benchmark History</h3>
+        {% if jobs %}
+        <span style="font-size: 0.85rem; color: var(--text-secondary);">{{ jobs|length }} job{{ 's' if jobs|length != 1 }}</span>
+        {% endif %}
+    </div>
+
+    {% if jobs %}
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Dataset</th>
+                    <th>Status</th>
+                    <th>Accuracy</th>
+                    <th>Latency</th>
+                    <th>Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in jobs %}
+                <tr>
+                    <td>
+                        <a href="/results/{{ job.id }}">{{ job.dataset.name if job.dataset else "Unknown" }}</a>
+                    </td>
+                    <td>
+                        {% if job.status == "pending" %}
+                        <span class="badge badge-pending">{{ job.status }}</span>
+                        {% elif job.status == "running" %}
+                        <span class="badge badge-running">{{ job.status }}</span>
+                        {% elif job.status == "completed" %}
+                        <span class="badge badge-completed">{{ job.status }}</span>
+                        {% elif job.status == "failed" %}
+                        <span class="badge badge-failed">{{ job.status }}</span>
+                        {% else %}
+                        <span class="badge badge-info">{{ job.status }}</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if job.result and job.result.accuracy is not none %}
+                        <span style="color: var(--success); font-weight: 600;">{{ "%.4f"|format(job.result.accuracy) }}</span>
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if job.result and job.result.latency_ms is not none %}
+                        {{ "%.1f"|format(job.result.latency_ms) }} ms
+                        {% else %}
+                        <span class="text-muted">—</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ job.submitted_at.strftime("%b %d, %H:%M") if job.submitted_at else "—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="text-center" style="padding: 2rem 0;">
+        <div style="font-size: 2rem; margin-bottom: 0.75rem;">&#128202;</div>
+        <p class="text-muted" style="margin-bottom: 1rem;">No benchmarks have been run for this model yet.</p>
+        <a href="/benchmark?model_id={{ model.id }}" class="btn btn-primary">Run Your First Benchmark</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

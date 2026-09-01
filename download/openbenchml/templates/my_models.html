@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% set current_user = user %}
+
+{% block title %}My Models — OpenBenchML{% endblock %}
+
+{% block content %}
+<div class="d-flex align-center justify-between" style="margin-bottom: 2rem;">
+    <div>
+        <h1 style="margin-bottom: 0.25rem;">My Models</h1>
+        <p class="text-muted">Manage your uploaded machine learning models.</p>
+    </div>
+    <a href="/models/upload" class="btn btn-primary">&#128230; Upload New</a>
+</div>
+
+{% if models %}
+<div class="card">
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Model Name</th>
+                    <th>Framework</th>
+                    <th>Size</th>
+                    <th>Version</th>
+                    <th>Uploaded</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in models %}
+                <tr>
+                    <td>
+                        <a href="/models/{{ m.id }}" style="font-weight: 600; color: var(--text-primary);">{{ m.model_name }}</a>
+                    </td>
+                    <td>
+                        <span class="badge badge-info">{{ m.framework }}</span>
+                    </td>
+                    <td>
+                        {% if m.size_kb >= 1024 %}
+                        {{ "%.1f"|format(m.size_kb / 1024) }} MB
+                        {% else %}
+                        {{ "%.1f"|format(m.size_kb) }} KB
+                        {% endif %}
+                    </td>
+                    <td>{{ m.version or "v1" }}</td>
+                    <td>{{ m.created_at.strftime("%b %d, %Y") if m.created_at else "—" }}</td>
+                    <td>
+                        <div class="d-flex gap-1">
+                            <a href="/models/{{ m.id }}" class="btn btn-secondary btn-sm">View</a>
+                            <a href="/benchmark?model_id={{ m.id }}" class="btn btn-info btn-sm">Benchmark</a>
+                            <form method="POST" action="/models/{{ m.id }}/delete" style="display: inline;"
+                                  onsubmit="return confirm('Are you sure you want to delete {{ m.model_name }}? This action cannot be undone.');">
+                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<!-- Empty State -->
+<div class="card text-center" style="padding: 3rem 2rem;">
+    <div style="font-size: 3rem; margin-bottom: 1rem;">&#128230;</div>
+    <h3 style="margin-bottom: 0.5rem;">No Models Yet</h3>
+    <p class="text-muted" style="max-width: 400px; margin: 0 auto 1.5rem;">
+        You haven't uploaded any models yet. Upload your first trained model to start benchmarking and comparing performance.
+    </p>
+    <a href="/models/upload" class="btn btn-primary btn-lg">&#128230; Upload Your First Model</a>
+</div>
+{% endif %}
+{% endblock %}

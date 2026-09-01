@@ -1,0 +1,107 @@
+# =============================================================================
+# OpenBenchML — Render Blueprint (v4.1 — Supabase backend)
+# =============================================================================
+#
+# This blueprint deploys OpenBenchML to Render using a Supabase Postgres
+# database (instead of a Render-managed DB) — per the user's request, all
+# data lives in the Supabase project `fzwvxesrtdilljgrntpw`.
+#
+# What gets created:
+#   1. Web service  (openbenchml)        — FastAPI app on Python 3.11
+#   2. Redis service (openbenchml-redis) — for Celery async jobs + rate-limit
+#
+# What you need BEFORE clicking "Apply Blueprint":
+#   - A Supabase account with the project `fzwvxesrtdilljgrntpw`
+#     (or set SUPABASE_PROJECT_REF to your own project ref).
+#   - The Supabase **database password** (set when you created the project).
+#     You'll paste this into the Render env var `SUPABASE_DB_PASSWORD`.
+#   - (Optional) Your Supabase anon key — if different from the default
+#     already baked into app/config.py.
+#
+# Full step-by-step guide: docs-site/docs/deployment/render.md
+# =============================================================================
+
+services:
+  # ─── Web service: OpenBenchML FastAPI app ────────────────────────────────
+  - type: web
+    name: openbenchml
+    runtime: python
+    region: oregon            # change to match your Supabase region for lower latency
+    plan: starter             # upgrade to standard for production
+    buildCommand: pip install -r requirements.txt
+    startCommand: ./start.sh
+    healthCheckPath: /health
+    autoDeploy: true
+
+    envVars:
+      # ── Python runtime ─────────────────────────────────────────────────
+      - key: PYTHON_VERSION
+        value: "3.11.7"
+
+      # ── Database: Supabase Postgres via connection pooler ──────────────
+      # USE_SQLITE=False so the app reads DATABASE_URL instead of the local
+      # SQLite fallback.
+      - key: USE_SQLITE
+        value: "False"
+
+      # Supabase project reference — comes from fastapiproject.git.
+      # Used to assemble the DATABASE_URL at runtime (see below).
+      - key: SUPABASE_PROJECT_REF
+        value: "fzwvxesrtdilljgrntpw"
+
+      # Supabase anon key — same as in fastapiproject.git.
+      # Used for direct REST calls; the SQLAlchemy path uses DATABASE_URL.
+      - key: SUPABASE_URL
+        value: "https://fzwvxesrtdilljgrntpw.supabase.co"
+      - key: SUPABASE_ANON_KEY
+        value: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZ6d3Z4ZXNydGRpbGxqZ3JudHB3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA4NzU2NzMsImV4cCI6MjA2NjQ1MTY3M30.YnxjUtFawuumihyVGuk8e-o6iE9OkDf-MX1aKRTqA5U"
+
+      # The Supabase DB password — set this manually in the Render dashboard
+      # (it must NOT be checked into git). The app builds DATABASE_URL from
+      # SUPABASE_PROJECT_REF + SUPABASE_DB_PASSWORD + the pooler host.
+      - key: SUPABASE_DB_PASSWORD
+        sync: false           # secret — Render will prompt you to fill it in
+
+      # Optional: full DATABASE_URL override (if you'd rather paste the
+      # complete connection string directly). Leave empty to use the
+      # auto-assembled URL from SUPABASE_PROJECT_REF + SUPABASE_DB_PASSWORD.
+      - key: DATABASE_URL
+        value: ""             # filled in by startCommand wrapper if empty
+
+      # ── Redis (Render-managed, used for Celery + rate-limit) ────────────
+      - key: REDIS_URL
+        fromService:
+          name: openbenchml-redis
+          type: redis
+          property: connectionString
+
+      # ── Security — change these for production ─────────────────────────
+      - key: SECRET_KEY
+        generateValue: true   # Render will generate a random secret
+      - key: DEBUG
+        value: "False"
+      - key: SECURE_COOKIES
+        value: "True"
+
+      # ── App URL — Render assigns this automatically, but we set a
+      #    placeholder so the app boots before the first deploy completes.
+      - key: APP_URL
+        value: "https://openbenchml.onrender.com"
+
+      # ── Optional: Docker sandbox toggle (off by default — Supabase DB
+      #    works fine without Docker for the in-process code sandbox).
+      - key: DOCKER_ENABLED
+        value: "False"
+
+  # ─── Redis: for Celery workers + rate-limit cache ────────────────────────
+  - type: redis
+    name: openbenchml-redis
+    region: oregon
+    plan: starter
+    maxmemoryPolicy: noeviction
+
+# =============================================================================
+# No `databases:` section — we're using Supabase Postgres instead of a
+# Render-managed DB.  This keeps all OpenBenchML data co-located with the
+# fastapiproject data in the same Supabase project, as the user requested.
+# =============================================================================

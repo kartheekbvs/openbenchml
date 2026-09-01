@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Create Competition &mdash; OpenBenchML{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Create a New Competition</h1>
+    <p class="text-muted">Set up a Kaggle-style competition. Only admins can create competitions.</p>
+</div>
+
+<form action="/competitions/create" method="POST" class="form-card">
+    <div class="form-group">
+        <label for="title">Title *</label>
+        <input type="text" id="title" name="title" required maxlength="200"
+               placeholder="e.g. Iris Classification Showdown">
+    </div>
+
+    <div class="form-group">
+        <label for="description">Description *</label>
+        <textarea id="description" name="description" required rows="4"
+                  placeholder="What is this competition about? What should participants know?"></textarea>
+    </div>
+
+    <div class="form-row">
+        <div class="form-group">
+            <label for="dataset_id">Dataset *</label>
+            <select id="dataset_id" name="dataset_id" required>
+                {% for d in datasets %}
+                <option value="{{ d.id }}">{{ d.name }} ({{ d.task_type }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="evaluation_metric">Evaluation Metric *</label>
+            <select id="evaluation_metric" name="evaluation_metric" required>
+                <option value="accuracy">Accuracy (higher is better)</option>
+                <option value="f1_score">F1 Score (higher is better)</option>
+                <option value="auc_roc">AUC-ROC (higher is better)</option>
+                <option value="r2_score">R2 Score (higher is better)</option>
+                <option value="rmse">RMSE (lower is better)</option>
+                <option value="mae">MAE (lower is better)</option>
+                <option value="latency_ms">Latency ms (lower is better)</option>
+                <option value="log_loss">Log Loss (lower is better)</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="form-row">
+        <div class="form-group">
+            <label for="starts_at">Starts At (UTC) *</label>
+            <input type="datetime-local" id="starts_at" name="starts_at" required>
+        </div>
+
+        <div class="form-group">
+            <label for="ends_at">Ends At (UTC) *</label>
+            <input type="datetime-local" id="ends_at" name="ends_at" required>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="max_submissions_per_user">Max Submissions Per User</label>
+        <input type="number" id="max_submissions_per_user" name="max_submissions_per_user"
+               value="10" min="1" max="100">
+    </div>
+
+    <div class="form-group">
+        <label for="rules">Rules</label>
+        <textarea id="rules" name="rules" rows="4"
+                  placeholder="List the rules of the competition (optional)..."></textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="prize">Prize</label>
+        <textarea id="prize" name="prize" rows="2"
+                  placeholder="Describe the prize (optional)..."></textarea>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create Competition</button>
+    <a href="/competitions" class="btn btn-secondary">Cancel</a>
+</form>
+{% endblock %}

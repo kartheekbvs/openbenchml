@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% set current_user = user %}
+
+{% block title %}Compare Models — OpenBenchML{% endblock %}
+
+{% block content %}
+<div class="page-header" style="margin-bottom: 2rem;">
+    <h1>Compare Models</h1>
+    <p class="text-muted">Select models from your library to compare benchmark results side by side.</p>
+</div>
+
+{% if not comparison_data %}
+<!-- ── Selection Form (GET) ──────────────────────────────────────────────── -->
+<div class="card" style="max-width: 700px;">
+    <div class="card-header">
+        <h3>Select Models to Compare</h3>
+    </div>
+    <form method="POST" action="/compare">
+        <div class="form-group">
+            <label for="model_id_1">Model 1 *</label>
+            <select id="model_id_1" name="model_id_1" required>
+                <option value="" disabled selected>Choose a model...</option>
+                {% for m in models %}
+                <option value="{{ m.id }}">{{ m.model_name }} ({{ m.framework }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="model_id_2">Model 2 *</label>
+            <select id="model_id_2" name="model_id_2" required>
+                <option value="" disabled selected>Choose a model...</option>
+                {% for m in models %}
+                <option value="{{ m.id }}">{{ m.model_name }} ({{ m.framework }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="model_id_3">Model 3 <span style="font-weight: 400; color: #64748b;">(optional)</span></label>
+            <select id="model_id_3" name="model_id_3">
+                <option value="" selected>None</option>
+                {% for m in models %}
+                <option value="{{ m.id }}">{{ m.model_name }} ({{ m.framework }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-lg" {% if models|length < 2 %}disabled{% endif %}>&#9878; Compare</button>
+            <a href="/dashboard" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+    {% if models|length < 2 %}
+    <p class="text-muted" style="margin-top: 1rem; font-size: 0.85rem;">You need at least 2 benchmark results to compare. <a href="/benchmark">Run benchmarks</a> first.</p>
+    {% endif %}
+</div>
+
+{% else %}
+<!-- ── Comparison Results (POST) ─────────────────────────────────────────── -->
+{% set num_models = comparison_data|length %}
+
+{# Determine best accuracy and latency for winner highlighting #}
+{% set best_accuracy = namespace(value=none) %}
+{% set best_latency = namespace(value=none) %}
+{% for row in comparison_data %}
+    {% if row.result and row.result.accuracy is not none %}
+        {% if best_accuracy.value is none or row.result.accuracy > best_accuracy.value %}
+            {% set best_accuracy.value = row.result.accuracy %}
+        {% endif %}
+    {% endif %}
+    {% if row.result and row.result.latency_ms is not none %}
+        {% if best_latency.value is none or row.result.latency_ms < best_latency.value %}
+            {% set best_latency.value = row.result.latency_ms %}
+        {% endif %}
+    {% endif %}
+{% endfor %}
+
+{# Determine overall winner: the model with the most "wins" across key metrics #}
+{% set winner_id = namespace(value=none) %}
+{% set winner_wins = namespace(value=0) %}
+{% for row in comparison_data %}
+    {% set wins = namespace(value=0) %}
+    {% if row.result %}
+        {% if row.result.accuracy is not none and best_accuracy.value is not none and row.result.accuracy >= best_accuracy.value %}
+            {% set wins.value = wins.value + 1 %}
+        {% endif %}
+        {% if row.result.f1_score is not none %}
+            {# Count F1 as a win if accuracy is tied or if this is the best #}
+        {% endif %}
+        {% if row.result.latency_ms is not none and best_latency.value is not none and row.result.latency_ms <= best_latency.value %}
+            {% set wins.value = wins.value + 1 %}
+        {% endif %}
+    {% endif %}
+    {% if wins.value > winner_wins.value %}
+        {% set winner_wins.value = wins.value %}
+        {% set winner_id.value = row.model_id %}
+    {% endif %}
+{% endfor %}
+
+<div class="comparison" style="{% if num_models == 3 %}grid-template-columns: 1fr 1fr 1fr;{% endif %}">
+    {% for row in comparison_data %}
+    <div class="comparison-card {% if row.model_id == winner_id.value %}winner{% endif %}">
+        <h4>
+            {{ row.model_name }}
+            {% if row.model_id == winner_id.value %}<span class="badge badge-completed" style="margin-left: 0.5rem;">Winner</span>{% endif %}
+        </h4>
+        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem;">
+            <span class="badge badge-info">{{ row.framework }}</span>
+        </div>
+
+        {% if row.result %}
+        <!-- Classification Metrics -->
+        {% if row.result.accuracy is not none %}
+        <div class="comparison-metric">
+            <span class="metric-name">Accuracy</span>
+            <span class="metric-score {% if best_accuracy.value is not none and row.result.accuracy >= best_accuracy.value %}better{% elif best_accuracy.value is not none %}worse{% endif %}">
+                {{ "%.4f"|format(row.result.accuracy) }}
+            </span>
+        </div>
+        {% endif %}
+        {% if row.result.precision is not none %}
+        <div class="comparison-metric">
+            <span class="metric-name">Precision</span>
+            <span class="metric-score">{{ "%.4f"|format(row.result.precision) }}</span>
+        </div>
+        {% endif %}
+        {% if row.result.recall is not none %}
+        <div class="comparison-metric">
+            <span class="metric-name">Recall</span>
+            <span class="metric-score">{{ "%.4f"|format(row.result.recall) }}</span>
+        </div>
+        {% endif %}
+        {% if row.result.f1_score is not none %}
+        <div class="comparison-metric">
+            <span class="metric-name">F1 Score</span>
+            <span class="metric-score">{{ "%.4f"|format(row.result.f1_score) }}</span>
+        </div>
+        {% endif %}
+
+        <!-- Regression Metrics -->
+        {% if row.result.mae is not none %}
+        <div class="comparison-metric">
+            <span class="metric-name">MAE</span>
+            <span class="metric-score">{{ "%.4f"|format(row.result.mae) }}</span>
+        </div>
+        {% endif %}
+        {% if row.result.rmse is not none %}
+        <div class="comparison-metric">
+            <span class="metric-name">RMSE</span>
+            <span class="metric-score">{{ "%.4f"|format(row.result.rmse) }}</span>
+        </div>
+        {% endif %}
+        {% if row.result.r2_score is not none %}
+        <div class="comparison-metric">
+            <span class="metric-name">R-squared</span>
+            <span class="metric-score">{{ "%.4f"|format(row.result.r2_score) }}</span>
+        </div>
+        {% endif %}
+
+        <!-- Performance Metrics -->
+        {% if row.result.latency_ms is not none %}
+        <div class="comparison-metric">
+            <span class="metric-name">Latency (ms)</span>
+            <span class="metric-score {% if best_latency.value is not none and row.result.latency_ms <= best_latency.value %}better{% elif best_latency.value is not none %}worse{% endif %}">
+                {{ "%.1f"|format(row.result.latency_ms) }}
+            </span>
+        </div>
+        {% endif %}
+        {% if row.result.memory_mb is not none %}
+        <div class="comparison-metric">
+            <span class="metric-name">Memory (MB)</span>
+            <span class="metric-score">{{ "%.1f"|format(row.result.memory_mb) }}</span>
+        </div>
+        {% endif %}
+        {% if row.result.cpu_percent is not none %}
+        <div class="comparison-metric">
+            <span class="metric-name">CPU (%)</span>
+            <span class="metric-score">{{ "%.1f"|format(row.result.cpu_percent) }}</span>
+        </div>
+        {% endif %}
+        {% if row.result.model_size_kb is not none %}
+        <div class="comparison-metric">
+            <span class="metric-name">Size (KB)</span>
+            <span class="metric-score">{{ "%.1f"|format(row.result.model_size_kb) }}</span>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div style="padding: 2rem 0; text-align: center;">
+            <p class="text-muted">No benchmark results available for this model.</p>
+            <a href="/benchmark?model_id={{ row.model_id }}" class="btn btn-info btn-sm" style="margin-top: 0.5rem;">Run Benchmark</a>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Summary -->
+<div class="card" style="margin-top: 1.5rem;">
+    <div class="card-header">
+        <h3>Summary</h3>
+    </div>
+    <div class="card-body">
+        <p style="margin-bottom: 0;">
+        {% for row in comparison_data %}
+            {% if row.model_id == winner_id.value and row.result %}
+                <strong style="color: var(--success);">{{ row.model_name }}</strong> wins in
+                {% if row.result.accuracy is not none and best_accuracy.value is not none and row.result.accuracy >= best_accuracy.value %}accuracy{% endif %}
+                {% if row.result.latency_ms is not none and best_latency.value is not none and row.result.latency_ms <= best_latency.value %}
+                    {% if row.result.accuracy is not none and best_accuracy.value is not none and row.result.accuracy >= best_accuracy.value %} and {% endif %}latency
+                {% endif %}|
+            {% elif row.result and row.result.latency_ms is not none and best_latency.value is not none and row.result.latency_ms <= best_latency.value and row.model_id != winner_id.value %}
+                <strong style="color: var(--info);">{{ row.model_name }}</strong> wins in latency |
+            {% endif %}
+        {% endfor %}
+        </p>
+    </div>
+</div>
+
+<div class="d-flex gap-2" style="margin-top: 1.5rem;">
+    <a href="/compare" class="btn btn-secondary">&#8634; Compare Different Models</a>
+    <a href="/leaderboard" class="btn btn-info">&#127942; View Leaderboard</a>
+</div>
+
+{% endif %}
+{% endblock %}

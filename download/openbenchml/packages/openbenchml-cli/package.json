@@ -1,0 +1,73 @@
+{
+  "name": "openbenchml-cli",
+  "version": "4.2.0",
+  "description": "Command-line client for OpenBenchML — convert code → pickled model, run benchmarks, submit to competitions, and stream real-time updates from your terminal.",
+  "main": "src/index.js",
+  "bin": {
+    "openbenchml": "bin/openbenchml.js",
+    "obml": "bin/openbenchml.js"
+  },
+  "scripts": {
+    "test": "node --test test/",
+    "lint": "echo 'Lint not configured yet'",
+    "start": "node bin/openbenchml.js"
+  },
+  "keywords": [
+    "ml",
+    "machine-learning",
+    "benchmark",
+    "kaggle",
+    "competition",
+    "scikit-learn",
+    "pytorch",
+    "onnx",
+    "tensorflow",
+    "xgboost",
+    "lightgbm",
+    "cli",
+    "notebook",
+    "convert-code",
+    "realtime",
+    "websocket",
+    "student",
+    "education"
+  ],
+  "author": "Kartheek BVS <bvskartheek83@gmail.com> (https://github.com/kartheekbvs)",
+  "contributors": [
+    "OpenBenchML Contributors <bvskartheek83@gmail.com>"
+  ],
+  "maintainers": [
+    "Kartheek BVS <bvskartheek83@gmail.com>"
+  ],
+  "license": "MIT",
+  "homepage": "https://kartheekbvs.github.io/openbenchml/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kartheekbvs/openbenchml.git",
+    "directory": "packages/openbenchml-cli"
+  },
+  "bugs": {
+    "url": "https://github.com/kartheekbvs/openbenchml/issues"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "files": [
+    "src/",
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "npmUser": {
+    "name": "kartheekbvs",
+    "email": "bvskartheek83@gmail.com"
+  },
+  "dependencies": {
+    "form-data": "^4.0.0",
+    "node-fetch": "^2.7.0"
+  }
+}
