@@ -431,6 +431,413 @@ _CSS_LABS = [
             ("Add !important to #special", "red beats orange — ID !important wins"),
         ],
     },
+
+    # ─── CSS labs for building REAL webpages ─────────────────────────
+    # These labs cover the full patterns a data scientist needs to build
+    # a dashboard: reset, variables, page layout, navbar, sidebar,
+    # dashboard grid, forms, tables, alerts, modal, loading, badges,
+    # chart containers, footer, tabs.
+
+    {
+        "slug": "css-reset",
+        "category": "CSS",
+        "title": "CSS Reset — start every project with this",
+        "language": "css",
+        "summary": "Remove default browser margins, set box-sizing: border-box on everything. The FIRST 4 lines of every CSS file.",
+        "starter_code": "/* RESET — remove all default margins/padding */\n* {\n  margin: 0;\n  padding: 0;\n  box-sizing: border-box;\n}\n\n/* Base font + colors */\nbody {\n  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;\n  font-size: 16px;\n  line-height: 1.6;\n  color: #1a1a1a;\n  background: #f5f5f5;\n}\n\n/* Headings inherit line-height */\nh1, h2, h3, h4, h5, h6 {\n  line-height: 1.3;\n  margin-bottom: 0.5rem;\n}\n\n/* Links */\na {\n  color: #a0c000;\n  text-decoration: none;\n}\na:hover {\n  text-decoration: underline;\n}\n\n/* Lists — remove bullets by default */\nul, ol {\n  list-style: none;\n}",
+        "html_template": "<h1>Page Title</h1>\n<p>This page uses the CSS reset on the left. Without the reset, the browser\nadds default margins to h1, p, ul, etc. — making every project look\nslightly different.</p>\n<h2>Why reset?</h2>\n<ul>\n  <li>Consistent starting point across browsers</li>\n  <li>No surprise margins or paddings</li>\n  <li>box-sizing: border-box makes layouts predictable</li>\n</ul>\n<a href=\"#\">This is a link</a>",
+        "explanation": (
+            "* { margin: 0; padding: 0; box-sizing: border-box; } is the most important line in CSS. "
+            "It removes ALL default browser margins/paddings (which differ between Chrome, Firefox, Safari) "
+            "and sets box-sizing: border-box so padding doesn't add to the element's width. "
+            "Without border-box: a 200px box with 20px padding is actually 240px wide — breaks layouts. "
+            "With border-box: 200px stays 200px, padding eats into the content area. "
+            "Set a base font-family + size on body — everything inherits it. "
+            "Remove list bullets (list-style: none) — you'll add them back selectively where needed."
+        ),
+        "try_changes": [
+            ("Comment out the * { } block (wrap it in /* */)", "all the default margins come back — h1 gets a big top margin, ul gets bullets"),
+            ("Change font-size: 16px to 14px", "all text shrinks (inherited from body)"),
+            ("Change color: #1a1a1a to #666", "all text becomes grey (inherited)"),
+            ("Add list-style: disc; to the ul, ol rule", "bullets come back"),
+        ],
+    },
+    {
+        "slug": "css-variables",
+        "category": "CSS",
+        "title": "CSS Variables (custom properties) — :root",
+        "language": "css",
+        "summary": "Define colors/sizes once in :root, use var(--name) everywhere. Change once, updates everywhere.",
+        "starter_code": ":root {\n  /* Colors */\n  --color-primary: #a0c000;\n  --color-secondary: #58a6ff;\n  --color-danger: #f85149;\n  --color-bg: #f5f5f5;\n  --color-text: #1a1a1a;\n  --color-text-muted: #666;\n  --color-border: #ddd;\n\n  /* Spacing */\n  --space-sm: 0.5rem;\n  --space-md: 1rem;\n  --space-lg: 2rem;\n\n  /* Radius */\n  --radius: 8px;\n}\n\nbody {\n  background: var(--color-bg);\n  color: var(--color-text);\n  font-family: sans-serif;\n  padding: var(--space-lg);\n}\n\n.card {\n  background: white;\n  border: 1px solid var(--color-border);\n  border-radius: var(--radius);\n  padding: var(--space-lg);\n  margin-bottom: var(--space-md);\n}\n\n.btn {\n  background: var(--color-primary);\n  color: white;\n  border: none;\n  padding: var(--space-sm) var(--space-md);\n  border-radius: var(--radius);\n  cursor: pointer;\n}\n\n.alert-danger {\n  background: var(--color-danger);\n  color: white;\n  padding: var(--space-md);\n  border-radius: var(--radius);\n}",
+        "html_template": "<div class=\"card\">\n  <h3>My Card</h3>\n  <p>This card uses var(--color-border) for its border and var(--space-lg) for padding.</p>\n  <button class=\"btn\">Primary Button</button>\n</div>\n<div class=\"alert-danger\">\n  Something went wrong!\n</div>",
+        "explanation": (
+            ":root is the highest-level selector — it targets <html>. Variables defined here are available everywhere. "
+            "Define variables with --name: value; Use them with var(--name). "
+            "Benefits: (1) change a color in ONE place, it updates across the whole site. "
+            "(2) Consistent spacing — every padding/margin uses --space-sm/md/lg. "
+            "(3) Easy theming — override variables in a @media query or a .dark-mode class to switch the whole palette. "
+            "Variables can reference other variables: --color-primary-light: color-mix(in srgb, var(--color-primary) 30%, white). "
+            "Fallback values: var(--color-primary, #ccc) — uses #ccc if --color-primary isn't defined."
+        ),
+        "try_changes": [
+            ("Change --color-primary from #a0c000 to #58a6ff", "button + any var(--color-primary) element changes to blue"),
+            ("Change --space-lg from 2rem to 4rem", "all large spacing doubles — card padding grows"),
+            ("Change --radius from 8px to 20px", "all rounded corners become more rounded"),
+            ("Add --color-primary: #f85149 inside a .card { } rule", "only .card gets the overridden color (scoped variable)"),
+        ],
+    },
+    {
+        "slug": "css-page-layout",
+        "category": "CSS",
+        "title": "Full page layout — header + sidebar + main + footer",
+        "language": "css",
+        "summary": "The classic dashboard layout: fixed header on top, sidebar on left, main content fills the rest, footer at bottom.",
+        "starter_code": "* { margin: 0; padding: 0; box-sizing: border-box; }\n\nbody {\n  font-family: sans-serif;\n  display: grid;\n  grid-template-areas:\n    \"header header\"\n    \"sidebar main\"\n    \"footer footer\";\n  grid-template-columns: 200px 1fr;\n  grid-template-rows: auto 1fr auto;\n  min-height: 100vh;\n}\n\n.header {\n  grid-area: header;\n  background: #1a1a1a;\n  color: white;\n  padding: 1rem 1.5rem;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n}\n\n.sidebar {\n  grid-area: sidebar;\n  background: #2a2a2a;\n  color: #ccc;\n  padding: 1rem;\n}\n\n.sidebar a {\n  display: block;\n  color: #ccc;\n  padding: 0.5rem;\n  border-radius: 4px;\n  text-decoration: none;\n}\n.sidebar a:hover { background: #3a3a3a; color: white; }\n\n.main {\n  grid-area: main;\n  background: #f5f5f5;\n  padding: 1.5rem;\n}\n\n.footer {\n  grid-area: footer;\n  background: #1a1a1a;\n  color: #888;\n  padding: 1rem;\n  text-align: center;\n  font-size: 0.85rem;\n}",
+        "html_template": "<div class=\"header\">\n  <h2>My Dashboard</h2>\n  <span>Welcome, User</span>\n</div>\n<aside class=\"sidebar\">\n  <a href=\"#\">Dashboard</a>\n  <a href=\"#\">Models</a>\n  <a href=\"#\">Datasets</a>\n  <a href=\"#\">Settings</a>\n</aside>\n<main class=\"main\">\n  <h1>Welcome to your dashboard</h1>\n  <p>This is the main content area. It fills the remaining space between\n  the sidebar and the footer.</p>\n</main>\n<div class=\"footer\">\n  &copy; 2024 My App. All rights reserved.\n</div>",
+        "explanation": (
+            "CSS Grid is the best tool for full-page layout. "
+            "grid-template-areas gives each section a NAME, then you assign elements to areas. "
+            "  'header header' — header spans 2 columns. "
+            "  'sidebar main' — sidebar left, main right. "
+            "  'footer footer' — footer spans 2 columns. "
+            "grid-template-columns: 200px 1fr — sidebar is fixed 200px, main takes the rest (1fr = 1 fraction). "
+            "grid-template-rows: auto 1fr auto — header/footer size to content, main fills the remaining height. "
+            "min-height: 100vh — body is at least the full viewport height, so the footer stays at the bottom even on short pages. "
+            "This pattern: header/sidebar/main/footer is the skeleton of almost every web app."
+        ),
+        "try_changes": [
+            ("Change grid-template-columns: 200px 1fr to 250px 1fr", "sidebar becomes wider"),
+            ("Change 200px to 0 (and set sidebar to display: none)", "sidebar disappears — main takes full width"),
+            ("Change the grid-template-areas to put sidebar on the right:\n    \"header header\"\n    \"main sidebar\"\n    \"footer footer\"", "sidebar moves to the right side"),
+            ("Change min-height: 100vh to min-height: 200vh", "page becomes very tall — you can scroll"),
+        ],
+    },
+    {
+        "slug": "css-navbar",
+        "category": "CSS",
+        "title": "Navbar — horizontal navigation bar",
+        "language": "css",
+        "summary": "Logo on the left, links on the right. Sticky at the top. The most common UI element.",
+        "starter_code": ".navbar {\n  background: #1a1a1a;\n  padding: 0 1.5rem;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  position: sticky;\n  top: 0;\n  z-index: 100;\n  box-shadow: 0 2px 8px rgba(0,0,0,0.15);\n}\n\n.navbar .logo {\n  color: #a0c000;\n  font-size: 1.3rem;\n  font-weight: 700;\n  text-decoration: none;\n}\n\n.navbar ul {\n  display: flex;\n  gap: 0.5rem;\n  list-style: none;\n}\n\n.navbar ul li a {\n  color: #ccc;\n  text-decoration: none;\n  padding: 0.8rem 1rem;\n  border-radius: 4px;\n  transition: all 0.15s;\n  display: block;\n}\n\n.navbar ul li a:hover {\n  color: white;\n  background: rgba(255,255,255,0.1);\n}\n\n.navbar ul li a.active {\n  color: #a0c000;\n  background: rgba(160,192,0,0.15);\n}",
+        "html_template": "<nav class=\"navbar\">\n  <a href=\"#\" class=\"logo\">MyApp</a>\n  <ul>\n    <li><a href=\"#\" class=\"active\">Home</a></li>\n    <li><a href=\"#\">Models</a></li>\n    <li><a href=\"#\">Datasets</a></li>\n    <li><a href=\"#\">About</a></li>\n  </ul>\n</nav>\n<div style=\"padding: 2rem;\">\n  <p>Scroll down — the navbar sticks to the top.</p>\n  <p style=\"margin-top: 50vh;\">You scrolled!</p>\n</div>",
+        "explanation": (
+            "display: flex + justify-content: space-between pushes logo left, links right. "
+            "position: sticky + top: 0 — the navbar stays at the top when you scroll. Unlike fixed, it takes up space in the flow. "
+            "z-index: 100 — navbar stays above other content. "
+            "The ul is also a flex container (display: flex) so the li items sit in a row. "
+            "gap: 0.5rem — space between links (modern alternative to margin-right on each li). "
+            "transition: all 0.15s on the links — hover color/background fades in smoothly. "
+            "active class — marks the current page. Use it in your templates: <a class=\"active\">Home</a>."
+        ),
+        "try_changes": [
+            ("Change position: sticky to position: fixed", "navbar floats over content — content slides under it (need padding-top on body)"),
+            ("Change justify-content: space-between to center", "logo and links center together"),
+            ("Change background: #1a1a1a to #a0c000", "navbar becomes green"),
+            ("Change .navbar ul li a padding to 0.8rem 2rem", "links become wider"),
+            ("Remove the box-shadow", "navbar loses its depth separator"),
+        ],
+    },
+    {
+        "slug": "css-card-grid",
+        "category": "CSS",
+        "title": "Responsive card grid — auto-fit",
+        "language": "css",
+        "summary": "Grid that automatically shows 1/2/3/4 columns based on screen width. No media queries needed!",
+        "starter_code": ".card-grid {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));\n  gap: 1rem;\n  padding: 1.5rem;\n}\n\n.card {\n  background: white;\n  border: 1px solid #ddd;\n  border-radius: 10px;\n  padding: 1.5rem;\n  transition: all 0.2s;\n}\n\n.card:hover {\n  transform: translateY(-3px);\n  box-shadow: 0 8px 20px rgba(0,0,0,0.1);\n}\n\n.card h3 {\n  color: #a0c000;\n  margin-bottom: 0.5rem;\n}\n\n.card .metric {\n  font-size: 2rem;\n  font-weight: 700;\n  color: #1a1a1a;\n}\n\n.card .label {\n  color: #666;\n  font-size: 0.85rem;\n}",
+        "html_template": "<div class=\"card-grid\">\n  <div class=\"card\">\n    <h3>Accuracy</h3>\n    <div class=\"metric\">94.2%</div>\n    <div class=\"label\">+2.1% from last week</div>\n  </div>\n  <div class=\"card\">\n    <h3>Precision</h3>\n    <div class=\"metric\">91.8%</div>\n    <div class=\"label\">+0.5% from last week</div>\n  </div>\n  <div class=\"card\">\n    <h3>Recall</h3>\n    <div class=\"metric\">89.3%</div>\n    <div class=\"label\">-1.2% from last week</div>\n  </div>\n  <div class=\"card\">\n    <h3>F1 Score</h3>\n    <div class=\"metric\">90.5%</div>\n    <div class=\"label\">+0.3% from last week</div>\n  </div>\n  <div class=\"card\">\n    <h3>Latency</h3>\n    <div class=\"metric\">42ms</div>\n    <div class=\"label\">-8ms from last week</div>\n  </div>\n</div>",
+        "explanation": (
+            "repeat(auto-fit, minmax(250px, 1fr)) is the magic line. "
+            "  auto-fit — create as many columns as fit in the container. "
+            "  minmax(250px, 1fr) — each column is at least 250px, but can grow to fill space. "
+            "Result: on a 1000px screen → 4 columns. On a 700px screen → 2 columns. On a 400px screen → 1 column. "
+            "ALL WITHOUT MEDIA QUERIES. This is the #1 CSS trick for responsive dashboards. "
+            "The cards show ML metrics — exactly what a data scientist needs. "
+            "hover: translateY(-3px) + box-shadow — the card 'lifts' on hover, a common micro-interaction."
+        ),
+        "try_changes": [
+            ("Change minmax(250px, 1fr) to minmax(150px, 1fr)", "more columns — cards are narrower"),
+            ("Change minmax(250px, 1fr) to minmax(400px, 1fr)", "fewer columns — cards are wider"),
+            ("Change gap: 1rem to gap: 2rem", "more space between cards"),
+            ("Change translateY(-3px) to scale(1.05)", "card grows instead of lifting"),
+            ("Change the .card h3 color to #58a6ff", "metric titles become blue"),
+        ],
+    },
+    {
+        "slug": "css-form-styling",
+        "category": "CSS",
+        "title": "Form styling — inputs, labels, focus, validation",
+        "language": "css",
+        "summary": "Make forms look professional: full-width inputs, clear labels, focus rings, error states.",
+        "starter_code": ".form-group {\n  margin-bottom: 1.2rem;\n}\n\n.form-group label {\n  display: block;\n  font-size: 0.88rem;\n  font-weight: 600;\n  color: #333;\n  margin-bottom: 0.4rem;\n}\n\n.form-group input,\n.form-group select,\n.form-group textarea {\n  width: 100%;\n  padding: 0.6rem 0.8rem;\n  border: 2px solid #ddd;\n  border-radius: 6px;\n  font-size: 0.95rem;\n  font-family: inherit;\n  transition: border-color 0.15s, box-shadow 0.15s;\n  outline: none;\n}\n\n.form-group input:focus {\n  border-color: #a0c000;\n  box-shadow: 0 0 0 3px rgba(160,192,0,0.2);\n}\n\n.form-group input:invalid:not(:placeholder-shown) {\n  border-color: #f85149;\n}\n\n.form-group .hint {\n  font-size: 0.8rem;\n  color: #666;\n  margin-top: 0.3rem;\n}\n\n.btn-submit {\n  background: #a0c000;\n  color: white;\n  border: none;\n  padding: 0.8rem 2rem;\n  border-radius: 6px;\n  font-size: 1rem;\n  font-weight: 600;\n  cursor: pointer;\n  transition: background 0.15s;\n}\n\n.btn-submit:hover {\n  background: #8aab00;\n}\n\n.btn-submit:active {\n  transform: scale(0.98);\n}",
+        "html_template": "<form style=\"max-width: 400px; margin: 2rem auto;\">\n  <div class=\"form-group\">\n    <label for=\"name\">Model Name</label>\n    <input type=\"text\" id=\"name\" placeholder=\"My RandomForest\" required>\n    <div class=\"hint\">Give your model a descriptive name.</div>\n  </div>\n  <div class=\"form-group\">\n    <label for=\"email\">Email</label>\n    <input type=\"email\" id=\"email\" placeholder=\"you@example.com\" required>\n  </div>\n  <div class=\"form-group\">\n    <label for=\"age\">Max Depth</label>\n    <input type=\"number\" id=\"age\" value=\"10\" min=\"1\" max=\"50\">\n  </div>\n  <button type=\"submit\" class=\"btn-submit\">Train Model</button>\n</form>",
+        "explanation": (
+            "display: block on labels — puts label above input (not next to it). "
+            "width: 100% on inputs — full width of the form-group. "
+            "font-family: inherit — inputs don't inherit body font by default; this fixes it. "
+            "outline: none + :focus styles — replace the ugly browser default focus ring with a branded one. "
+            "box-shadow: 0 0 0 3px rgba(...) — the 'glow' around a focused input. Called a 'focus ring'. "
+            ":invalid:not(:placeholder-shown) — shows red border ONLY after the user types something invalid. "
+            "  Without :not(:placeholder-shown), the input would be red from the start (before typing). "
+            ":active { transform: scale(0.98) } — button 'presses down' when clicked. Micro-interaction."
+        ),
+        "try_changes": [
+            ("Change border: 2px solid #ddd to 1px solid #ccc", "thinner, lighter border"),
+            ("Change the focus box-shadow spread from 3px to 5px", "thicker focus ring"),
+            ("Change :invalid border-color from #f85149 to #ffa657", "invalid inputs get orange border (warning instead of error)"),
+            ("Change .btn-submit background to #f85149", "submit button becomes red (danger button)"),
+            ("Add 'disabled' attribute to the submit button and style .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }", "button looks disabled"),
+        ],
+    },
+    {
+        "slug": "css-table-styling",
+        "category": "CSS",
+        "title": "Data table — striped rows, hover, sortable header",
+        "language": "css",
+        "summary": "The table style every dashboard needs: striped rows, hover highlight, bold header, right-aligned numbers.",
+        "starter_code": ".data-table {\n  width: 100%;\n  border-collapse: collapse;\n  font-size: 0.9rem;\n  background: white;\n  border-radius: 8px;\n  overflow: hidden;\n  box-shadow: 0 1px 3px rgba(0,0,0,0.08);\n}\n\n.data-table thead {\n  background: #1a1a1a;\n  color: white;\n}\n\n.data-table th {\n  padding: 0.8rem 1rem;\n  text-align: left;\n  font-weight: 600;\n  font-size: 0.82rem;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n}\n\n.data-table td {\n  padding: 0.7rem 1rem;\n  border-bottom: 1px solid #eee;\n}\n\n/* Zebra stripes */\n.data-table tbody tr:nth-child(even) {\n  background: #f9f9f9;\n}\n\n/* Hover highlight */\n.data-table tbody tr:hover {\n  background: rgba(160,192,0,0.08);\n}\n\n/* Right-align numeric columns */\n.data-table td.num {\n  text-align: right;\n  font-family: monospace;\n}\n\n/* Status badge cell */\n.data-table td .badge {\n  display: inline-block;\n  padding: 0.2rem 0.6rem;\n  border-radius: 999px;\n  font-size: 0.78rem;\n  font-weight: 600;\n}\n.badge.success { background: #3fb95022; color: #3fb950; }\n.badge.fail    { background: #f8514922; color: #f85149; }",
+        "html_template": "<table class=\"data-table\">\n  <thead>\n    <tr>\n      <th>Model</th>\n      <th>Dataset</th>\n      <th class=\"num\">Accuracy</th>\n      <th class=\"num\">Latency</th>\n      <th>Status</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>RandomForest</td><td>Iris</td><td class=\"num\">0.942</td><td class=\"num\">12ms</td>\n      <td><span class=\"badge success\">Trained</span></td>\n    </tr>\n    <tr>\n      <td>XGBoost</td><td>Iris</td><td class=\"num\">0.951</td><td class=\"num\">8ms</td>\n      <td><span class=\"badge success\">Trained</span></td>\n    </tr>\n    <tr>\n      <td>NeuralNet</td><td>Iris</td><td class=\"num\">0.938</td><td class=\"num\">45ms</td>\n      <td><span class=\"badge fail\">Failed</span></td>\n    </tr>\n    <tr>\n      <td>LogReg</td><td>Iris</td><td class=\"num\">0.893</td><td class=\"num\">3ms</td>\n      <td><span class=\"badge success\">Trained</span></td>\n    </tr>\n  </tbody>\n</table>",
+        "explanation": (
+            "border-collapse: collapse — removes the double-border between cells. Always use this for tables. "
+            "overflow: hidden + border-radius — clips the header's background to the rounded corners. "
+            "thead has a dark background, tbody is white — classic dashboard look. "
+            "nth-child(even) — zebra stripes. Improves readability on wide tables. "
+            "tr:hover — highlights the row the mouse is over. Helps users track across wide rows. "
+            "td.num { text-align: right; font-family: monospace } — right-aligned monospace numbers are easier to compare. "
+            "Badges (success/fail) use semi-transparent background + solid text color — looks modern without being heavy."
+        ),
+        "try_changes": [
+            ("Change nth-child(even) to nth-child(odd)", "stripes flip — odd rows get the background"),
+            ("Change the thead background from #1a1a1a to #a0c000", "header becomes green"),
+            ("Change the hover background from rgba(160,192,0,0.08) to rgba(88,166,255,0.1)", "hover becomes blue"),
+            ("Add .data-table td:first-child { font-weight: 600; }", "first column (model name) becomes bold"),
+            ("Change text-transform: uppercase to none", "header text becomes normal case"),
+        ],
+    },
+    {
+        "slug": "css-alerts",
+        "category": "CSS",
+        "title": "Alert boxes — success, error, warning, info",
+        "language": "css",
+        "summary": "4 colored boxes for user feedback. Each has an icon, a title, and a message.",
+        "starter_code": ".alert {\n  padding: 1rem 1.2rem;\n  border-radius: 8px;\n  margin-bottom: 1rem;\n  display: flex;\n  align-items: flex-start;\n  gap: 0.8rem;\n  border-left: 4px solid;\n}\n\n.alert .icon {\n  font-size: 1.3rem;\n  line-height: 1;\n}\n\n.alert .content {\n  flex: 1;\n}\n\n.alert .title {\n  font-weight: 700;\n  margin-bottom: 0.2rem;\n}\n\n.alert .msg {\n  font-size: 0.88rem;\n  opacity: 0.9;\n}\n\n/* Success — green */\n.alert-success {\n  background: #3fb95015;\n  border-left-color: #3fb950;\n  color: #1a5e1a;\n}\n\n/* Error — red */\n.alert-error {\n  background: #f8514915;\n  border-left-color: #f85149;\n  color: #8b1a1a;\n}\n\n/* Warning — orange */\n.alert-warning {\n  background: #ffa65715;\n  border-left-color: #ffa657;\n  color: #8b5a1a;\n}\n\n/* Info — blue */\n.alert-info {\n  background: #58a6ff15;\n  border-left-color: #58a6ff;\n  color: #1a4a8b;\n}",
+        "html_template": "<div class=\"alert alert-success\">\n  <span class=\"icon\">&#10003;</span>\n  <div class=\"content\">\n    <div class=\"title\">Model trained successfully</div>\n    <div class=\"msg\">RandomForest reached 94.2% accuracy on the test set.</div>\n  </div>\n</div>\n\n<div class=\"alert alert-error\">\n  <span class=\"icon\">&#10007;</span>\n  <div class=\"content\">\n    <div class=\"title\">Training failed</div>\n    <div class=\"msg\">CUDA out of memory. Try reducing batch size.</div>\n  </div>\n</div>\n\n<div class=\"alert alert-warning\">\n  <span class=\"icon\">&#9888;</span>\n  <div class=\"content\">\n    <div class=\"title\">Deprecated feature</div>\n    <div class=\"msg\">model.fit() will be removed in v2.0. Use model.train() instead.</div>\n  </div>\n</div>\n\n<div class=\"alert alert-info\">\n  <span class=\"icon\">&#8505;</span>\n  <div class=\"content\">\n    <div class=\"title\">Tip</div>\n    <div class=\"msg\">You can speed up training by enabling GPU acceleration in Settings.</div>\n  </div>\n</div>",
+        "explanation": (
+            "Every alert has the same STRUCTURE (icon + title + msg) but different COLORS. "
+            "The base .alert class handles layout (flex, gap, padding, border-left). "
+            "The .alert-success/error/warning/info classes only set colors. "
+            "border-left: 4px solid — a colored bar on the left. The actual color is set per-type. "
+            "Background uses hex + '15' suffix = 8% opacity (hex alpha: 15 = 0x15 = 21/255 ≈ 8%). "
+            "Text color is a DARKER shade of the same hue — keeps it readable on the light background. "
+            "display: flex + align-items: flex-start — icon sits at the top-left, content fills the rest."
+        ),
+        "try_changes": [
+            ("Change border-left: 4px to 8px", "thicker colored bar on the left"),
+            ("Change .alert-success background to #3fb95030", "darker green background (more opaque)"),
+            ("Add a 5th type: .alert-neutral { background: #88888815; border-left-color: #888; color: #333; }", "grey neutral alert"),
+            ("Change border-radius: 8px to 0", "sharp corners — more 'system message' look"),
+        ],
+    },
+    {
+        "slug": "css-loading-spinner",
+        "category": "CSS",
+        "title": "Loading spinner — pure CSS animation",
+        "language": "css",
+        "summary": "A spinning circle that shows 'loading in progress'. No JavaScript, no images — pure CSS.",
+        "starter_code": ".spinner {\n  width: 40px;\n  height: 40px;\n  border: 4px solid #e0e0e0;\n  border-top-color: #a0c000;\n  border-radius: 50%;\n  animation: spin 0.8s linear infinite;\n}\n\n@keyframes spin {\n  to { transform: rotate(360deg); }\n}\n\n/* Loading container — centers the spinner + text */\n.loading {\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  gap: 1rem;\n  padding: 3rem;\n}\n\n.loading .text {\n  color: #666;\n  font-size: 0.9rem;\n}\n\n/* Skeleton loader — for content that's loading */\n.skeleton {\n  background: linear-gradient(90deg, #eee 25%, #f5f5f5 50%, #eee 75%);\n  background-size: 200% 100%;\n  animation: shimmer 1.5s infinite;\n  border-radius: 4px;\n  height: 1rem;\n  margin-bottom: 0.5rem;\n}\n\n@keyframes shimmer {\n  0%   { background-position: 200% 0; }\n  100% { background-position: -200% 0; }\n}",
+        "html_template": "<div class=\"loading\">\n  <div class=\"spinner\"></div>\n  <div class=\"text\">Training model... 42%</div>\n</div>\n\n<div style=\"padding: 2rem;\">\n  <h3>Skeleton loader (content loading):</h3>\n  <div class=\"skeleton\" style=\"width: 60%;\"></div>\n  <div class=\"skeleton\" style=\"width: 80%;\"></div>\n  <div class=\"skeleton\" style=\"width: 70%;\"></div>\n  <div class=\"skeleton\" style=\"width: 50%;\"></div>\n</div>",
+        "explanation": (
+            "The spinner is a circle (border-radius: 50%) with a colored top border. "
+            "animation: spin 0.8s linear infinite — rotates 360 degrees every 0.8 seconds, forever. "
+            "@keyframes spin defines the animation: 'to { transform: rotate(360deg) }' means 'end at 360 degrees'. "
+            "linear — constant speed (ease would speed up/slow down, which looks wrong for a spinner). "
+            "The skeleton loader uses a moving gradient — gives the illusion of content loading. "
+            "background-size: 200% 100% — gradient is 2x the element width, so it can slide. "
+            "background-position animates from 200% to -200% — the gradient slides left, creating a 'shimmer'."
+        ),
+        "try_changes": [
+            ("Change the spinner border-top-color to #f85149", "spinner becomes red"),
+            ("Change animation duration from 0.8s to 2s", "spinner rotates much slower"),
+            ("Change linear to ease-in-out", "spinner speeds up and slows down (feels organic)"),
+            ("Change the spinner width/height from 40px to 60px", "bigger spinner"),
+            ("Change the skeleton animation from 1.5s to 0.5s", "shimmer moves faster"),
+        ],
+    },
+    {
+        "slug": "css-chart-container",
+        "category": "CSS",
+        "title": "Chart container — figure + caption for plots",
+        "language": "css",
+        "summary": "A styled wrapper for matplotlib/plotly charts. White card, title, the chart, and a caption.",
+        "starter_code": ".chart-card {\n  background: white;\n  border: 1px solid #e0e0e0;\n  border-radius: 10px;\n  padding: 1.5rem;\n  margin-bottom: 1.5rem;\n  box-shadow: 0 1px 3px rgba(0,0,0,0.06);\n}\n\n.chart-card .chart-header {\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n  margin-bottom: 1rem;\n}\n\n.chart-card .chart-title {\n  font-size: 1.05rem;\n  font-weight: 600;\n  color: #1a1a1a;\n  margin: 0;\n}\n\n.chart-card .chart-subtitle {\n  font-size: 0.82rem;\n  color: #666;\n  margin-top: 0.2rem;\n}\n\n.chart-card .chart-actions {\n  display: flex;\n  gap: 0.4rem;\n}\n\n.chart-card .chart-actions button {\n  background: #f5f5f5;\n  border: 1px solid #ddd;\n  border-radius: 5px;\n  padding: 0.3rem 0.7rem;\n  font-size: 0.78rem;\n  color: #666;\n  cursor: pointer;\n  transition: all 0.15s;\n}\n\n.chart-card .chart-actions button:hover {\n  background: #a0c000;\n  color: white;\n  border-color: #a0c000;\n}\n\n.chart-card .chart-body {\n  width: 100%;\n  height: 300px;\n  background: #fafafa;\n  border-radius: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  color: #999;\n  font-size: 0.9rem;\n}\n\n.chart-card .chart-caption {\n  font-size: 0.8rem;\n  color: #888;\n  margin-top: 0.8rem;\n  font-style: italic;\n}",
+        "html_template": "<div class=\"chart-card\">\n  <div class=\"chart-header\">\n    <div>\n      <h3 class=\"chart-title\">Model Accuracy Over Time</h3>\n      <div class=\"chart-subtitle\">Last 30 days &middot; test set</div>\n    </div>\n    <div class=\"chart-actions\">\n      <button>Download</button>\n      <button>Fullscreen</button>\n    </div>\n  </div>\n  <div class=\"chart-body\">\n    [ Your matplotlib / plotly chart goes here ]\n  </div>\n  <div class=\"chart-caption\">\n    Figure 1: Accuracy improved 12% after hyperparameter tuning on day 15.\n  </div>\n</div>",
+        "explanation": (
+            "This is the wrapper pattern for EVERY chart in a data-science dashboard. "
+            "chart-header — title + subtitle on the left, action buttons (download, fullscreen) on the right. "
+            "chart-body — fixed height (300px) so all charts in a grid are the same size. "
+            "  The actual chart (an <img> from matplotlib, or a <div> for plotly) goes inside. "
+            "chart-caption — italic grey text below, like a figure caption in a paper. "
+            "box-shadow: 0 1px 3px rgba(0,0,0,0.06) — very subtle shadow. Don't overdo shadows on cards. "
+            "The action buttons are grey by default, turn green on hover — branded micro-interaction."
+        ),
+        "try_changes": [
+            ("Change chart-body height from 300px to 500px", "taller chart area"),
+            ("Change the button hover color from #a0c000 to #58a6ff", "buttons turn blue on hover"),
+            ("Change border-radius: 10px to 0", "sharp corners — more 'academic paper' look"),
+            ("Add a max-width: 800px to .chart-card", "chart doesn't stretch too wide on big screens"),
+        ],
+    },
+    {
+        "slug": "css-modal",
+        "category": "CSS",
+        "title": "Modal dialog — overlay + centered box",
+        "language": "css",
+        "summary": "A dialog that floats above the page. Dark overlay behind, centered white box, close button.",
+        "starter_code": "/* The overlay — covers the whole page */\n.modal-overlay {\n  position: fixed;\n  top: 0; left: 0;\n  width: 100%; height: 100%;\n  background: rgba(0,0,0,0.5);\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  z-index: 1000;\n  backdrop-filter: blur(2px);\n}\n\n/* The modal box itself */\n.modal {\n  background: white;\n  border-radius: 12px;\n  padding: 0;\n  width: 90%;\n  max-width: 500px;\n  box-shadow: 0 20px 60px rgba(0,0,0,0.3);\n  animation: modalIn 0.2s ease-out;\n}\n\n@keyframes modalIn {\n  from { transform: scale(0.9); opacity: 0; }\n  to   { transform: scale(1);   opacity: 1; }\n}\n\n.modal .modal-header {\n  padding: 1.2rem 1.5rem;\n  border-bottom: 1px solid #eee;\n  display: flex;\n  align-items: center;\n  justify-content: space-between;\n}\n\n.modal .modal-header h3 {\n  margin: 0;\n  font-size: 1.1rem;\n}\n\n.modal .close-btn {\n  background: none;\n  border: none;\n  font-size: 1.5rem;\n  color: #999;\n  cursor: pointer;\n  padding: 0;\n  line-height: 1;\n}\n\n.modal .close-btn:hover { color: #333; }\n\n.modal .modal-body {\n  padding: 1.5rem;\n  color: #333;\n  line-height: 1.6;\n}\n\n.modal .modal-footer {\n  padding: 1rem 1.5rem;\n  border-top: 1px solid #eee;\n  display: flex;\n  gap: 0.5rem;\n  justify-content: flex-end;\n}\n\n.modal .btn-secondary {\n  background: #f5f5f5;\n  border: 1px solid #ddd;\n  border-radius: 6px;\n  padding: 0.5rem 1.2rem;\n  cursor: pointer;\n}\n\n.modal .btn-primary {\n  background: #a0c000;\n  color: white;\n  border: none;\n  border-radius: 6px;\n  padding: 0.5rem 1.2rem;\n  cursor: pointer;\n}",
+        "html_template": "<div class=\"modal-overlay\">\n  <div class=\"modal\">\n    <div class=\"modal-header\">\n      <h3>Delete Model?</h3>\n      <button class=\"close-btn\">&times;</button>\n    </div>\n    <div class=\"modal-body\">\n      Are you sure you want to delete <strong>RandomForest_v2</strong>?\n      This action cannot be undone. All benchmark results for this model\n      will also be removed.\n    </div>\n    <div class=\"modal-footer\">\n      <button class=\"btn-secondary\">Cancel</button>\n      <button class=\"btn-primary\">Delete</button>\n    </div>\n  </div>\n</div>",
+        "explanation": (
+            "position: fixed + top: 0; width: 100%; height: 100% — the overlay covers the ENTIRE viewport. "
+            "background: rgba(0,0,0,0.5) — semi-transparent black. Dims the page behind the modal. "
+            "display: flex + align-items: center + justify-content: center — centers the modal box. "
+            "z-index: 1000 — modal is above everything else on the page. "
+            "backdrop-filter: blur(2px) — blurs the content behind the overlay (modern, supported in most browsers). "
+            "max-width: 500px + width: 90% — responsive: 500px on desktop, 90% on mobile. "
+            "@keyframes modalIn — the modal scales up from 0.9 to 1.0 with a fade-in. Feels smooth. "
+            "Structure: header (title + close), body (content), footer (action buttons). Classic dialog pattern."
+        ),
+        "try_changes": [
+            ("Change rgba(0,0,0,0.5) to rgba(0,0,0,0.8)", "darker overlay — more dramatic"),
+            ("Change max-width: 500px to 800px", "wider modal"),
+            ("Change the animation duration from 0.2s to 0.5s", "slower entrance"),
+            ("Remove backdrop-filter: blur(2px)", "no blur behind the modal"),
+            ("Change border-radius: 12px to 0", "sharp corners — more 'system dialog' look"),
+        ],
+    },
+    {
+        "slug": "css-badges-tags",
+        "category": "CSS",
+        "title": "Badges + tags — small status labels",
+        "language": "css",
+        "summary": "Pills, dots, and tags for status indicators. 'Trained', 'v2.1', 'GPU', 'beta' — small colored labels.",
+        "starter_code": "/* Pill badge — rounded, colored background */\n.badge {\n  display: inline-block;\n  padding: 0.2rem 0.7rem;\n  border-radius: 999px;\n  font-size: 0.78rem;\n  font-weight: 600;\n  line-height: 1.4;\n}\n\n.badge-success { background: #3fb95022; color: #3fb950; }\n.badge-warning { background: #ffa65722; color: #ffa657; }\n.badge-danger  { background: #f8514922; color: #f85149; }\n.badge-info    { background: #58a6ff22; color: #58a6ff; }\n.badge-neutral { background: #88888822; color: #666; }\n\n/* Status dot — a small colored circle */\n.status-dot {\n  display: inline-block;\n  width: 8px;\n  height: 8px;\n  border-radius: 50%;\n  margin-right: 0.4rem;\n}\n.status-dot.online  { background: #3fb950; }\n.status-dot.offline { background: #f85149; }\n.status-dot.idle    { background: #ffa657; }\n\n/* Tag — square, outlined */\n.tag {\n  display: inline-block;\n  padding: 0.15rem 0.5rem;\n  border: 1px solid #ddd;\n  border-radius: 4px;\n  font-size: 0.78rem;\n  color: #555;\n  background: #fafafa;\n  margin-right: 0.3rem;\n}\n\n/* Version pill — monospace, grey */\n.version {\n  font-family: monospace;\n  font-size: 0.78rem;\n  background: #1a1a1a;\n  color: #a0c000;\n  padding: 0.15rem 0.5rem;\n  border-radius: 4px;\n}",
+        "html_template": "<h3>Badges</h3>\n<span class=\"badge badge-success\">Trained</span>\n<span class=\"badge badge-warning\">Training</span>\n<span class=\"badge badge-danger\">Failed</span>\n<span class=\"badge badge-info\">Info</span>\n<span class=\"badge badge-neutral\">Draft</span>\n\n<h3 style=\"margin-top: 1.5rem;\">Status dots</h3>\n<p><span class=\"status-dot online\"></span> Server online</p>\n<p><span class=\"status-dot offline\"></span> Database offline</p>\n<p><span class=\"status-dot idle\"></span> Worker idle</p>\n\n<h3 style=\"margin-top: 1.5rem;\">Tags</h3>\n<span class=\"tag\">python</span>\n<span class=\"tag\">scikit-learn</span>\n<span class=\"tag\">classification</span>\n<span class=\"tag\">GPU</span>\n\n<h3 style=\"margin-top: 1.5rem;\">Version</h3>\n<span class=\"version\">v2.1.3</span>",
+        "explanation": (
+            "Three types of small labels, each for a different purpose: "
+            "BADGE — rounded pill with colored background + text. Used for status (Trained/Failed/Training). "
+            "  The background is a 22-alpha hex (≈13% opacity) of the same color as the text — soft, modern look. "
+            "STATUS DOT — just a small colored circle. Used with text: '• Online'. Minimal space. "
+            "TAG — outlined, square-ish. Used for categories/labels (python, GPU, classification). "
+            "VERSION — monospace, dark background, green text. Looks like a code/version number. "
+            "All use display: inline-block so they sit inline with text and respect padding."
+        ),
+        "try_changes": [
+            ("Change badge border-radius from 999px to 4px", "badges become square-ish"),
+            ("Add a new badge type: .badge-primary { background: #a0c00022; color: #a0c000; }", "green branded badge"),
+            ("Change the status-dot size from 8px to 12px", "bigger dots"),
+            ("Change the tag border to 2px dashed #a0c000", "tags become dashed green"),
+            ("Change the version color from #a0c000 to #58a6ff", "version becomes blue"),
+        ],
+    },
+    {
+        "slug": "css-footer",
+        "category": "CSS",
+        "title": "Footer — bottom of the page",
+        "language": "css",
+        "summary": "Multi-column footer with links, social icons, and copyright. The pattern every website uses.",
+        "starter_code": ".footer {\n  background: #1a1a1a;\n  color: #999;\n  padding: 3rem 1.5rem 1.5rem;\n  margin-top: 3rem;\n}\n\n.footer .footer-grid {\n  display: grid;\n  grid-template-columns: 2fr 1fr 1fr 1fr;\n  gap: 2rem;\n  max-width: 1000px;\n  margin: 0 auto;\n}\n\n.footer .footer-col h4 {\n  color: white;\n  font-size: 0.9rem;\n  text-transform: uppercase;\n  letter-spacing: 0.5px;\n  margin-bottom: 0.8rem;\n}\n\n.footer .footer-col ul {\n  list-style: none;\n  padding: 0;\n}\n\n.footer .footer-col ul li {\n  margin-bottom: 0.4rem;\n}\n\n.footer .footer-col ul li a {\n  color: #999;\n  text-decoration: none;\n  font-size: 0.88rem;\n  transition: color 0.15s;\n}\n\n.footer .footer-col ul li a:hover {\n  color: #a0c000;\n}\n\n.footer .footer-brand p {\n  font-size: 0.85rem;\n  line-height: 1.6;\n  margin-top: 0.5rem;\n}\n\n.footer .footer-bottom {\n  border-top: 1px solid #333;\n  margin-top: 2rem;\n  padding-top: 1.5rem;\n  text-align: center;\n  font-size: 0.82rem;\n  color: #666;\n}",
+        "html_template": "<footer class=\"footer\">\n  <div class=\"footer-grid\">\n    <div class=\"footer-col footer-brand\">\n      <h4>OpenBenchML</h4>\n      <p>Benchmark, compare, and deploy ML models in the browser.\n      Open source. Built with FastAPI + Jinja2 + scikit-learn.</p>\n    </div>\n    <div class=\"footer-col\">\n      <h4>Product</h4>\n      <ul>\n        <li><a href=\"#\">Models</a></li>\n        <li><a href=\"#\">Datasets</a></li>\n        <li><a href=\"#\">Notebook</a></li>\n        <li><a href=\"#\">Leaderboard</a></li>\n      </ul>\n    </div>\n    <div class=\"footer-col\">\n      <h4>Learn</h4>\n      <ul>\n        <li><a href=\"#\">Concepts</a></li>\n        <li><a href=\"#\">Project Course</a></li>\n        <li><a href=\"#\">Labs</a></li>\n        <li><a href=\"#\">Docs</a></li>\n      </ul>\n    </div>\n    <div class=\"footer-col\">\n      <h4>Company</h4>\n      <ul>\n        <li><a href=\"#\">About</a></li>\n        <li><a href=\"#\">GitHub</a></li>\n        <li><a href=\"#\">Privacy</a></li>\n        <li><a href=\"#\">Terms</a></li>\n      </ul>\n    </div>\n  </div>\n  <div class=\"footer-bottom\">\n    &copy; 2024 OpenBenchML. All rights reserved. Built with &#10084; by the community.\n  </div>\n</footer>",
+        "explanation": (
+            "The footer has 4 columns: brand (wider, 2fr) + 3 link columns (1fr each). "
+            "grid-template-columns: 2fr 1fr 1fr 1fr — the brand column is twice as wide. "
+            "max-width: 1000px + margin: 0 auto — centers the footer content on wide screens. "
+            "Dark background (#1a1a1a) + grey text (#999) — standard footer look. "
+            "Links are grey, turn green on hover — branded micro-interaction. "
+            "footer-bottom — separated by a top border, centered, smaller text. Holds the copyright. "
+            "text-transform: uppercase + letter-spacing on h4 — makes the column headers look like labels."
+        ),
+        "try_changes": [
+            ("Change grid-template-columns from 2fr 1fr 1fr 1fr to 1fr 1fr 1fr 1fr", "all columns equal width"),
+            ("Change the footer background from #1a1a1a to #2a1a3a", "footer becomes dark purple"),
+            ("Change the link hover color from #a0c000 to #58a6ff", "links turn blue on hover"),
+            ("Add a 5th column: <div class=\"footer-col\"><h4>Social</h4>...</div>", "5-column footer"),
+        ],
+    },
+    {
+        "slug": "css-tabs",
+        "category": "CSS",
+        "title": "Tabs — switch between panels",
+        "language": "css",
+        "summary": "Tab navigation that switches content panels. Pure CSS using :target or radio inputs (no JS needed for basic tabs).",
+        "starter_code": "/* Tab navigation */\n.tabs {\n  border-bottom: 2px solid #e0e0e0;\n  display: flex;\n  gap: 0.3rem;\n  margin-bottom: 1.5rem;\n}\n\n.tabs .tab {\n  padding: 0.7rem 1.2rem;\n  border: none;\n  background: none;\n  font-size: 0.92rem;\n  color: #666;\n  cursor: pointer;\n  border-bottom: 3px solid transparent;\n  margin-bottom: -2px;\n  transition: all 0.15s;\n  font-family: inherit;\n}\n\n.tabs .tab:hover {\n  color: #333;\n  background: #f5f5f5;\n}\n\n.tabs .tab.active {\n  color: #a0c000;\n  border-bottom-color: #a0c000;\n  font-weight: 600;\n}\n\n/* Tab content panels */\n.tab-panel {\n  display: none;\n  padding: 1rem 0;\n  line-height: 1.6;\n}\n\n.tab-panel.active {\n  display: block;\n}",
+        "html_template": "<div class=\"tabs\">\n  <button class=\"tab active\" onclick=\"document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));this.classList.add('active');document.getElementById('p1').classList.add('active')\">Overview</button>\n  <button class=\"tab\" onclick=\"document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));this.classList.add('active');document.getElementById('p2').classList.add('active')\">Metrics</button>\n  <button class=\"tab\" onclick=\"document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));this.classList.add('active');document.getElementById('p3').classList.add('active')\">Code</button>\n</div>\n<div class=\"tab-panel active\" id=\"p1\">\n  <h3>Overview</h3>\n  <p>RandomForest classifier trained on the Iris dataset. 100 trees, max depth 10.</p>\n</div>\n<div class=\"tab-panel\" id=\"p2\">\n  <h3>Metrics</h3>\n  <p>Accuracy: 94.2% | Precision: 91.8% | Recall: 89.3% | F1: 90.5%</p>\n</div>\n<div class=\"tab-panel\" id=\"p3\">\n  <h3>Code</h3>\n  <p>from sklearn.ensemble import RandomForestClassifier</p>\n  <p>clf = RandomForestClassifier(n_estimators=100, max_depth=10)</p>\n  <p>clf.fit(X_train, y_train)</p>\n</div>",
+        "explanation": (
+            "The .tabs container has a bottom border — the 'tab bar'. "
+            "Each .tab is a <button> with: transparent background, bottom border that's invisible until active. "
+            "margin-bottom: -2px — the tab's bottom border overlaps the tab bar's border (so the active tab 'connects'). "
+            "Active tab: colored bottom border + colored text + bold. "
+            "Tab panels: display: none by default, display: block when .active. "
+            "The onclick JS just toggles .active classes — the CSS handles the visual switching. "
+            "In a real app, you'd use addEventListener instead of inline onclick, but the CSS is the same."
+        ),
+        "try_changes": [
+            ("Change border-bottom: 3px to 5px on .tab.active", "thicker active indicator"),
+            ("Change the active color from #a0c000 to #58a6ff", "tabs become blue"),
+            ("Change .tab font-size from 0.92rem to 1.1rem", "bigger tab labels"),
+            ("Add border-radius: 6px 6px 0 0 to .tab", "tabs get rounded top corners"),
+        ],
+    },
+    {
+        "slug": "css-dashboard-layout",
+        "category": "CSS",
+        "title": "Full dashboard layout — sidebar + KPIs + charts + table",
+        "language": "css",
+        "summary": "The complete data-science dashboard: sidebar nav, KPI row, 2-column charts, data table.",
+        "starter_code": "* { margin: 0; padding: 0; box-sizing: border-box; }\n\nbody { font-family: sans-serif; background: #f5f5f5; }\n\n.dashboard {\n  display: grid;\n  grid-template-columns: 220px 1fr;\n  min-height: 100vh;\n}\n\n/* Sidebar */\n.sidebar {\n  background: #1a1a1a;\n  color: #999;\n  padding: 1.5rem 0;\n}\n.sidebar .logo {\n  color: #a0c000;\n  font-size: 1.2rem;\n  font-weight: 700;\n  padding: 0 1.5rem 1.5rem;\n}\n.sidebar a {\n  display: block;\n  color: #999;\n  text-decoration: none;\n  padding: 0.7rem 1.5rem;\n  transition: all 0.15s;\n}\n.sidebar a:hover, .sidebar a.active {\n  background: rgba(160,192,0,0.15);\n  color: #a0c000;\n  border-left: 3px solid #a0c000;\n}\n\n/* Main content */\n.main {\n  padding: 2rem;\n  overflow: auto;\n}\n\n.main h1 { font-size: 1.5rem; margin-bottom: 1.5rem; }\n\n/* KPI row */\n.kpi-row {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));\n  gap: 1rem;\n  margin-bottom: 1.5rem;\n}\n.kpi {\n  background: white;\n  border-radius: 10px;\n  padding: 1.2rem;\n  border: 1px solid #e0e0e0;\n}\n.kpi .label { font-size: 0.82rem; color: #666; }\n.kpi .value { font-size: 1.8rem; font-weight: 700; margin: 0.3rem 0; }\n.kpi .change { font-size: 0.78rem; }\n.kpi .change.up { color: #3fb950; }\n.kpi .change.down { color: #f85149; }\n\n/* Charts grid */\n.charts-grid {\n  display: grid;\n  grid-template-columns: 1fr 1fr;\n  gap: 1rem;\n  margin-bottom: 1.5rem;\n}\n@media (max-width: 768px) {\n  .charts-grid { grid-template-columns: 1fr; }\n}\n.chart-card {\n  background: white;\n  border-radius: 10px;\n  padding: 1.2rem;\n  border: 1px solid #e0e0e0;\n}\n.chart-card h3 { font-size: 0.95rem; margin-bottom: 1rem; }\n.chart-card .chart-area {\n  height: 200px;\n  background: #fafafa;\n  border-radius: 6px;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  color: #999;\n  font-size: 0.85rem;\n}",
+        "html_template": "<div class=\"dashboard\">\n  <aside class=\"sidebar\">\n    <div class=\"logo\">&#9889; ML Dash</div>\n    <a href=\"#\" class=\"active\">Dashboard</a>\n    <a href=\"#\">Models</a>\n    <a href=\"#\">Datasets</a>\n    <a href=\"#\">Experiments</a>\n    <a href=\"#\">Settings</a>\n  </aside>\n  <main class=\"main\">\n    <h1>Dashboard</h1>\n    <div class=\"kpi-row\">\n      <div class=\"kpi\">\n        <div class=\"label\">Total Models</div>\n        <div class=\"value\">24</div>\n        <div class=\"change up\">&#9650; 3 new this week</div>\n      </div>\n      <div class=\"kpi\">\n        <div class=\"label\">Avg Accuracy</div>\n        <div class=\"value\">91.4%</div>\n        <div class=\"change up\">&#9650; 2.1%</div>\n      </div>\n      <div class=\"kpi\">\n        <div class=\"label\">Avg Latency</div>\n        <div class=\"value\">38ms</div>\n        <div class=\"change down\">&#9660; 12ms</div>\n      </div>\n      <div class=\"kpi\">\n        <div class=\"label\">Active Jobs</div>\n        <div class=\"value\">3</div>\n        <div class=\"change\">2 training, 1 queued</div>\n      </div>\n    </div>\n    <div class=\"charts-grid\">\n      <div class=\"chart-card\">\n        <h3>Accuracy Over Time</h3>\n        <div class=\"chart-area\">[ Line chart ]</div>\n      </div>\n      <div class=\"chart-card\">\n        <h3>Model Comparison</h3>\n        <div class=\"chart-area\">[ Bar chart ]</div>\n      </div>\n    </div>\n  </main>\n</div>",
+        "explanation": (
+            "This is the COMPLETE dashboard pattern a data scientist needs: "
+            "Grid: 220px sidebar + 1fr main. min-height: 100vh so the sidebar goes full height. "
+            "Sidebar links: padding-left 1.5rem, border-left appears on active/hover — clear navigation. "
+            "KPI row: repeat(auto-fit, minmax(180px, 1fr)) — responsive! 4 on desktop, 2 on tablet, 1 on mobile. "
+            "Each KPI: label (small grey) + value (big bold) + change (green up / red down). "
+            "Charts grid: 2 columns on desktop, 1 column on mobile (@media query). "
+            "chart-area has a fixed height (200px) — all charts in the grid are the same size. "
+            "Every card has the same border + border-radius + padding — visual consistency."
+        ),
+        "try_changes": [
+            ("Change grid-template-columns: 220px 1fr to 280px 1fr", "wider sidebar"),
+            ("Change the KPI minmax from 180px to 250px", "fewer KPIs per row"),
+            ("Change the charts-grid from 1fr 1fr to 1fr 1fr 1fr", "3 charts per row"),
+            ("Change @media max-width: 768px to 1024px", "charts stack earlier (on tablets)"),
+            ("Change the sidebar background to #0d1117", "sidebar becomes darker (GitHub-style)"),
+        ],
+    },
+    {
+        "slug": "css-responsive-form-page",
+        "category": "CSS",
+        "title": "Responsive form page — centered card, mobile-friendly",
+        "language": "css",
+        "summary": "A complete login/register page: centered card, responsive, branded. The pattern every auth page uses.",
+        "starter_code": "body {\n  margin: 0;\n  font-family: -apple-system, system-ui, sans-serif;\n  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);\n  min-height: 100vh;\n  display: flex;\n  align-items: center;\n  justify-content: center;\n  padding: 1rem;\n}\n\n.auth-card {\n  background: white;\n  border-radius: 16px;\n  padding: 2.5rem;\n  width: 100%;\n  max-width: 400px;\n  box-shadow: 0 20px 60px rgba(0,0,0,0.3);\n}\n\n.auth-card .logo {\n  text-align: center;\n  font-size: 2rem;\n  margin-bottom: 0.5rem;\n}\n\n.auth-card h1 {\n  text-align: center;\n  font-size: 1.4rem;\n  margin: 0 0 0.3rem 0;\n  color: #1a1a1a;\n}\n\n.auth-card .subtitle {\n  text-align: center;\n  color: #666;\n  font-size: 0.9rem;\n  margin-bottom: 2rem;\n}\n\n.form-group {\n  margin-bottom: 1.2rem;\n}\n\n.form-group label {\n  display: block;\n  font-size: 0.85rem;\n  font-weight: 600;\n  color: #333;\n  margin-bottom: 0.4rem;\n}\n\n.form-group input {\n  width: 100%;\n  padding: 0.7rem 0.9rem;\n  border: 2px solid #ddd;\n  border-radius: 8px;\n  font-size: 0.95rem;\n  outline: none;\n  transition: border-color 0.15s, box-shadow 0.15s;\n  box-sizing: border-box;\n}\n\n.form-group input:focus {\n  border-color: #667eea;\n  box-shadow: 0 0 0 3px rgba(102,126,234,0.2);\n}\n\n.btn-submit {\n  width: 100%;\n  background: #667eea;\n  color: white;\n  border: none;\n  padding: 0.8rem;\n  border-radius: 8px;\n  font-size: 1rem;\n  font-weight: 600;\n  cursor: pointer;\n  margin-top: 0.5rem;\n  transition: background 0.15s;\n}\n\n.btn-submit:hover {\n  background: #5568d3;\n}\n\n.auth-card .footer-link {\n  text-align: center;\n  margin-top: 1.5rem;\n  font-size: 0.88rem;\n  color: #666;\n}\n\n.auth-card .footer-link a {\n  color: #667eea;\n  text-decoration: none;\n  font-weight: 600;\n}",
+        "html_template": "<div class=\"auth-card\">\n  <div class=\"logo\">&#9889;</div>\n  <h1>Welcome back</h1>\n  <p class=\"subtitle\">Log in to your account</p>\n  <form>\n    <div class=\"form-group\">\n      <label>Email</label>\n      <input type=\"email\" placeholder=\"you@example.com\" required>\n    </div>\n    <div class=\"form-group\">\n      <label>Password</label>\n      <input type=\"password\" placeholder=\"••••••••\" required>\n    </div>\n    <button type=\"submit\" class=\"btn-submit\">Log In</button>\n  </form>\n  <div class=\"footer-link\">\n    Don't have an account? <a href=\"#\">Sign up</a>\n  </div>\n</div>",
+        "explanation": (
+            "body is a flex container, centered — the card is always in the middle of the screen. "
+            "background: linear-gradient — a nice purple gradient. Change it to match your brand. "
+            "min-height: 100vh + padding: 1rem — fills the viewport, with a small margin on mobile. "
+            "max-width: 400px + width: 100% — responsive: 400px on desktop, full width (minus padding) on mobile. "
+            "box-shadow: 0 20px 60px — a big soft shadow makes the card 'float' above the gradient. "
+            "border-radius: 16px — generous rounding, feels modern. "
+            "Focus ring color matches the gradient (#667eea) — consistent branding. "
+            "width: 100% on the button — full-width button, common in auth forms. "
+            "box-sizing: border-box on inputs — critical! Without it, padding makes inputs wider than 100%."
+        ),
+        "try_changes": [
+            ("Change the gradient from #667eea #764ba2 to #a0c000 #58a6ff", "green-to-blue gradient"),
+            ("Change max-width: 400px to 350px", "narrower card"),
+            ("Change border-radius: 16px to 8px", "less rounded — more 'corporate'"),
+            ("Change the focus color from #667eea to #a0c000", "focus ring becomes green"),
+            ("Change box-shadow: 0 20px 60px to 0 4px 12px", "smaller shadow — card feels flatter"),
+        ],
+    },
 ]
 
 
@@ -582,6 +989,185 @@ _HTML_LABS = [
             ("Change &mdash; to &ndash;", "em dash (long) becomes en dash (short)"),
             ("Add &hearts; somewhere", "heart symbol appears"),
             ("Add &#128512; (smiley emoji by codepoint)", "😀 appears"),
+        ],
+    },
+
+    # ─── HTML labs for building REAL webpages ─────────────────────────
+    # Complete page structures, not just snippets.
+
+    {
+        "slug": "html-boilerplate",
+        "category": "HTML",
+        "title": "HTML5 boilerplate — the complete starting template",
+        "language": "html",
+        "summary": "Every HTML page starts with this. DOCTYPE, html, head with meta tags, body. Copy-paste this as your starting point.",
+        "starter_code": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <meta name=\"description\" content=\"My ML dashboard\">\n  <meta name=\"author\" content=\"Your Name\">\n  <title>My App — Home</title>\n  <link rel=\"stylesheet\" href=\"/static/style.css\">\n  <link rel=\"icon\" href=\"/static/favicon.ico\" type=\"image/x-icon\">\n</head>\n<body>\n  <!-- Page content goes here -->\n  <h1>Hello, World!</h1>\n  <p>This is a complete HTML5 page.</p>\n\n  <script src=\"/static/app.js\"></script>\n</body>\n</html>",
+        "html_template": "",
+        "explanation": (
+            "<!DOCTYPE html> — tells the browser this is HTML5 (not HTML 4 or XHTML). Always first line. "
+            "<html lang='en'> — the root element. lang helps screen readers + search engines. "
+            "<head> — metadata the browser doesn't render: charset, viewport, title, CSS links. "
+            "<meta charset='UTF-8'> — character encoding. Without it, special chars (é, →, emoji) break. "
+            "<meta name='viewport' ...> — CRITICAL for mobile. Without it, phones show a tiny zoomed-out version. "
+            "<meta name='description'> — what Google shows in search results. 150 chars max. "
+            "<title> — appears in the browser tab + search results. Keep under 60 chars. "
+            "<link rel='stylesheet'> — load CSS. Always in the head. "
+            "<link rel='icon'> — the favicon (tiny icon in the browser tab). "
+            "<script> — load JavaScript. Put at the END of body so the page renders first. "
+            "Comments: <!-- text --> — invisible in the browser, visible in 'View Source'."
+        ),
+        "try_changes": [
+            ("Change lang=\"en\" to lang=\"es\"", "screen readers switch to Spanish pronunciation"),
+            ("Change the title to 'My Cool App — Dashboard'", "browser tab text changes"),
+            ("Remove the viewport meta tag", "on mobile, the page becomes tiny and zoomed out"),
+            ("Add <meta name=\"theme-color\" content=\"#a0c000\">", "mobile browser address bar turns green"),
+            ("Change charset from UTF-8 to ISO-8859-1", "special characters may break"),
+        ],
+    },
+    {
+        "slug": "html-dashboard-page",
+        "category": "HTML",
+        "title": "Complete dashboard page — sidebar + KPIs + charts + table",
+        "language": "html",
+        "summary": "The full HTML structure of a data-science dashboard. Semantic tags: header, aside, main, section, article.",
+        "starter_code": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>ML Dashboard</title>\n</head>\n<body>\n  <div class=\"dashboard\">\n    <!-- Sidebar navigation -->\n    <aside class=\"sidebar\">\n      <div class=\"logo\">&#9889; ML Dash</div>\n      <nav>\n        <a href=\"/\" class=\"active\">Dashboard</a>\n        <a href=\"/models\">Models</a>\n        <a href=\"/datasets\">Datasets</a>\n        <a href=\"/experiments\">Experiments</a>\n        <a href=\"/settings\">Settings</a>\n      </nav>\n    </aside>\n\n    <!-- Main content -->\n    <main class=\"main\">\n      <header class=\"page-header\">\n        <h1>Dashboard Overview</h1>\n        <button class=\"btn-primary\">+ New Model</button>\n      </header>\n\n      <!-- KPI row -->\n      <section class=\"kpi-row\">\n        <article class=\"kpi\">\n          <div class=\"label\">Total Models</div>\n          <div class=\"value\">24</div>\n          <div class=\"change up\">+3 this week</div>\n        </article>\n        <article class=\"kpi\">\n          <div class=\"label\">Avg Accuracy</div>\n          <div class=\"value\">91.4%</div>\n          <div class=\"change up\">+2.1%</div>\n        </article>\n        <article class=\"kpi\">\n          <div class=\"label\">Avg Latency</div>\n          <div class=\"value\">38ms</div>\n          <div class=\"change down\">-12ms</div>\n        </article>\n      </section>\n\n      <!-- Charts grid -->\n      <section class=\"charts-grid\">\n        <article class=\"chart-card\">\n          <h3>Accuracy Over Time</h3>\n          <div class=\"chart-area\">[ Line chart ]</div>\n        </article>\n        <article class=\"chart-card\">\n          <h3>Model Comparison</h3>\n          <div class=\"chart-area\">[ Bar chart ]</div>\n        </article>\n      </section>\n\n      <!-- Data table -->\n      <section class=\"table-section\">\n        <h2>Recent Models</h2>\n        <table>\n          <thead>\n            <tr>\n              <th>Name</th>\n              <th>Type</th>\n              <th>Accuracy</th>\n              <th>Status</th>\n            </tr>\n          </thead>\n          <tbody>\n            <tr>\n              <td>RandomForest v2</td>\n              <td>Classifier</td>\n              <td>94.2%</td>\n              <td><span class=\"badge success\">Trained</span></td>\n            </tr>\n            <tr>\n              <td>XGBoost v1</td>\n              <td>Classifier</td>\n              <td>95.1%</td>\n              <td><span class=\"badge success\">Trained</span></td>\n            </tr>\n          </tbody>\n        </table>\n      </section>\n    </main>\n  </div>\n</body>\n</html>",
+        "html_template": "",
+        "explanation": (
+            "Semantic HTML uses tags that describe MEANING, not just appearance: "
+            "  <aside> — sidebar content, tangential to the main content. "
+            "  <main> — the main content of the page (only one per page). "
+            "  <header> — introductory content (page title + action button). "
+            "  <section> — a thematic grouping (KPI row, charts, table). "
+            "  <article> — a self-contained piece (one KPI card, one chart card). "
+            "  <nav> — navigation links. "
+            "Why use semantic tags instead of div? "
+            "  1. Screen readers use them to navigate (accessibility). "
+            "  2. Search engines understand the page structure (SEO). "
+            "  3. CSS targeting is clearer: .sidebar vs #sidebar vs aside. "
+            "The structure: dashboard > [sidebar (aside), main > (header, sections)] — clean hierarchy."
+        ),
+        "try_changes": [
+            ("Add a 4th KPI <article> inside .kpi-row", "4-column KPI row"),
+            ("Add a new <section> below the table with a form", "form section appears"),
+            ("Change <aside class=\"sidebar\"> to just <div class=\"sidebar\">", "loses semantic meaning (still works visually)"),
+            ("Add <footer> at the bottom of <main>", "footer appears at the bottom of the main content"),
+        ],
+    },
+    {
+        "slug": "html-complete-form",
+        "category": "HTML",
+        "title": "Complete form — all input types + validation",
+        "language": "html",
+        "summary": "Every input type in one form: text, email, password, number, range, date, checkbox, radio, select, textarea, file.",
+        "starter_code": "<form action=\"/submit\" method=\"post\">\n  <h2>Train a New Model</h2>\n\n  <!-- Text -->\n  <label>Model Name:\n    <input type=\"text\" name=\"model_name\" placeholder=\"My RandomForest\" required minlength=\"3\">\n  </label>\n\n  <!-- Email -->\n  <label>Email (for notifications):\n    <input type=\"email\" name=\"email\" required>\n  </label>\n\n  <!-- Select dropdown -->\n  <label>Algorithm:\n    <select name=\"algorithm\">\n      <option value=\"rf\">Random Forest</option>\n      <option value=\"xgb\">XGBoost</option>\n      <option value=\"lr\">Linear Regression</option>\n      <option value=\"nn\">Neural Network</option>\n    </select>\n  </label>\n\n  <!-- Number with min/max/step -->\n  <label>Max Depth:\n    <input type=\"number\" name=\"max_depth\" value=\"10\" min=\"1\" max=\"100\" step=\"1\">\n  </label>\n\n  <!-- Range slider -->\n  <label>Learning Rate: <span id=\"lr-val\">0.01</span>\n    <input type=\"range\" name=\"learning_rate\" min=\"0.001\" max=\"1.0\" step=\"0.001\" value=\"0.01\">\n  </label>\n\n  <!-- Radio buttons -->\n  <fieldset>\n    <legend>Task Type:</legend>\n    <label><input type=\"radio\" name=\"task\" value=\"classification\" checked> Classification</label>\n    <label><input type=\"radio\" name=\"task\" value=\"regression\"> Regression</label>\n  </fieldset>\n\n  <!-- Checkboxes -->\n  <fieldset>\n    <legend>Features to use:</legend>\n    <label><input type=\"checkbox\" name=\"features\" value=\"age\" checked> Age</label>\n    <label><input type=\"checkbox\" name=\"features\" value=\"income\" checked> Income</label>\n    <label><input type=\"checkbox\" name=\"features\" value=\"education\"> Education</label>\n  </fieldset>\n\n  <!-- Date -->\n  <label>Train until date:\n    <input type=\"date\" name=\"train_until\">\n  </label>\n\n  <!-- Textarea -->\n  <label>Notes:\n    <textarea name=\"notes\" rows=\"3\" placeholder=\"Any special instructions...\"></textarea>\n  </label>\n\n  <!-- File upload -->\n  <label>Upload dataset (CSV):\n    <input type=\"file\" name=\"dataset\" accept=\".csv\">\n  </label>\n\n  <!-- Hidden field -->\n  <input type=\"hidden\" name=\"user_id\" value=\"42\">\n\n  <!-- Submit + Reset -->\n  <button type=\"submit\">Start Training</button>\n  <button type=\"reset\">Reset Form</button>\n</form>",
+        "html_template": "",
+        "explanation": (
+            "Every input type serves a different purpose: "
+            "  text — single-line text. "
+            "  email — validates email format, shows @ on mobile keyboards. "
+            "  password — masks characters. "
+            "  number — spinner, min/max/step validation. "
+            "  range — slider. Pair with <span> to show the value (needs JS to update). "
+            "  date — native date picker. "
+            "  checkbox — multiple selections (same name, different values). "
+            "  radio — single selection (same name, different values). Always one selected. "
+            "  select — dropdown. <option> for each choice. "
+            "  textarea — multi-line text. rows = height. "
+            "  file — file upload. accept='.csv' filters the file picker. "
+            "  hidden — data you want in the form submission but not visible to the user. "
+            "fieldset + legend — groups related inputs (like radio buttons) with a label. "
+            "required — browser won't submit without a value. "
+            "minlength/maxlength — text length validation."
+        ),
+        "try_changes": [
+            ("Change type=\"text\" to type=\"password\" for model_name", "text becomes masked dots"),
+            ("Add 'multiple' to the file input", "allows uploading multiple files"),
+            ("Add 'disabled' to the select", "dropdown becomes greyed out"),
+            ("Change type=\"number\" to type=\"range\" for max_depth", "number becomes a slider"),
+            ("Add <option value=\"\" selected disabled>Select...</option> as the first option in the select", "adds a placeholder"),
+        ],
+    },
+    {
+        "slug": "html-data-table",
+        "category": "HTML",
+        "title": "Complete data table — caption, thead, tbody, colspan",
+        "language": "html",
+        "summary": "A proper data table with caption, header, body, footer, and cells that span multiple columns.",
+        "starter_code": "<table>\n  <caption>Model Benchmark Results — Q3 2024</caption>\n  <thead>\n    <tr>\n      <th rowspan=\"2\">Model</th>\n      <th colspan=\"2\">Accuracy</th>\n      <th colspan=\"2\">Latency (ms)</th>\n      <th rowspan=\"2\">Status</th>\n    </tr>\n    <tr>\n      <th>Train</th>\n      <th>Test</th>\n      <th>Train</th>\n      <th>Test</th>\n    </tr>\n  </thead>\n  <tbody>\n    <tr>\n      <td>RandomForest</td>\n      <td>0.982</td>\n      <td>0.942</td>\n      <td>120</td>\n      <td>12</td>\n      <td><span class=\"badge success\">Trained</span></td>\n    </tr>\n    <tr>\n      <td>XGBoost</td>\n      <td>0.991</td>\n      <td>0.951</td>\n      <td>85</td>\n      <td>8</td>\n      <td><span class=\"badge success\">Trained</span></td>\n    </tr>\n    <tr>\n      <td>NeuralNet</td>\n      <td>0.978</td>\n      <td>0.938</td>\n      <td>2400</td>\n      <td>45</td>\n      <td><span class=\"badge fail\">Failed</span></td>\n    </tr>\n  </tbody>\n  <tfoot>\n    <tr>\n      <td><strong>Average</strong></td>\n      <td><strong>0.984</strong></td>\n      <td><strong>0.944</strong></td>\n      <td><strong>868</strong></td>\n      <td><strong>22</strong></td>\n      <td>—</td>\n    </tr>\n  </tfoot>\n</table>",
+        "html_template": "",
+        "explanation": (
+            "caption — the table's title. Appears above the table. Important for accessibility. "
+            "thead — header rows. Can have MULTIPLE rows (like here: one for groups, one for sub-columns). "
+            "tbody — the actual data rows. "
+            "tfoot — footer rows (totals, averages). Appears at the bottom. "
+            "rowspan='2' — this cell spans 2 rows (the Model header covers both header rows). "
+            "colspan='2' — this cell spans 2 columns (Accuracy header covers Train + Test columns). "
+            "Use colspan/rowspan for grouped headers — common in benchmark tables. "
+            "th — header cell (bold, centered by default). td — data cell (normal). "
+            "Always use <thead> / <tbody> — CSS targets them separately (e.g. .data-table thead)."
+        ),
+        "try_changes": [
+            ("Add a new <tr> in tbody with a new model", "table grows by one row"),
+            ("Change rowspan=\"2\" to rowspan=\"1\" on the Model header", "header structure breaks — Model only covers first row"),
+            ("Add a new column: add a <th> in thead and a <td> in each tbody row", "table gets wider"),
+            ("Remove the <caption>", "table loses its title"),
+            ("Add a 'colgroup' to set column widths: <colgroup><col style=\"width:200px\"><col><col></colgroup>", "first column becomes fixed width"),
+        ],
+    },
+    {
+        "slug": "html-article-page",
+        "category": "HTML",
+        "title": "Article/blog page — complete content layout",
+        "language": "html",
+        "summary": "A blog post or article page with header, metadata, content blocks, code blocks, and a footer.",
+        "starter_code": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Understanding Random Forest — ML Blog</title>\n</head>\n<body>\n  <article>\n    <header>\n      <h1>Understanding Random Forest</h1>\n      <p class=\"meta\">\n        By <a href=\"/author/ada\">Ada Lovelace</a> ·\n        <time datetime=\"2024-09-01\">September 1, 2024</time> ·\n        8 min read\n      </p>\n      <p class=\"tags\">\n        <span class=\"tag\">machine-learning</span>\n        <span class=\"tag\">random-forest</span>\n        <span class=\"tag\">scikit-learn</span>\n      </p>\n    </header>\n\n    <section>\n      <h2>What is Random Forest?</h2>\n      <p>Random Forest is an <em>ensemble learning</em> method that combines\n      multiple <strong>decision trees</strong> to improve accuracy and reduce\n      overfitting. It was developed by Leo Breiman in 2001.</p>\n\n      <blockquote>\n        \"Random forests are a combination of tree predictors such that each\n        tree depends on the values of a random vector sampled independently.\"\n        — Breiman, 2001\n      </blockquote>\n    </section>\n\n    <section>\n      <h2>How it works</h2>\n      <p>The algorithm works in 3 steps:</p>\n      <ol>\n        <li>Draw a random sample from the training data (with replacement).</li>\n        <li>Train a decision tree on the sample, using a random subset of features.</li>\n        <li>Repeat N times. The final prediction is the average (regression) or\n            majority vote (classification).</li>\n      </ol>\n\n      <h3>Code example</h3>\n      <pre><code>from sklearn.ensemble import RandomForestClassifier\nfrom sklearn.datasets import load_iris\n\nX, y = load_iris(return_X_y=True)\nclf = RandomForestClassifier(n_estimators=100, max_depth=10)\nclf.fit(X, y)\n\nprint(f\"Accuracy: {clf.score(X, y):.3f}\")</code></pre>\n    </section>\n\n    <section>\n      <h2>When to use it</h2>\n      <table>\n        <thead>\n          <tr><th>Pros</th><th>Cons</th></tr>\n        </thead>\n        <tbody>\n          <tr>\n            <td>High accuracy</td>\n            <td>Slow on large datasets</td>\n          </tr>\n          <tr>\n            <td>Handles non-linear patterns</td>\n            <td>Hard to interpret</td>\n          </tr>\n        </tbody>\n      </table>\n    </section>\n\n    <footer>\n      <p>If you enjoyed this article, please share it.</p>\n      <nav class=\"article-nav\">\n        <a href=\"/blog/previous\">&larr; Previous: Decision Trees</a>\n        <a href=\"/blog/next\">Next: XGBoost &rarr;</a>\n      </nav>\n    </footer>\n  </article>\n</body>\n</html>",
+        "html_template": "",
+        "explanation": (
+            "article — a self-contained piece of content (a blog post, news story, paper). "
+            "  Can have its own <header> and <footer> — they're scoped to the article, not the page. "
+            "<time datetime='2024-09-01'> — machine-readable date. Search engines + calendars use it. "
+            "<blockquote> — a quoted block. Browsers indent it by default. "
+            "<pre><code> — preformatted text + code. Whitespace is preserved (indentation shows). "
+            "  Always use <pre> around <code> to preserve line breaks. "
+            "<ol> — ordered list (1, 2, 3...). <ul> — unordered (bullets). "
+            "<em> — emphasis (italic). <strong> — strong importance (bold). "
+            "  These are SEMANTIC, not visual. Screen readers interpret them. "
+            "<nav class='article-nav'> — prev/next navigation at the bottom of the article."
+        ),
+        "try_changes": [
+            ("Change <ol> to <ul>", "numbered list becomes bullets"),
+            ("Add a <figure> with an <img> and <figcaption>", "image with caption appears"),
+            ("Change <blockquote> to just <p>", "quote loses its indentation"),
+            ("Add <hr> between sections", "horizontal line separates sections"),
+            ("Change the <time> datetime to '2024-12-25'", "machine-readable date changes"),
+        ],
+    },
+    {
+        "slug": "html-login-page",
+        "category": "HTML",
+        "title": "Login page — complete auth form",
+        "language": "html",
+        "summary": "A complete login page with email/password, remember me, forgot password, and social login buttons.",
+        "starter_code": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Log In — MyApp</title>\n</head>\n<body>\n  <main class=\"auth-container\">\n    <div class=\"auth-card\">\n      <div class=\"logo\">&#9889;</div>\n      <h1>Welcome back</h1>\n      <p class=\"subtitle\">Log in to your account</p>\n\n      <form action=\"/login\" method=\"post\">\n        <div class=\"form-group\">\n          <label for=\"email\">Email</label>\n          <input type=\"email\" id=\"email\" name=\"email\"\n                 placeholder=\"you@example.com\" required autocomplete=\"email\">\n        </div>\n\n        <div class=\"form-group\">\n          <label for=\"password\">Password</label>\n          <input type=\"password\" id=\"password\" name=\"password\"\n                 placeholder=\"••••••••\" required autocomplete=\"current-password\"\n                 minlength=\"8\">\n        </div>\n\n        <div class=\"form-row\">\n          <label class=\"checkbox-label\">\n            <input type=\"checkbox\" name=\"remember\" value=\"true\">\n            Remember me\n          </label>\n          <a href=\"/forgot-password\" class=\"forgot-link\">Forgot password?</a>\n        </div>\n\n        <button type=\"submit\" class=\"btn-submit\">Log In</button>\n      </form>\n\n      <div class=\"divider\"><span>or</span></div>\n\n      <div class=\"social-buttons\">\n        <button class=\"btn-social google\">Continue with Google</button>\n        <button class=\"btn-social github\">Continue with GitHub</button>\n      </div>\n\n      <p class=\"footer-link\">\n        Don't have an account? <a href=\"/register\">Sign up</a>\n      </p>\n    </div>\n  </main>\n</body>\n</html>",
+        "html_template": "",
+        "explanation": (
+            "autocomplete='email' / 'current-password' — tells the browser's password manager what to fill. "
+            "  CRITICAL for UX — without it, browsers can't auto-fill logins. "
+            "required — browser won't submit without a value. "
+            "minlength='8' — minimum 8 characters (basic password policy). "
+            "type='password' — masks characters. "
+            "Checkbox + link on the same row — the 'remember me' + 'forgot password' pattern every auth form uses. "
+            "Divider with 'or' — separates email login from social login. "
+            "Social buttons — Google, GitHub, etc. Each would POST to a different endpoint. "
+            "label class='checkbox-label' — lets CSS style the checkbox + text as a unit. "
+            "The form method='post' — NEVER use GET for login (password would appear in the URL + browser history)."
+        ),
+        "try_changes": [
+            ("Add autocomplete=\"new-password\" to the password field", "tells browser this is a NEW password (for registration)"),
+            ("Add a <input type=\"hidden\" name=\"next\" value=\"/dashboard\">", "redirects to /dashboard after login"),
+            ("Change type=\"password\" to type=\"text\"", "password becomes visible (useful for debugging)"),
+            ("Add 'maxlength=\"72\"' to the password input", "limits password to 72 chars (bcrypt max)"),
+            ("Add a third social button: Continue with Apple", "new social login option"),
         ],
     },
 ]

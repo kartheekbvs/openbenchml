@@ -547,13 +547,13 @@ function resetLabCode() {
 // ════════════════════════════════════════════════════════════════════════
 async function runPythonLab() {
   const code = document.getElementById('lab-code-editor').value;
-  const console = document.getElementById('preview-console');
+  const consoleEl = document.getElementById('preview-console');
   const btn = document.getElementById('run-btn');
-  if (!console || !btn) return;
+  if (!consoleEl || !btn) return;
 
   btn.disabled = true;
   btn.innerHTML = '&#8987; Running...';
-  console.innerHTML = '<span class="prompt">&gt;&gt;&gt;</span> <span class="stdout">Running...</span>';
+  consoleEl.innerHTML = '<span class="prompt">&gt;&gt;&gt;</span> <span class="stdout">Running...</span>';
 
   try {
     const resp = await fetch('/api/notebook/cell', {
@@ -564,23 +564,85 @@ async function runPythonLab() {
         timeout_seconds: 10,
       }),
     });
-    const data = await resp.json();
+
+    // ── Check HTTP status BEFORE parsing the body ──────────────
+    // The endpoint returns 401 if not logged in, 422 if validation
+    // fails, 500 if the kernel crashes. Each needs a clear message.
+    if (resp.status === 401) {
+      consoleEl.innerHTML =
+        '<span class="stderr">&#128274; Login required</span>\n\n' +
+        '<span class="stdout">Python labs run real code on the server, which requires an account.\n' +
+        'Please <a href="/login" style="color: #58a6ff;">log in</a> or ' +
+        '<a href="/register" style="color: #58a6ff;">register</a> (free, 30 seconds).</span>';
+      return;
+    }
+    if (resp.status === 429) {
+      consoleEl.innerHTML =
+        '<span class="stderr">&#9888;&#65039; Rate limited</span>\n\n' +
+        '<span class="stdout">Too many requests. Wait a few seconds and try again.</span>';
+      return;
+    }
+    if (resp.status >= 500) {
+      consoleEl.innerHTML =
+        '<span class="stderr">&#9888;&#65039; Server error (' + resp.status + ')</span>\n\n' +
+        '<span class="stdout">The server had trouble running this code. Try again in a moment,\n' +
+        'or simplify the code (long loops / huge outputs can time out).</span>';
+      return;
+    }
+
+    // Try to parse JSON — if it fails (e.g. HTML error page), show raw text
+    let data;
+    try {
+      data = await resp.json();
+    } catch (jsonErr) {
+      const text = await resp.text();
+      consoleEl.innerHTML =
+        '<span class="stderr">Unexpected response (status ' + resp.status + ')</span>\n\n' +
+        '<span class="stdout">' + escapeHtml(text.substring(0, 500)) + '</span>';
+      return;
+    }
+
+    // ── Handle the notebook kernel's own error flag ────────────
+    // The endpoint returns {ok: false, stderr: "..."} for kernel errors
+    // (syntax errors, timeouts, OOM). Show those clearly too.
+    if (data.ok === false && data.stderr) {
+      consoleEl.innerHTML =
+        '<span class="prompt">&gt;&gt;&gt;</span> <span class="stderr">Error:</span>\n' +
+        '<span class="stderr">' + escapeHtml(data.stderr) + '</span>';
+      return;
+    }
+
+    // ── Success — show stdout + stderr + error ─────────────────
     let html = '';
     if (data.stdout) {
-      html += `<span class="stdout">${escapeHtml(data.stdout)}</span>`;
+      html += '<span class="stdout">' + escapeHtml(data.stdout) + '</span>';
     }
     if (data.stderr) {
-      html += (html ? '\n' : '') + `<span class="stderr">${escapeHtml(data.stderr)}</span>`;
+      html += (html ? '\n' : '') + '<span class="stderr">' + escapeHtml(data.stderr) + '</span>';
     }
     if (data.error) {
-      html += (html ? '\n' : '') + `<span class="stderr">${escapeHtml(data.error)}</span>`;
+      html += (html ? '\n' : '') + '<span class="stderr">' + escapeHtml(data.error) + '</span>';
     }
     if (!html) {
-      html = '<span class="empty">(no output — code ran but printed nothing)</span>';
+      // Code ran successfully but produced no output — show a hint about WHY.
+      // Common cause: the code only does an assignment (x = 5) without print().
+      html = '<span class="empty">(code ran successfully but printed nothing)</span>\n' +
+             '<span class="empty">Hint: use print(...) to see output. ' +
+             'In Python, x = 5 does NOT print — you need print(x).</span>';
     }
-    console.innerHTML = `<span class="prompt">&gt;&gt;&gt;</span> <span class="stdout">code executed</span>\n` + html;
+    // Show figures if any (matplotlib plots)
+    if (data.figures && data.figures.length > 0) {
+      html += '\n<span class="prompt">[figure]</span>\n';
+      for (const fig of data.figures) {
+        html += '<img src="data:image/png;base64,' + fig + '" style="max-width:100%;margin:4px 0;display:block;">';
+      }
+    }
+    consoleEl.innerHTML = '<span class="prompt">&gt;&gt;&gt;</span> <span class="stdout">code executed</span>\n' + html;
   } catch (e) {
-    console.innerHTML = `<span class="stderr">Network error: ${escapeHtml(e.message)}</span>\n<span class="empty">Make sure you're logged in — the Python lab uses the notebook kernel.</span>`;
+    consoleEl.innerHTML =
+      '<span class="stderr">Network error: ' + escapeHtml(e.message) + '</span>\n\n' +
+      '<span class="empty">The server might be starting up or you might be offline.\n' +
+      'Wait 10 seconds and try again.</span>';
   } finally {
     btn.disabled = false;
     btn.innerHTML = '&#9654; Run';
@@ -671,7 +733,32 @@ window.addEventListener('DOMContentLoaded', () => {
   if (_labLanguage === 'css' || _labLanguage === 'html') {
     updateLivePreview();
   }
-  // For Python/FastAPI: user must click Run/Simulate — no auto-run on load.
+
+  // For Python labs: check if user is logged in and show a hint immediately
+  // so they know to log in BEFORE clicking Run.
+  if (_labLanguage === 'python') {
+    const consoleEl = document.getElementById('preview-console');
+    {% if user %}
+    // User IS logged in — show a "ready to run" message
+    if (consoleEl) {
+      consoleEl.innerHTML =
+        '<span class="prompt">&gt;&gt;&gt;</span> <span class="stdout">Ready.</span>\n' +
+        '<span class="empty">Click "Run" to execute the code on the left.\n' +
+        'Output will appear here. Edit the code first to try your own variations.</span>';
+    }
+    {% else %}
+    // User is NOT logged in — show a login prompt immediately
+    if (consoleEl) {
+      consoleEl.innerHTML =
+        '<span class="stderr">&#128274; Login required to run Python</span>\n\n' +
+        '<span class="stdout">Python labs execute real code on the server, which needs an account.\n\n' +
+        '<a href="/login" style="color: #58a6ff; text-decoration: underline;">&rarr; Log in</a>\n' +
+        '<a href="/register" style="color: #58a6ff; text-decoration: underline;">&rarr; Register (free)</a>\n\n' +
+        'CSS and HTML labs work without login (they run in your browser).\n' +
+        'Only Python needs the server kernel.</span>';
+    }
+    {% endif %}
+  }
 
   // Tab key in the textarea inserts 2 spaces instead of changing focus
   const editor = document.getElementById('lab-code-editor');
