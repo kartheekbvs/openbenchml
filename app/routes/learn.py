@@ -1054,7 +1054,19 @@ async def learn_category(request: Request, cat_slug: str):
 
 @router.get("/learn/{slug}", response_class=HTMLResponse)
 async def learn_concept(request: Request, slug: str):
-    """Render a single concept page — full explanation + code + where it's used."""
+    """Render a single concept page — full explanation + code + where it's used.
+
+    NOTE: /learn/project and /learn/project/{slug} are handled by
+    app/routes/learn_project.py. We include a defensive redirect here
+    in case this route catches them (e.g. if router registration order
+    is ever changed) — without this, visiting /learn/project would
+    404 instead of routing to the project course.
+    """
+    # Defensive redirect: project URLs belong to learn_project.router
+    if slug == "project" or slug.startswith("project-stage-"):
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"/learn/{slug}", status_code=307)
+
     db = SessionLocal()
     try:
         user = await get_current_user_from_cookie(request, db)
