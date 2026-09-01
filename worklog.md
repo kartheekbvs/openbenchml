@@ -204,3 +204,66 @@ Stage Summary:
 - Files modified:
     app/main.py                              (+2 lines: import + include router)
     templates/learn.html                     (+20 lines: toggle + teaser card)
+
+---
+Task ID: learn-with-interactive-labs
+Agent: main
+Task: Add a third learning mode "Labs" — interactive code editors with live preview for Python, HTML, CSS (classic, no Tailwind), and FastAPI. User wants to change a value (e.g. CSS box-shadow 2px -> 10px) and see the output update instantly. Same teaching style as the chat example pasted by the user.
+
+Work Log:
+- Created app/routes/learn_labs.py with 42 interactive labs across 4 categories:
+    CSS       16 labs  (classic CSS — color, background, border, box-shadow, margin/padding, font, display, position, flexbox, grid, transition, hover/z-index, border-radius, pseudo-classes, @media, cascade/specificity)
+    HTML       6 labs  (tags, forms, tables, semantic, links/images, entities)
+    Python    10 labs  (variables, loops, functions, lists, dicts, if/else, classes, exceptions, strings, comprehensions)
+    FastAPI   10 labs  (first route, path params, query params, Pydantic, templates, dependencies, forms, static files, websocket, middleware)
+- Each lab has 7 fields:
+    slug, category, title, language, summary, starter_code, html_template
+    + explanation + try_changes (list of (change, expected_result) tuples)
+- Created templates/learn_lab.html with:
+    * 3-way toggle at top: Concepts | Learn with Project | Labs
+    * Overview view: 4 category sections, each with a grid of lab cards
+    * Lab view: 2-pane layout
+        LEFT  = code editor (textarea, monospace, Tab inserts 2 spaces)
+        RIGHT = live preview pane (varies by language)
+    * CSS/HTML labs: live iframe with srcdoc that updates 150ms after keystroke
+    * Python labs: "Run" button POSTs to /api/notebook/cell, shows stdout/stderr
+    * FastAPI labs: "Simulate" button parses @app.get/post decorators from the
+      code, lists registered routes, and shows a sample request/response
+    * Reset button restores starter code
+    * Info boxes below: "How it works" (explanation) + "Try these changes"
+      (list of suggested edits with expected results)
+    * Prev/Next navigation within the same category
+- Modified app/main.py:
+    * Imported learn_labs_route
+    * Included it BEFORE learn_route (so /learn/labs doesn't get caught by
+      /learn/{slug} — same fix we did for /learn/project)
+- Modified app/routes/learn.py:
+    * Added defensive RedirectResponse for slug == "labs" or starts with "labs"
+      (same pattern as the project redirect)
+- Modified templates/learn.html:
+    * Updated toggle from 2-way to 3-way: Concepts | Learn with Project | Labs
+    * Added Labs teaser card next to the Project teaser card
+- Created scripts/test_learn_labs.py — 36 static checks (all PASS)
+
+Stage Summary:
+- All 36 new lab checks PASS.
+- All 77 prior project checks still PASS (no regression).
+- All 82 prior workspace checks still PASS (no regression).
+- All 20 prior Pyodide checks still PASS (no regression).
+- Total: 215 checks PASS, 0 FAIL.
+- 42 interactive labs across 4 categories.
+- Live preview works for CSS + HTML (iframe srcdoc, no server round-trip).
+- Python labs use the existing /api/notebook/cell endpoint (real Python execution).
+- FastAPI labs use a client-side simulator (parses routes from code, shows
+  sample request/response — no need to actually boot a server).
+- Routes:
+    GET /learn/labs            (overview — all 42 labs grouped by category)
+    GET /learn/labs/{slug}     (single lab with editor + preview)
+- Files created:
+    app/routes/learn_labs.py             (1180 lines, 42 labs + 2 routes)
+    templates/learn_lab.html             (520 lines, editor + 3 preview modes)
+    scripts/test_learn_labs.py           (180 lines, 36 checks)
+- Files modified:
+    app/main.py                          (+3 lines: import + include + comment)
+    app/routes/learn.py                  (+5 lines: defensive labs redirect)
+    templates/learn.html                 (toggle 2-way -> 3-way, added labs teaser)

@@ -1066,6 +1066,10 @@ async def learn_concept(request: Request, slug: str):
     if slug == "project" or slug.startswith("project-stage-"):
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=f"/learn/{slug}", status_code=307)
+    # Defensive redirect: labs URLs belong to learn_labs.router
+    if slug == "labs" or slug.startswith("labs"):
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"/learn/{slug}", status_code=307)
 
     db = SessionLocal()
     try:

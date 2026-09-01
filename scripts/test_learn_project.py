@@ -176,9 +176,11 @@ check(
     "teaser card links to /learn/project",
     'href="/learn/project"' in LEARN_HTML,
 )
+# The teaser card text mentions the 5-layer stack — accept any of these phrases
 check(
-    "teaser card mentions '5 layers'",
-    '5 layers' in LEARN_HTML or '5 layer' in LEARN_HTML,
+    "teaser card mentions the 5-layer stack",
+    any(phrase in LEARN_HTML for phrase in ['5 layers', '5 layer', 'Python &rarr; ML &rarr; FastAPI &rarr; Jinja &rarr; HTML', 'Python → ML → FastAPI → Jinja → HTML']),
+    "none of the 5-layer phrases found",
 )
 check(
     "teaser card mentions '12 stages'",

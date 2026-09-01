@@ -1,0 +1,693 @@
+{% extends "base.html" %}
+
+{% block title %}
+  {% if view == "lab" %}{{ lab.title }} &mdash; Labs &mdash; OpenBenchML
+  {% else %}Interactive Labs &mdash; OpenBenchML{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  /* ─── Hero ──────────────────────────────────────────────────── */
+  .labs-hero {
+    background: linear-gradient(135deg, rgba(160,192,0,0.10), rgba(188,140,255,0.06));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 2rem;
+    margin-bottom: 1.5rem;
+  }
+  .labs-hero h1 {
+    font-size: 1.9rem; margin-bottom: 0.6rem;
+  }
+  .labs-hero p {
+    color: var(--text-secondary); line-height: 1.6; max-width: 760px;
+  }
+  .labs-hero .stats-row {
+    display: flex; gap: 0.6rem; margin-top: 1rem; flex-wrap: wrap;
+  }
+  .stat-pill {
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.82rem;
+    color: var(--text-secondary);
+  }
+
+  /* ─── 3-way toggle: Concepts | Learn with Project | Labs ──── */
+  .mode-toggle {
+    display: flex; gap: 0.3rem;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 10px; padding: 0.3rem;
+    margin-bottom: 1.5rem; width: fit-content;
+  }
+  .mode-toggle a {
+    padding: 0.4rem 0.9rem; border-radius: 7px;
+    text-decoration: none; color: var(--text-secondary);
+    font-size: 0.86rem; font-weight: 500;
+    transition: all 0.15s;
+  }
+  .mode-toggle a.active {
+    background: var(--accent); color: white;
+  }
+  .mode-toggle a:hover:not(.active) {
+    color: var(--text-primary); background: var(--bg-primary);
+  }
+
+  /* ─── Category sections (overview) ─────────────────────────── */
+  .cat-section {
+    margin-bottom: 2rem;
+  }
+  .cat-header {
+    display: flex; align-items: center; gap: 0.8rem;
+    margin-bottom: 0.8rem;
+  }
+  .cat-icon-big {
+    width: 44px; height: 44px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.6rem; flex-shrink: 0;
+  }
+  .cat-title { font-size: 1.3rem; font-weight: 600; margin: 0; }
+  .cat-blurb { color: var(--text-secondary); font-size: 0.9rem; margin: 0; }
+  .cat-count {
+    margin-left: auto; background: var(--bg-elevated);
+    border: 1px solid var(--border); padding: 0.2rem 0.6rem;
+    border-radius: 999px; font-size: 0.78rem; color: var(--text-secondary);
+  }
+
+  .lab-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 0.8rem;
+  }
+  .lab-card {
+    display: block; padding: 1rem 1.2rem;
+    background: var(--bg-primary); border: 1px solid var(--border);
+    border-radius: 10px; text-decoration: none; color: var(--text-primary);
+    transition: all 0.15s;
+  }
+  .lab-card:hover {
+    border-color: var(--accent); transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(160,192,0,0.08);
+  }
+  .lab-card-title {
+    font-size: 0.98rem; font-weight: 600; margin-bottom: 0.3rem;
+  }
+  .lab-card-summary {
+    font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5;
+  }
+  .lab-card-lang {
+    display: inline-block; margin-top: 0.5rem;
+    background: rgba(160,192,0,0.12); color: var(--accent);
+    padding: 0.1rem 0.5rem; border-radius: 4px;
+    font-size: 0.72rem; font-family: monospace;
+  }
+
+  /* ─── Breadcrumb ───────────────────────────────────────────── */
+  .learn-breadcrumb {
+    display: flex; align-items: center; gap: 0.4rem;
+    color: var(--text-secondary); font-size: 0.86rem;
+    margin-bottom: 1rem;
+  }
+  .learn-breadcrumb a { color: var(--accent); text-decoration: none; }
+  .learn-breadcrumb .sep { opacity: 0.5; }
+
+  /* ─── Lab page layout ──────────────────────────────────────── */
+  .lab-page {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.2rem;
+    align-items: start;
+  }
+  @media (max-width: 1100px) {
+    .lab-page { grid-template-columns: 1fr; }
+  }
+
+  /* ─── Editor pane ──────────────────────────────────────────── */
+  .editor-pane {
+    background: var(--bg-primary); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+  }
+  .editor-header {
+    display: flex; align-items: center; gap: 0.5rem;
+    padding: 0.6rem 0.9rem; background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border); font-size: 0.85rem;
+  }
+  .editor-header .dot {
+    width: 11px; height: 11px; border-radius: 50%;
+    background: var(--accent);
+  }
+  .editor-header .filename {
+    font-family: monospace; color: var(--text-secondary);
+  }
+  .editor-header .run-btn {
+    margin-left: auto; background: var(--accent); color: white;
+    border: none; border-radius: 5px; padding: 0.3rem 0.8rem;
+    font-size: 0.78rem; cursor: pointer; font-weight: 600;
+    transition: background 0.15s;
+  }
+  .editor-header .run-btn:hover { background: #8aab00; }
+  .editor-header .run-btn:disabled {
+    opacity: 0.6; cursor: not-allowed;
+  }
+  .editor-header .reset-btn {
+    background: var(--bg-primary); color: var(--text-secondary);
+    border: 1px solid var(--border); border-radius: 5px;
+    padding: 0.3rem 0.6rem; font-size: 0.78rem; cursor: pointer;
+    margin-left: 0.4rem;
+  }
+  .editor-header .reset-btn:hover { color: var(--text-primary); }
+
+  .code-editor {
+    width: 100%; min-height: 380px;
+    padding: 0.8rem; border: none; outline: none; resize: vertical;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    font-size: 0.84rem; line-height: 1.55;
+    background: var(--bg-primary); color: var(--text-primary);
+    tab-size: 2;
+  }
+
+  /* ─── Preview pane ─────────────────────────────────────────── */
+  .preview-pane {
+    background: var(--bg-primary); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+    display: flex; flex-direction: column;
+    min-height: 420px;
+  }
+  .preview-header {
+    padding: 0.6rem 0.9rem; background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border); font-size: 0.85rem;
+    color: var(--text-secondary);
+    display: flex; align-items: center; gap: 0.5rem;
+  }
+  .preview-header .live-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #3fb950;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .preview-body {
+    flex: 1; padding: 0; overflow: auto;
+    background: white;
+    color: black;
+  }
+
+  /* iframe for HTML/CSS labs */
+  .preview-iframe {
+    width: 100%; min-height: 380px; border: none; background: white;
+  }
+
+  /* Console for Python labs */
+  .preview-console {
+    padding: 0.8rem; font-family: monospace; font-size: 0.84rem;
+    background: #1a1a1a; color: #e0e0e0;
+    min-height: 380px; white-space: pre-wrap; word-break: break-word;
+    line-height: 1.55;
+  }
+  .preview-console .stdout { color: #e0e0e0; }
+  .preview-console .stderr { color: #f85149; }
+  .preview-console .prompt { color: #3fb950; }
+  .preview-console .empty { color: #888; font-style: italic; }
+
+  /* Simulator for FastAPI labs */
+  .preview-simulator {
+    padding: 1rem; font-family: monospace; font-size: 0.82rem;
+    background: #1a1a1a; color: #e0e0e0;
+    min-height: 380px; line-height: 1.55;
+    white-space: pre-wrap;
+  }
+  .preview-simulator .req-method {
+    display: inline-block; padding: 0.1rem 0.5rem;
+    border-radius: 4px; font-weight: 700; font-size: 0.78rem;
+    margin-right: 0.5rem;
+  }
+  .preview-simulator .method-get { background: #58a6ff; color: white; }
+  .preview-simulator .method-post { background: #3fb950; color: white; }
+  .preview-simulator .method-put { background: #bc8cff; color: white; }
+  .preview-simulator .method-delete { background: #f85149; color: white; }
+  .preview-simulator .status-2xx { color: #3fb950; font-weight: 700; }
+  .preview-simulator .status-4xx { color: #f85149; font-weight: 700; }
+  .preview-simulator .status-5xx { color: #f85149; font-weight: 700; }
+  .preview-simulator .label { color: #888; }
+
+  /* ─── Lab info boxes ───────────────────────────────────────── */
+  .lab-info {
+    margin-top: 1.5rem;
+    display: grid; gap: 1rem;
+  }
+  .lab-info-box {
+    padding: 1rem 1.2rem; border-radius: 8px;
+    border-left: 3px solid;
+  }
+  .info-explanation {
+    background: rgba(88,166,255,0.06); border-left-color: #58a6ff;
+    line-height: 1.7;
+  }
+  .info-explanation strong { color: #58a6ff; }
+  .info-try-changes {
+    background: rgba(160,192,0,0.06); border-left-color: var(--accent);
+  }
+  .info-try-changes strong { color: var(--accent); display: block; margin-bottom: 0.5rem; }
+  .info-try-changes ul { padding-left: 1.2rem; line-height: 1.7; }
+  .info-try-changes li { margin-bottom: 0.4rem; }
+  .info-try-changes code {
+    background: var(--bg-elevated); padding: 0.1rem 0.4rem;
+    border-radius: 3px; font-size: 0.85rem;
+  }
+  .info-try-changes .expected {
+    color: var(--text-secondary); font-size: 0.85rem;
+    margin-top: 0.2rem;
+  }
+
+  /* ─── Prev/Next nav ────────────────────────────────────────── */
+  .lab-nav {
+    display: flex; justify-content: space-between;
+    margin-top: 2rem; gap: 1rem;
+  }
+  .lab-nav a {
+    display: block; padding: 0.8rem 1rem;
+    background: var(--bg-elevated); border: 1px solid var(--border);
+    border-radius: 8px; text-decoration: none; color: var(--text-primary);
+    transition: all 0.15s;
+  }
+  .lab-nav a:hover {
+    border-color: var(--accent); background: rgba(160,192,0,0.04);
+  }
+  .lab-nav .nav-label { font-size: 0.75rem; color: var(--text-secondary); }
+  .lab-nav .nav-title { font-size: 0.92rem; font-weight: 600; margin-top: 0.2rem; }
+  .lab-nav .next { text-align: right; }
+
+  /* ─── Sidebar (overview) ───────────────────────────────────── */
+  .labs-sidebar {
+    position: sticky; top: 1rem;
+    background: var(--bg-primary); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1rem;
+    max-height: calc(100vh - 2rem); overflow: auto;
+  }
+  .labs-sidebar h4 { font-size: 0.95rem; margin: 0 0 0.5rem 0; }
+  .labs-sidebar ul { list-style: none; padding: 0; margin: 0; }
+  .labs-sidebar li a {
+    display: block; padding: 0.3rem 0.5rem;
+    border-radius: 5px; text-decoration: none;
+    color: var(--text-primary); font-size: 0.82rem; line-height: 1.4;
+  }
+  .labs-sidebar li a:hover { background: var(--bg-elevated); }
+  .labs-sidebar li a.active {
+    background: rgba(160,192,0,0.12); color: var(--accent); font-weight: 600;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{# ══════════════ 3-WAY TOGGLE ══════════════ #}
+<div class="mode-toggle">
+  <a href="/learn" class="">Concepts</a>
+  <a href="/learn/project" class="">&#128640; Learn with Project</a>
+  <a href="/learn/labs" class="active">&#129518; Labs</a>
+</div>
+
+{% if view == "overview" %}
+  {# ══════════════ OVERVIEW ══════════════ #}
+  <div class="labs-hero">
+    <h1>&#129518; Interactive Labs &mdash; edit code, see live output</h1>
+    <p>Every lab has a code editor on the left and a live preview on the right. Change a value (e.g. <code>box-shadow: 2px</code> &rarr; <code>10px</code>) and the output updates instantly. <strong>CSS/HTML labs</strong> use a live iframe (no server round-trip). <strong>Python labs</strong> run real Python via the server kernel. <strong>FastAPI labs</strong> show a simulated request/response so you can see what each route does without booting a server.</p>
+    <div class="stats-row">
+      <span class="stat-pill">{{ total_labs }} labs</span>
+      <span class="stat-pill">4 categories</span>
+      <span class="stat-pill">Live preview</span>
+      <span class="stat-pill">No setup required</span>
+    </div>
+  </div>
+
+  {% for cat_name in category_order %}
+    {% set labs = labs_by_category[cat_name] %}
+    {% set meta = category_meta[cat_name] %}
+    <div class="cat-section">
+      <div class="cat-header">
+        <div class="cat-icon-big" style="background: {{ meta.color }}22; border: 1px solid {{ meta.color }}55; color: {{ meta.color }};">
+          {{ meta.icon | safe }}
+        </div>
+        <div>
+          <h3 class="cat-title">{{ cat_name }}</h3>
+          <p class="cat-blurb">{{ meta.blurb }}</p>
+        </div>
+        <span class="cat-count">{{ labs | length }} labs</span>
+      </div>
+      <div class="lab-grid">
+        {% for lab in labs %}
+        <a class="lab-card" href="/learn/labs/{{ lab.slug }}">
+          <div class="lab-card-title">{{ lab.title }}</div>
+          <div class="lab-card-summary">{{ lab.summary }}</div>
+          <span class="lab-card-lang">{{ lab.language }}</span>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+
+{% elif view == "lab" %}
+  {# ══════════════ LAB PAGE ══════════════ #}
+  <div class="learn-breadcrumb">
+    <a href="/learn/labs">&#129518; Labs</a>
+    <span class="sep">/</span>
+    <a href="/learn/labs">{{ lab.category }}</a>
+    <span class="sep">/</span>
+    <span>{{ lab.title }}</span>
+  </div>
+
+  <h1 style="font-size: 1.5rem; margin-bottom: 0.3rem;">{{ lab.title }}</h1>
+  <p style="color: var(--text-secondary); margin-bottom: 1.2rem; font-size: 0.95rem;">{{ lab.summary }}</p>
+
+  <div class="lab-page">
+    {# ── Editor pane ── #}
+    <div class="editor-pane">
+      <div class="editor-header">
+        <span class="dot"></span>
+        <span class="filename">
+          {% if lab.language == 'css' %}style.css{% endif %}
+          {% if lab.language == 'html' %}index.html{% endif %}
+          {% if lab.language == 'python' %}script.py{% endif %}
+          {% if lab.language == 'fastapi' %}main.py{% endif %}
+        </span>
+        {% if lab.language == 'python' %}
+        <button class="run-btn" id="run-btn" onclick="runPythonLab()">&#9654; Run</button>
+        {% endif %}
+        {% if lab.language == 'fastapi' %}
+        <button class="run-btn" id="run-btn" onclick="runFastApiLab()">&#9654; Simulate</button>
+        {% endif %}
+        <button class="reset-btn" onclick="resetLabCode()">&#8635; Reset</button>
+      </div>
+      <textarea
+        class="code-editor"
+        id="lab-code-editor"
+        spellcheck="false"
+        oninput="onLabCodeChange()"
+      >{{ lab.starter_code }}</textarea>
+    </div>
+
+    {# ── Preview pane ── #}
+    <div class="preview-pane">
+      <div class="preview-header">
+        {% if lab.language == 'css' or lab.language == 'html' %}
+          <span class="live-dot"></span>
+          <span>Live preview</span>
+          <span style="margin-left: auto; font-size: 0.78rem;">updates as you type</span>
+        {% elif lab.language == 'python' %}
+          <span class="live-dot" style="background: #58a6ff;"></span>
+          <span>Python output</span>
+          <span style="margin-left: auto; font-size: 0.78rem;">click Run to execute</span>
+        {% elif lab.language == 'fastapi' %}
+          <span class="live-dot" style="background: #bc8cff;"></span>
+          <span>API simulator</span>
+          <span style="margin-left: auto; font-size: 0.78rem;">click Simulate</span>
+        {% endif %}
+      </div>
+      <div class="preview-body">
+        {% if lab.language == 'css' %}
+          <iframe id="preview-iframe" class="preview-iframe"></iframe>
+        {% elif lab.language == 'html' %}
+          <iframe id="preview-iframe" class="preview-iframe"></iframe>
+        {% elif lab.language == 'python' %}
+          <div id="preview-console" class="preview-console">
+            <span class="empty">Click "Run" to execute the code on the left.<br>The output will appear here.</span>
+          </div>
+        {% elif lab.language == 'fastapi' %}
+          <div id="preview-simulator" class="preview-simulator">
+            <span class="empty">Click "Simulate" to see what this FastAPI app does.</span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  {# ── Info boxes ── #}
+  <div class="lab-info">
+    {% if lab.explanation %}
+    <div class="lab-info-box info-explanation">
+      <strong>&#129504; How it works</strong>
+      <p>{{ lab.explanation }}</p>
+    </div>
+    {% endif %}
+
+    {% if lab.try_changes %}
+    <div class="lab-info-box info-try-changes">
+      <strong>&#9999;&#65039; Try these changes</strong>
+      <ul>
+        {% for change, expected in lab.try_changes %}
+        <li>
+          <code>{{ change }}</code>
+          <div class="expected">&rarr; {{ expected }}</div>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+
+  {# ── Prev/Next nav ── #}
+  <div class="lab-nav">
+    {% if prev_lab %}
+    <a href="/learn/labs/{{ prev_lab.slug }}">
+      <div class="nav-label">&larr; Previous lab</div>
+      <div class="nav-title">{{ prev_lab.title }}</div>
+    </a>
+    {% else %}
+    <div></div>
+    {% endif %}
+    {% if next_lab %}
+    <a href="/learn/labs/{{ next_lab.slug }}" class="next">
+      <div class="nav-label">Next lab &rarr;</div>
+      <div class="nav-title">{{ next_lab.title }}</div>
+    </a>
+    {% endif %}
+  </div>
+
+{% else %}
+  <div style="text-align:center; padding: 4rem;">Unknown view.</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// ════════════════════════════════════════════════════════════════════════
+//  Interactive Labs — live preview engine
+// ════════════════════════════════════════════════════════════════════════
+
+// Preserve the original starter code so the Reset button can restore it.
+const _starterCode = {{ lab.starter_code | tojson if view == "lab" else "null" }};
+const _labLanguage = {{ lab.language | tojson if view == "lab" else "null" }};
+const _labHtmlTemplate = {{ lab.html_template | tojson if view == "lab" else "null" }};
+
+// Debounce timer for live preview (don't re-render on every keystroke)
+let _previewTimer = null;
+
+function onLabCodeChange() {
+  // Live preview only for CSS and HTML — Python/FastAPI wait for Run button
+  if (_labLanguage === 'css' || _labLanguage === 'html') {
+    clearTimeout(_previewTimer);
+    _previewTimer = setTimeout(updateLivePreview, 150);
+  }
+}
+
+function updateLivePreview() {
+  if (_labLanguage !== 'css' && _labLanguage !== 'html') return;
+  const code = document.getElementById('lab-code-editor').value;
+  const iframe = document.getElementById('preview-iframe');
+  if (!iframe) return;
+
+  let html;
+  if (_labLanguage === 'css') {
+    // CSS lab: combine user's CSS with the pre-defined HTML template
+    html = `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; padding: 16px; background: white; color: black; }
+    ${code}
+  </style>
+</head>
+<body>
+  ${_labHtmlTemplate || '<div>Edit the CSS to see changes here.</div>'}
+</body>
+</html>`;
+  } else {
+    // HTML lab: the user's code IS the HTML
+    html = `<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; padding: 16px; background: white; color: black; }
+    /* default styles so unstyled HTML is still readable */
+    h1, h2, h3 { margin: 0.5em 0; }
+    p { margin: 0.5em 0; line-height: 1.5; }
+    table { border-collapse: collapse; }
+    th, td { padding: 4px 8px; border: 1px solid #ccc; }
+  </style>
+</head>
+<body>
+  ${code}
+</body>
+</html>`;
+  }
+
+  // srcdoc is the cleanest way to put HTML into an iframe
+  iframe.srcdoc = html;
+}
+
+function resetLabCode() {
+  if (!confirm('Reset code to the original starter? Your changes will be lost.')) return;
+  document.getElementById('lab-code-editor').value = _starterCode;
+  onLabCodeChange();
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Python lab — POST to /api/notebook/cell and show stdout/stderr
+// ════════════════════════════════════════════════════════════════════════
+async function runPythonLab() {
+  const code = document.getElementById('lab-code-editor').value;
+  const console = document.getElementById('preview-console');
+  const btn = document.getElementById('run-btn');
+  if (!console || !btn) return;
+
+  btn.disabled = true;
+  btn.innerHTML = '&#8987; Running...';
+  console.innerHTML = '<span class="prompt">&gt;&gt;&gt;</span> <span class="stdout">Running...</span>';
+
+  try {
+    const resp = await fetch('/api/notebook/cell', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        code: code,
+        timeout_seconds: 10,
+      }),
+    });
+    const data = await resp.json();
+    let html = '';
+    if (data.stdout) {
+      html += `<span class="stdout">${escapeHtml(data.stdout)}</span>`;
+    }
+    if (data.stderr) {
+      html += (html ? '\n' : '') + `<span class="stderr">${escapeHtml(data.stderr)}</span>`;
+    }
+    if (data.error) {
+      html += (html ? '\n' : '') + `<span class="stderr">${escapeHtml(data.error)}</span>`;
+    }
+    if (!html) {
+      html = '<span class="empty">(no output — code ran but printed nothing)</span>';
+    }
+    console.innerHTML = `<span class="prompt">&gt;&gt;&gt;</span> <span class="stdout">code executed</span>\n` + html;
+  } catch (e) {
+    console.innerHTML = `<span class="stderr">Network error: ${escapeHtml(e.message)}</span>\n<span class="empty">Make sure you're logged in — the Python lab uses the notebook kernel.</span>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '&#9654; Run';
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  FastAPI lab — simulate a request/response based on the code
+// ════════════════════════════════════════════════════════════════════════
+function runFastApiLab() {
+  const code = document.getElementById('lab-code-editor').value;
+  const sim = document.getElementById('preview-simulator');
+  if (!sim) return;
+
+  // Parse the code to extract routes (@app.get('/path'), etc.)
+  const routes = [];
+  const routeRe = /@app\.(get|post|put|delete|patch|websocket)\s*\(\s*['"]([^'"]+)['"]/g;
+  let m;
+  while ((m = routeRe.exec(code)) !== null) {
+    routes.push({ method: m[1].toUpperCase(), path: m[2] });
+  }
+
+  // Parse Pydantic models (very rough — just for display)
+  const models = [];
+  const modelRe = /class\s+(\w+)\s*\(BaseModel\)/g;
+  while ((m = modelRe.exec(code)) !== null) {
+    models.push(m[1]);
+  }
+
+  let html = '';
+  html += '<span class="label">// Registered routes (parsed from the code):</span>\n\n';
+  if (routes.length === 0) {
+    html += '<span class="empty">No @app.get/post/... routes found in the code.</span>\n';
+  } else {
+    for (const r of routes) {
+      const methodClass = 'method-' + r.method.toLowerCase();
+      html += `<span class="req-method ${methodClass}">${r.method}</span> <span class="stdout">${r.path}</span>\n`;
+    }
+  }
+
+  if (models.length) {
+    html += '\n<span class="label">// Pydantic models defined:</span>\n';
+    for (const modelName of models) {
+      html += `<span class="stdout">  ${modelName}</span>\n`;
+    }
+  }
+
+  // Show a sample request/response for the FIRST route
+  if (routes.length > 0) {
+    const first = routes[0];
+    html += '\n<span class="label">// Example request → response:</span>\n\n';
+    html += `<span class="req-method method-${first.method.toLowerCase()}">${first.method}</span> <span class="stdout">http://localhost:8000${first.path}</span>\n`;
+    html += '<span class="label">Headers: { "Content-Type": "application/json" }</span>\n\n';
+    html += '<span class="label">// Response (200 OK):</span>\n';
+    html += `<span class="status-2xx">HTTP/1.1 200 OK</span>\n`;
+    html += '<span class="label">Content-Type: application/json</span>\n\n';
+    // Sample JSON response — we can't actually run FastAPI, so show a placeholder
+    html += '<span class="stdout">{\n  "message": "Hello, World!",\n  "note": "This is a simulated response. To see the real output, run the code locally with: uvicorn main:app --reload"\n}</span>\n';
+  }
+
+  html += '\n<span class="label">// To run for real:</span>\n';
+  html += '<span class="stdout">$ pip install fastapi uvicorn</span>\n';
+  html += '<span class="stdout">$ uvicorn main:app --reload</span>\n';
+  html += '<span class="label">// Then open http://localhost:8000/docs for the auto-generated Swagger UI.</span>\n';
+
+  sim.innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Helper — HTML-escape user output
+// ════════════════════════════════════════════════════════════════════════
+function escapeHtml(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Boot — render the initial preview on page load
+// ════════════════════════════════════════════════════════════════════════
+{% if view == "lab" %}
+window.addEventListener('DOMContentLoaded', () => {
+  // For CSS/HTML labs: render the live preview immediately
+  if (_labLanguage === 'css' || _labLanguage === 'html') {
+    updateLivePreview();
+  }
+  // For Python/FastAPI: user must click Run/Simulate — no auto-run on load.
+
+  // Tab key in the textarea inserts 2 spaces instead of changing focus
+  const editor = document.getElementById('lab-code-editor');
+  if (editor) {
+    editor.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end);
+        editor.selectionStart = editor.selectionEnd = start + 2;
+        onLabCodeChange();
+      }
+    });
+  }
+});
+{% endif %}
+</script>
+{% endblock %}

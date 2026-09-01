@@ -281,11 +281,12 @@ from app.routes import auth, dashboard, models, datasets, benchmark, leaderboard
 from app.routes import competitions, comments  # noqa: E402
 from app.routes import convert  # noqa: E402
 from app.routes import notebook as notebook_route  # noqa: E402
-# IMPORTANT: learn_project is included BEFORE learn so /learn/project and
-# /learn/project/{slug} are registered before /learn/{slug} (which would
-# otherwise catch "project" as a slug and 404). FastAPI matches routes in
-# registration order — more specific paths must come first.
+# IMPORTANT: learn_project + learn_labs are included BEFORE learn so their
+# more specific paths (/learn/project, /learn/labs) are matched before
+# /learn/{slug} (which would otherwise catch "project" / "labs" as a slug
+# and 404). FastAPI matches routes in registration order.
 from app.routes import learn_project as learn_project_route  # noqa: E402
+from app.routes import learn_labs as learn_labs_route  # noqa: E402
 from app.routes import learn as learn_route  # noqa: E402
 from app.routes import auth_bridge  # noqa: E402
 
@@ -300,7 +301,8 @@ app.include_router(comments.router)
 app.include_router(convert.router)
 app.include_router(notebook_route.router)
 app.include_router(learn_project_route.router)   # /learn/project — registered first
-app.include_router(learn_route.router)            # /learn/{slug} — registered second
+app.include_router(learn_labs_route.router)       # /learn/labs    — registered second
+app.include_router(learn_route.router)            # /learn/{slug}  — registered last (catch-all)
 app.include_router(auth_bridge.router)
 
 
