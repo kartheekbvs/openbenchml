@@ -194,8 +194,12 @@ check(
     'srcdoc' in LL_HTML,
 )
 check(
-    "POSTs to /api/notebook/cell for Python execution",
-    "/api/notebook/cell" in LL_HTML,
+    "uses Pyodide for Python execution (no server round-trip)",
+    "_loadPyodideForLabs" in LL_HTML and "pyodide.runPython" in LL_HTML,
+)
+check(
+    "does NOT use server /api/notebook/cell (old slow path removed)",
+    "/api/notebook/cell" not in LL_HTML,
 )
 
 print("\n[7] templates/learn.html has the 3-way toggle")

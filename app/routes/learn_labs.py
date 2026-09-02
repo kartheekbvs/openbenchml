@@ -2677,6 +2677,283 @@ _ML_ADVANCED_LABS = [
             ("Add subsample=0.8", 'stochastic gradient boosting — each tree sees 80% of data, reduces overfitting'),
         ],
     },
+
+    # ═══════════════ SECTION: INTERACTIVE SLIDER LABS ═══════════════
+    # Pure JS + SVG — instant feedback, no Pyodide loading needed.
+    # Users DRAG sliders and SEE the graph update in real-time.
+    # Each lab has: explanation + interactive controls + live chart.
+
+    {
+        "slug": "ml-interactive-linear-regression",
+        "category": "ML Advanced",
+        "title": "Interactive: Linear Regression — drag the slope + intercept",
+        "language": "interactive",
+        "summary": "DRAG the slope and intercept sliders. SEE the line move in real-time. SEE the MSE (cost) change. This is how you build intuition for what .fit() does.",
+        "starter_code": "",
+        "html_template": "",
+        "interactive_config": {
+            "chart_type": "svg_scatter_line",
+            "title": "Linear Regression: y = intercept + slope × x",
+            "explanation": (
+                "The BLUE line is your model: y = intercept + slope × x. "
+                "The DOTS are the data points. "
+                "The RED dashed line shows the PERFECT fit (the true relationship). "
+                "MSE (Mean Squared Error) measures how far off your line is — lower is better. "
+                "DRAG the sliders to find the lowest MSE. That's what .fit() does automatically!"
+            ),
+            "controls": [
+                {"name": "slope", "label": "Slope (β₁)", "min": -5, "max": 5, "step": 0.1, "default": 1.0},
+                {"name": "intercept", "label": "Intercept (β₀)", "min": -10, "max": 10, "step": 0.5, "default": 0.0},
+                {"name": "noise", "label": "Data noise", "min": 0, "max": 5, "step": 0.5, "default": 2.0},
+            ],
+            "data_generator": "linear_regression",
+        },
+        "explanation": (
+            "INTERACTIVE LEARNING: Don't just read about linear regression — FEEL it. "
+            "Drag the slope slider left/right. Watch the line rotate. "
+            "Drag the intercept slider. Watch the line move up/down. "
+            "The MSE number tells you how bad your line is. Find the minimum! "
+            "This is exactly what gradient descent does — it searches for the slope + intercept "
+            "that minimizes MSE. You're doing it manually; the algorithm does it in milliseconds. "
+            "Increase the noise slider to see how harder data makes the minimum less obvious."
+        ),
+        "try_changes": [
+            ("Set slope=3, intercept=2 — that's the true relationship", "MSE should be near minimum"),
+            ("Set slope=0 — the line is flat, MSE is high", "the model predicts the same value for everything"),
+            ("Set noise=5 — data is very scattered", "harder to find the right line by eye"),
+            ("Set slope=-2 — negative relationship", "the line goes downhill"),
+        ],
+    },
+    {
+        "slug": "ml-interactive-logistic-regression",
+        "category": "ML Advanced",
+        "title": "Interactive: Logistic Regression — drag the sigmoid + decision boundary",
+        "language": "interactive",
+        "summary": "DRAG the weight + bias sliders. SEE the sigmoid curve shift. SEE the decision boundary move. SEE how probability changes for each data point.",
+        "starter_code": "",
+        "html_template": "",
+        "interactive_config": {
+            "chart_type": "svg_sigmoid",
+            "title": "Logistic Regression: P(class=1) = σ(weight×x + bias)",
+            "explanation": (
+                "The S-CURVE is the sigmoid function σ(z) = 1/(1+e^(-z)). "
+                "It squashes any number to [0, 1] = probability. "
+                "The DECISION BOUNDARY is where σ=0.5 (the vertical dashed line). "
+                "LEFT of boundary → predict class 0 (blue dots). "
+                "RIGHT of boundary → predict class 1 (red dots). "
+                "DRAG weight to change the CURVATURE (steeper = more confident). "
+                "DRAG bias to move the boundary LEFT/RIGHT."
+            ),
+            "controls": [
+                {"name": "weight", "label": "Weight (w)", "min": -5, "max": 5, "step": 0.1, "default": 1.0},
+                {"name": "bias", "label": "Bias (b)", "min": -5, "max": 5, "step": 0.1, "default": 0.0},
+            ],
+            "data_generator": "logistic_classification",
+        },
+        "explanation": (
+            "INTERACTIVE LOGISTIC REGRESSION: "
+            "The sigmoid is the HEART of logistic regression. "
+            "weight (w) controls how STEEP the curve is. "
+            "  High weight = sharp transition (very confident). "
+            "  Low weight = gradual transition (uncertain). "
+            "bias (b) shifts the curve LEFT/RIGHT. "
+            "  Positive bias = boundary moves left (predict 1 more often). "
+            "  Negative bias = boundary moves right (predict 0 more often). "
+            "The decision boundary is at x = -bias/weight. "
+            "Try to find the weight + bias that best separates the blue and red dots!"
+        ),
+        "try_changes": [
+            ("Set weight=5 — very steep curve", "sharp decision boundary, very confident predictions"),
+            ("Set weight=0.1 — almost flat curve", "predictions are always ~0.5, useless model"),
+            ("Set bias=-3 — boundary moves right", "predicts class 0 for more of the data"),
+            ("Set weight=-2 — negative relationship", "curve flips — predicts 1 on the LEFT"),
+        ],
+    },
+    {
+        "slug": "ml-interactive-knn",
+        "category": "ML Advanced",
+        "title": "Interactive: KNN — drag K and watch the boundary change",
+        "language": "interactive",
+        "summary": "DRAG the K slider. SEE the decision boundary morph from jagged (K=1) to smooth (K=20). SEE how each K affects the classification of a new point.",
+        "starter_code": "",
+        "html_template": "",
+        "interactive_config": {
+            "chart_type": "svg_knn_boundary",
+            "title": "KNN: Decision boundary changes with K",
+            "explanation": (
+                "The colored REGIONS show what class KNN would predict at each point. "
+                "The DOTS are the training data (blue=class 0, red=class 1). "
+                "The GREEN X is a new sample — its color shows the prediction. "
+                "K=1: JAGGED boundary, each point is its own island (OVERFIT). "
+                "K=5-10: SMOOTH boundary, captures the real pattern (GOOD). "
+                "K=20: TOO SMOOTH, might miss local patterns (UNDERFIT). "
+                "DRAG K to see the boundary morph in real-time!"
+            ),
+            "controls": [
+                {"name": "k", "label": "K (neighbors)", "min": 1, "max": 25, "step": 2, "default": 5},
+            ],
+            "data_generator": "knn_classification",
+        },
+        "explanation": (
+            "INTERACTIVE KNN: "
+            "K is the most important parameter — it controls the bias-variance tradeoff. "
+            "K=1 (OVERFIT): every training point is its own nearest neighbor. "
+            "  Boundary is JAGGED — captures noise as if it were signal. "
+            "  100% train accuracy, terrible test accuracy. "
+            "K=5-10 (GOOD): smooth boundary, captures the real pattern. "
+            "  The boundary follows the general shape of the data. "
+            "K=20 (UNDERFIT): boundary is too smooth. "
+            "  Ignores local structure — predicts the majority class everywhere. "
+            "RULE OF THUMB: K = √(n_samples). Always use ODD K (prevents ties). "
+            "DRAG the slider and watch the green X change color as it crosses the boundary!"
+        ),
+        "try_changes": [
+            ("Set K=1 — extreme overfitting", "boundary is jagged, green X prediction depends on exact position"),
+            ("Set K=25 — extreme underfitting", "boundary is almost flat, predicts majority class everywhere"),
+            ("Set K=7 — good balance", "smooth boundary that captures the real pattern"),
+        ],
+    },
+    {
+        "slug": "ml-interactive-overfitting",
+        "category": "ML Advanced",
+        "title": "Interactive: Overfitting — drag polynomial degree + see train vs test",
+        "language": "interactive",
+        "summary": "DRAG the polynomial degree slider. SEE the curve go from straight line (underfit) to wiggly mess (overfit). SEE train vs test error diverge.",
+        "starter_code": "",
+        "html_template": "",
+        "interactive_config": {
+            "chart_type": "svg_polynomial_overfit",
+            "title": "Overfitting: Polynomial degree controls complexity",
+            "explanation": (
+                "The BLUE CURVE is your model (polynomial of degree N). "
+                "The DOTS are training data. The GREEN DOTS are test data. "
+                "The GRAY dashed line is the TRUE relationship (sin curve). "
+                "Degree 1 (UNDERFIT): straight line — can't capture the curve. "
+                "Degree 3-5 (GOOD): captures the sin pattern. Train ≈ test error. "
+                "Degree 15 (OVERFIT): wiggly mess — passes through every training point "
+                "but completely misses test points. Train error ≈ 0, test error EXPLODES. "
+                "WATCH the train/test error bars at the bottom!"
+            ),
+            "controls": [
+                {"name": "degree", "label": "Polynomial degree", "min": 1, "max": 15, "step": 1, "default": 3},
+                {"name": "noise", "label": "Data noise", "min": 0, "max": 0.5, "step": 0.05, "default": 0.15},
+            ],
+            "data_generator": "polynomial_overfit",
+        },
+        "explanation": (
+            "INTERACTIVE OVERFITTING: "
+            "This is the #1 reason ML models fail in production. "
+            "DRAG the degree slider from 1 to 15 and WATCH: "
+            "  Degree 1: model is a straight line. Can't capture the sin curve. "
+            "    Train error HIGH, test error HIGH. → UNDERFITTING. "
+            "  Degree 3-5: model captures the curve. "
+            "    Train error LOW, test error LOW. → GOOD FIT. "
+            "  Degree 15: model passes through every training point perfectly! "
+            "    Train error = 0. But test error EXPLODES. → OVERFITTING. "
+            "The GAP between train and test error is the overfitting signal. "
+            "If train >> test, your model is memorizing, not learning. "
+            "FIXES: (1) reduce degree, (2) more data, (3) regularization, (4) cross-validation."
+        ),
+        "try_changes": [
+            ("Set degree=1 — straight line", "can't capture the curve — underfitting"),
+            ("Set degree=15 — wiggly mess", "passes through every training point, fails on test — overfitting"),
+            ("Set noise=0.4 — very noisy data", "harder to find the right degree"),
+            ("Set degree=4 — good fit", "captures the sin pattern without overfitting"),
+        ],
+    },
+    {
+        "slug": "ml-interactive-kmeans",
+        "category": "ML Advanced",
+        "title": "Interactive: K-Means — drag K and watch centroids + clusters",
+        "language": "interactive",
+        "summary": "DRAG the K slider. SEE centroids move. SEE clusters form. SEE the elbow plot update. Find the natural number of clusters.",
+        "starter_code": "",
+        "html_template": "",
+        "interactive_config": {
+            "chart_type": "svg_kmeans",
+            "title": "K-Means: drag K and watch clusters form",
+            "explanation": (
+                "The DOTS are data points, colored by cluster. "
+                "The BIG X marks are CENTROIDS (cluster centers). "
+                "DRAG K to change the number of clusters. "
+                "The INERTIA (bottom chart) measures how tight the clusters are — lower is better. "
+                "But inertia ALWAYS decreases with more K. "
+                "Look for the ELBOW — where adding more K stops helping. "
+                "That's the natural number of clusters!"
+            ),
+            "controls": [
+                {"name": "k", "label": "K (clusters)", "min": 1, "max": 8, "step": 1, "default": 3},
+            ],
+            "data_generator": "kmeans_clustering",
+        },
+        "explanation": (
+            "INTERACTIVE K-MEANS: "
+            "K-Means is UNSUPERVISED — it finds structure without labels. "
+            "ALGORITHM: (1) place K centroids randomly, (2) assign each point to nearest centroid, "
+            "(3) move centroid to mean of its points, (4) repeat until stable. "
+            "DRAG K and watch: "
+            "  K=1: all points are one cluster. Inertia is HIGH (spread out). "
+            "  K=3: clusters form naturally (this data has 3 real groups). "
+            "  K=8: too many clusters — splits natural groups. Inertia is low but meaningless. "
+            "ELBOW PLOT: inertia vs K. The BEND is the natural K. "
+            "For this data: elbow at K=3. K-Means finds the 3 groups WITHOUT being told they exist!"
+        ),
+        "try_changes": [
+            ("Set K=1 — all one cluster", "inertia is maximum — no structure found"),
+            ("Set K=3 — natural clusters", "3 tight clusters — this is the elbow"),
+            ("Set K=8 — too many clusters", "splits natural groups — overfitting the clustering"),
+        ],
+    },
+    {
+        "slug": "ml-interactive-bias-variance",
+        "category": "ML Advanced",
+        "title": "Interactive: Bias-Variance Tradeoff — the fundamental ML curve",
+        "language": "interactive",
+        "summary": "DRAG the model complexity slider. SEE bias decrease, variance increase, and total error form a U-shape. The sweet spot is the minimum.",
+        "starter_code": "",
+        "html_template": "",
+        "interactive_config": {
+            "chart_type": "svg_bias_variance",
+            "title": "Bias-Variance Tradeoff: the U-curve of ML",
+            "explanation": (
+                "The BLUE line is BIAS (how wrong the model is on average). "
+                "Decreases with complexity — more complex models can fit more patterns. "
+                "The RED line is VARIANCE (how much the model changes with different training data). "
+                "Increases with complexity — more complex models are more sensitive to noise. "
+                "The GREEN line is TOTAL ERROR = bias² + variance. "
+                "It forms a U-SHAPE. The MINIMUM is the sweet spot — best generalization. "
+                "LEFT of minimum: UNDERFITTING (high bias). "
+                "RIGHT of minimum: OVERFITTING (high variance). "
+                "DRAG the complexity slider to find the minimum!"
+            ),
+            "controls": [
+                {"name": "complexity", "label": "Model complexity", "min": 1, "max": 20, "step": 1, "default": 5},
+            ],
+            "data_generator": "bias_variance_curve",
+        },
+        "explanation": (
+            "THE FUNDAMENTAL TRADEOFF OF ML: "
+            "Every model has TWO sources of error: "
+            "BIAS: the model is too SIMPLE to capture the pattern. "
+            "  Linear model on curved data = high bias. "
+            "  Symptom: train error HIGH, test error HIGH. "
+            "VARIANCE: the model is too COMPLEX, sensitive to noise. "
+            "  Degree-15 polynomial on 20 points = high variance. "
+            "  Symptom: train error LOW, test error HIGH (the gap). "
+            "TOTAL ERROR = bias² + variance + irreducible noise. "
+            "Forms a U-curve. The minimum = best model. "
+            "LEFT of min: underfitting (increase complexity). "
+            "RIGHT of min: overfitting (decrease complexity or regularize). "
+            "This curve is why we can't just use the most complex model — "
+            "variance kills you. And we can't use the simplest — bias kills you. "
+            "The art of ML is finding the sweet spot."
+        ),
+        "try_changes": [
+            ("Set complexity=1 — extreme underfitting", "bias is high, variance is low, total error is high"),
+            ("Set complexity=5 — the sweet spot", "bias + variance are balanced, total error is minimum"),
+            ("Set complexity=20 — extreme overfitting", "bias is low but variance is huge, total error is high"),
+        ],
+    },
 ]
 
 
