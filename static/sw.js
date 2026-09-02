@@ -130,6 +130,13 @@ self.addEventListener('fetch', (event) => {
   // Skip /ws/* — WebSocket upgrade requests
   if (url.pathname.startsWith('/ws/')) return;
 
+  // SKIP /learn/labs/* — lab pages must always be fresh (JS changes frequently)
+  // This is the fix for "interactive charts not showing" — stale cache was
+  // serving the old broken version. Lab pages now bypass the service worker.
+  if (url.pathname.startsWith('/learn/labs')) {
+    return;  // Let the browser fetch from network directly
+  }
+
   // Static assets → cache-first
   if (url.pathname.startsWith('/static/')) {
     event.respondWith(handleStaticAsset(request));
