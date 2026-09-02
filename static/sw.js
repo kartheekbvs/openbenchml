@@ -17,7 +17,7 @@
    Version: 1.0.0  (bump to force cache invalidation on deploy)
    ========================================================================== */
 
-const CACHE_VERSION = 'obml-v2.0.0';
+const CACHE_VERSION = 'obml-v3.0.0';  // bumped to force ALL caches to be deleted
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const PAGE_CACHE = `${CACHE_VERSION}-pages`;
 
@@ -32,26 +32,37 @@ const PRECACHE_URLS = [
 // Maximum number of pages to cache (LRU eviction when exceeded).
 const MAX_PAGE_CACHE = 30;
 
-// Install event — precache critical assets.
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(STATIC_CACHE)
-      .then((cache) => cache.addAll(PRECACHE_URLS))
-      .catch((err) => console.warn('[SW] precache failed (non-fatal):', err))
-      .then(() => self.skipWaiting())  // activate new SW immediately
-  );
-});
-
-// Activate event — clean up old caches.
+// Activate event — clean up old caches + take control immediately.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
         keys
           .filter((key) => !key.startsWith(CACHE_VERSION))
-          .map((key) => caches.delete(key))
+          .map((key) => {
+            console.log('[SW] deleting old cache:', key);
+            return caches.delete(key);
+          })
       ))
-      .then(() => self.clients.claim())  // take control of all open tabs
+      .then(() => {
+        console.log('[SW] activated, claiming all clients');
+        return self.clients.claim();  // take control of ALL open tabs immediately
+      })
+  );
+});
+
+// Also delete ALL caches on install (nuclear option — ensures no stale content)
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.keys()
+      .then((keys) => Promise.all(keys.map((key) => {
+        console.log('[SW] install: deleting cache:', key);
+        return caches.delete(key);
+      })))
+      .then(() => caches.open(STATIC_CACHE))
+      .then((cache) => cache.addAll(PRECACHE_URLS))
+      .catch((err) => console.warn('[SW] precache failed (non-fatal):', err))
+      .then(() => self.skipWaiting())  // activate new SW immediately
   );
 });
 
@@ -201,4 +212,12 @@ self.addEventListener('message', (event) => {
   if (event.data === 'skipWaiting') {
     self.skipWaiting();
   }
+});
+
+// ─── Auto-refresh all clients when SW updates ──────────────────────────
+// When a new service worker takes control, tell all open tabs to refresh.
+// This ensures users always see the latest version without manual action.
+self.addEventListener('controllerchange', () => {
+  // This fires on the PAGE side when a new SW takes control
+  // We handle it in base.html
 });
