@@ -91,6 +91,15 @@ async def cache_middleware(request: Request, call_next: Callable):
         response.headers["Vary"] = "Accept-Encoding"
         return response
 
+    # ── /learn/labs/* pages: NO caching at all (always fresh) ─────────
+    # Lab pages change frequently and stale caching causes broken interactive
+    # charts + missing Run buttons. Force the browser to always fetch fresh.
+    if path.startswith("/learn/labs"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
+
     # ── HTML pages: ETag + revalidation ──────────────────────────────
     content_type = response.headers.get("content-type", "")
     if _is_html_page(path, content_type) and response.status_code == 200:

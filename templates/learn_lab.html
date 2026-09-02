@@ -435,7 +435,9 @@
           {% if lab.language == 'html' %}index.html{% endif %}
           {% if lab.language == 'python' %}script.py{% endif %}
           {% if lab.language == 'fastapi' %}main.py{% endif %}
+          {% if lab.language == 'interactive' %}interactive.lab{% endif %}
         </span>
+        <span style="font-size:0.7rem;color:#888;margin-left:0.5rem;">v3.1</span>
         {% if lab.language == 'python' %}
         <button class="run-btn" id="run-btn" onclick="runPythonLab()">&#9654; Run (Pyodide)</button>
         {% endif %}
