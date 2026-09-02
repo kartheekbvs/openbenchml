@@ -912,30 +912,36 @@ function escapeHtml(s) {
 //  Boot — render the initial preview on page load
 // ════════════════════════════════════════════════════════════════════════
 {% if view == "lab" %}
-window.addEventListener('DOMContentLoaded', () => {
-  // For CSS/HTML labs: render the live preview immediately
-  if (_labLanguage === 'css' || _labLanguage === 'html') {
-    updateLivePreview();
-  }
-
-  // For Interactive labs: build sliders + render initial chart
-  if (_labLanguage === 'interactive' && _interactiveConfig) {
-    initInteractiveLab();
-  }
-
-  // For Python labs: show a ready message (Pyodide loads on first Run click)
-  if (_labLanguage === 'python') {
-    const consoleEl = document.getElementById('preview-console');
-    if (consoleEl) {
-      consoleEl.innerHTML =
-        '<span class="prompt">&gt;&gt;&gt;</span> <span class="stdout">Ready.</span>\n' +
-        '<span class="empty">Click "Run" to execute the code in your browser via Pyodide.\n' +
-        'No login needed — Python runs in WebAssembly (first load ~10s, then cached).\n' +
-        'Matplotlib plots will appear inline. Edit the code first to try your own variations.</span>';
+// Interactive lab init — works whether DOM is still loading or already loaded
+function _initLabs() {
+  try {
+    // For CSS/HTML labs: render the live preview immediately
+    if (_labLanguage === 'css' || _labLanguage === 'html') {
+      updateLivePreview();
     }
+
+    // For Interactive labs: build sliders + render initial chart
+    if (_labLanguage === 'interactive' && _interactiveConfig) {
+      console.log('[labs] Initializing interactive lab with config:', _interactiveConfig);
+      initInteractiveLab();
+    }
+
+    // For Python labs: show a ready message
+    if (_labLanguage === 'python') {
+      const consoleEl = document.getElementById('preview-console');
+      if (consoleEl) {
+        consoleEl.innerHTML =
+          '<span class="prompt">&gt;&gt;&gt;</span> <span class="stdout">Ready.</span>\n' +
+          '<span class="empty">Click "Run" to execute the code in your browser via Pyodide.\n' +
+          'No login needed — Python runs in WebAssembly (first load ~10s, then cached).\n' +
+          'Matplotlib plots will appear inline. Edit the code first to try your own variations.</span>';
+      }
+    }
+  } catch (e) {
+    console.error('[labs] Init error:', e);
   }
 
-  // Tab key in the textarea inserts 2 spaces instead of changing focus.
+  // Tab key handler
   function attachTabHandler(editorEl) {
     if (!editorEl) return;
     editorEl.addEventListener('keydown', (e) => {
@@ -951,7 +957,15 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   attachTabHandler(document.getElementById('lab-code-editor'));
   attachTabHandler(document.getElementById('lab-html-editor'));
-});
+}
+
+// Run init — handle both "DOM still loading" and "DOM already loaded" cases
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _initLabs);
+} else {
+  // DOM already loaded (script was loaded after DOMContentLoaded fired)
+  _initLabs();
+}
 
 // ════════════════════════════════════════════════════════════════════════
 //  INTERACTIVE LAB ENGINE — sliders + live SVG charts

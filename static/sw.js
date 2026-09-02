@@ -17,7 +17,7 @@
    Version: 1.0.0  (bump to force cache invalidation on deploy)
    ========================================================================== */
 
-const CACHE_VERSION = 'obml-v1.0.0';
+const CACHE_VERSION = 'obml-v2.0.0';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const PAGE_CACHE = `${CACHE_VERSION}-pages`;
 
