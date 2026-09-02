@@ -529,7 +529,7 @@
         {% elif lab.language == 'interactive' %}
           <div id="preview-interactive" class="preview-interactive">
             <div class="interactive-explanation" id="interactive-explanation"></div>
-            <svg id="interactive-svg" viewBox="0 0 500 350" style="width:100%;height:auto;background:white;"></svg>
+            <div id="interactive-chart-container" style="width:100%;min-height:350px;"></div>
             <div class="interactive-metrics" id="interactive-metrics"></div>
           </div>
         {% endif %}
@@ -995,9 +995,9 @@ function renderInteractiveChart() {
   const config = _interactiveConfig;
   if (!config) return;
 
-  const svg = document.getElementById('interactive-svg');
+  const container = document.getElementById('interactive-chart-container');
   const metricsEl = document.getElementById('interactive-metrics');
-  if (!svg) return;
+  if (!container) return;
 
   // Generate data based on the data_generator type
   const gen = config.data_generator;
@@ -1018,11 +1018,14 @@ function renderInteractiveChart() {
     [svgContent, metrics] = renderBiasVariance(_interactiveState);
   }
 
-  svg.innerHTML = svgContent;
+  // Build the FULL SVG string and set it as innerHTML of the container div.
+  // This is more reliable than setting innerHTML on an SVG element directly.
+  const fullSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 350" style="width:100%;height:auto;background:white;">' + svgContent + '</svg>';
+  container.innerHTML = fullSvg;
 
   if (metricsEl) {
     metricsEl.innerHTML = Object.entries(metrics).map(([k, v]) =>
-      `<div class="metric"><span class="metric-label">${k}</span> <span class="metric-value">${v}</span></div>`
+      '<div class="metric"><span class="metric-label">' + k + '</span> <span class="metric-value">' + v + '</span></div>'
     ).join('');
   }
 }
