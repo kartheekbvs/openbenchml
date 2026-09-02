@@ -169,8 +169,8 @@ check(
 
 print("\n[8] templates/learn.html has toggle + teaser card")
 check(
-    "has Concepts / Learn with Project toggle",
-    'Concepts' in LEARN_HTML and 'Learn with Project' in LEARN_HTML,
+    "has Concepts / Project / Labs / Benchmark 4-way toggle",
+    all(x in LEARN_HTML for x in ['Concepts', 'Project', 'Labs', 'Benchmark']),
 )
 check(
     "teaser card links to /learn/project",
