@@ -1679,31 +1679,371 @@ _FASTAPI_LABS = [
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+#  BENCHMARK ENGINE LABS — how to build a benchmarking engine for ANY model
+# ═══════════════════════════════════════════════════════════════════════════
+
+_BENCH_LABS = [
+    {
+        "slug": "bench-load-pkl-model",
+        "category": "Benchmark Engine",
+        "title": "Load a .pkl model file (joblib + pickle)",
+        "language": "python",
+        "summary": "The first step of any benchmarking engine: load the model the user uploaded. joblib.load() and pickle.loads() both work.",
+        "starter_code": "import joblib\nimport pickle\nimport io\nimport numpy as np\nfrom sklearn.linear_model import LinearRegression\nfrom sklearn.datasets import make_regression\n\n# ── Step 1: Train a dummy model so we have something to save ──\nX, y = make_regression(n_samples=100, n_features=3, noise=5, random_state=42)\nmodel = LinearRegression().fit(X, y)\nprint('Trained:', type(model).__name__)\n\n# ── Step 2: Save it as a .pkl file ──\njoblib.dump(model, 'model.pkl')\nprint('Saved -> model.pkl')\n\n# ── Step 3: Load it back TWO ways ──\n\n# Way 1: joblib.load (preferred for sklearn models)\nmodel_v1 = joblib.load('model.pkl')\nprint('Loaded via joblib:', type(model_v1).__name__)\n\n# Way 2: pickle.loads (works on bytes — what you get from UploadFile.read())\nwith open('model.pkl', 'rb') as f:\n    file_bytes = f.read()\nmodel_v2 = pickle.loads(file_bytes)\nprint('Loaded via pickle.loads:', type(model_v2).__name__)\n\n# ── Step 4: Verify both loaded models predict the same thing ──\nX_new = np.array([[1.5, -0.5, 2.0]])\npred1 = model_v1.predict(X_new)[0]\npred2 = model_v2.predict(X_new)[0]\nprint(f'joblib prediction:  {pred1:.4f}')\nprint(f'pickle prediction:  {pred2:.4f}')\nprint(f'Same? {abs(pred1 - pred2) < 1e-10}')",
+        "html_template": "",
+        "explanation": (
+            "Two ways to load a .pkl model: "
+            "joblib.load('model.pkl') — loads from a file path. Faster for numpy arrays. "
+            "pickle.loads(bytes) — loads from a bytes object. This is what you use when "
+            "the model comes from an HTTP upload: `file_bytes = await upload_file.read()` "
+            "then `model = pickle.loads(file_bytes)`. "
+            "Both produce the same object — the trained model with all its coefficients. "
+            "WARNING: pickle is unsafe for untrusted files — it can execute arbitrary code. "
+            "In production, run pickle.loads in a sandbox."
+        ),
+        "try_changes": [
+            ("Change make_regression n_features from 3 to 5", "model trains with 5 features instead of 3"),
+            ("Change the save path from 'model.pkl' to 'my_model.pkl'", "saves to a different file"),
+            ("Add a print(model.coef_) after loading", "shows the learned coefficients"),
+            ("Replace LinearRegression with from sklearn.ensemble import RandomForestRegressor", "different model type — same load code works"),
+        ],
+    },
+    {
+        "slug": "bench-run-predict",
+        "category": "Benchmark Engine",
+        "title": "Run predict() on a loaded model",
+        "language": "python",
+        "summary": "Once the model is loaded, call .predict(X) to get predictions. This is the core of inference benchmarking.",
+        "starter_code": "import joblib\nimport numpy as np\nfrom sklearn.linear_model import LinearRegression\nfrom sklearn.datasets import make_regression\nfrom sklearn.model_selection import train_test_split\n\n# Train + save a model (simulating what a user would upload)\nX, y = make_regression(n_samples=200, n_features=4, noise=10, random_state=42)\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\nmodel = LinearRegression().fit(X_train, y_train)\njoblib.dump(model, 'model.pkl')\n\n# ── BENCHMARK ENGINE: load the model + run predictions ──\nloaded_model = joblib.load('model.pkl')\nprint(f'Loaded model: {type(loaded_model).__name__}')\n\n# predict() takes a 2D array — even for a single sample\n# Shape: (n_samples, n_features)\nprint(f'X_test shape: {X_test.shape}')  # (40, 4) — 40 samples, 4 features\n\n# Run predictions on the WHOLE test set\ny_pred = loaded_model.predict(X_test)\nprint(f'y_pred shape: {y_pred.shape}')  # (40,) — 40 predictions\nprint(f'First 5 predictions: {y_pred[:5]}')\nprint(f'First 5 actual:      {y_test[:5]}')\n\n# Predict on a SINGLE new sample (must be 2D!)\nnew_sample = np.array([[1.5, -0.5, 2.0, 0.8]])  # shape (1, 4)\nsingle_pred = loaded_model.predict(new_sample)\nprint(f'\\nSingle sample prediction: {single_pred[0]:.4f}')\n\n# COMMON BUG: passing a 1D array — sklearn will crash or give wrong results\ntry:\n    bad_pred = loaded_model.predict([1.5, -0.5, 2.0, 0.8])  # 1D!\nexcept Exception as e:\n    print(f'\\n1D array error: {type(e).__name__}: {e}')",
+        "html_template": "",
+        "explanation": (
+            "model.predict(X) is the core of inference. "
+            "X must be 2D: (n_samples, n_features). Even for 1 sample: shape (1, 4), not (4,). "
+            "Returns a 1D array: (n_samples,) — one prediction per input row. "
+            "For classification: predict() returns class labels (0, 1, 2...). "
+            "predict_proba() returns probabilities (n_samples, n_classes). "
+            "The COMMON BUG at the bottom shows what happens with a 1D array — "
+            "sklearn either crashes or reshapes it wrong."
+        ),
+        "try_changes": [
+            ("Change test_size from 0.2 to 0.5", "bigger test set → more predictions"),
+            ("Replace LinearRegression with RandomForestRegressor(n_estimators=50)", "different model, same predict() call"),
+            ("Change new_sample values", "different prediction"),
+            ("Add predict_proba (need a classifier): use make_classification instead of make_regression", "returns probabilities instead of values"),
+        ],
+    },
+    {
+        "slug": "bench-measure-training-time",
+        "category": "Benchmark Engine",
+        "title": "Measure training time (time.perf_counter)",
+        "language": "python",
+        "summary": "The 'benchmark' part: how long does model.fit() take? Use time.perf_counter() for high-precision timing.",
+        "starter_code": "import time\nimport numpy as np\nfrom sklearn.linear_model import LinearRegression, Ridge\nfrom sklearn.ensemble import RandomForestRegressor\nfrom sklearn.datasets import make_regression\n\n# Generate a bigger dataset so timing is meaningful\nX, y = make_regression(n_samples=10000, n_features=20, noise=15, random_state=42)\nprint(f'Dataset: {X.shape[0]} samples, {X.shape[1]} features')\n\n# ── Benchmark function: times the fit() call ──\ndef benchmark_training(model, X, y, name):\n    start = time.perf_counter()\n    model.fit(X, y)\n    end = time.perf_counter()\n    elapsed = end - start\n    print(f'  {name:30s}  {elapsed*1000:8.1f} ms')\n    return elapsed\n\nprint('\\nTraining benchmark (3 models):')\nprint('-' * 50)\n\nt1 = benchmark_training(LinearRegression(), X, y, 'LinearRegression')\nt2 = benchmark_training(Ridge(alpha=1.0), X, y, 'Ridge')\nt3 = benchmark_training(RandomForestRegressor(n_estimators=50), X, y, 'RandomForest(50 trees)')\n\nprint('-' * 50)\nprint(f'Fastest: LinearRegression ({t1*1000:.1f} ms)')\nprint(f'Slowest: RandomForest ({t3*1000:.1f} ms)')\nprint(f'RF is {t3/t1:.1f}x slower than LinearRegression')\n\n# ── Why perf_counter not time()? ──\nprint('\\nWhy perf_counter?')\nprint(f'  time.time() resolution:        ~1 ms')\nprint(f'  time.perf_counter() resolution: ~0.001 ms')\nprint(f'  perf_counter is monotonic (never goes backwards)')",
+        "html_template": "",
+        "explanation": (
+            "time.perf_counter() is the right tool for measuring durations. "
+            "Higher resolution than time.time() (which is for wall-clock time). "
+            "Monotonic — never goes backwards (important on multi-core systems). "
+            "The benchmark function wraps fit() with start/end timers. "
+            "LinearRegression is fastest (closed-form solution). "
+            "RandomForest is slowest (builds 50 trees). "
+            "This is what 'benchmarking' means — measuring TIME so you can compare models."
+        ),
+        "try_changes": [
+            ("Change n_samples from 10000 to 100000", "10x more data → all models take longer"),
+            ("Change n_estimators from 50 to 200", "RandomForest takes 4x longer"),
+            ("Add from sklearn.svm import SVR; benchmark_training(SVR(), X[:1000], y[:1000], 'SVR')", "SVMs are slow on large data"),
+            ("Wrap the timing in a loop (run fit 5 times, take average)", "more stable measurement"),
+        ],
+    },
+    {
+        "slug": "bench-measure-inference-time",
+        "category": "Benchmark Engine",
+        "title": "Measure inference time + throughput",
+        "language": "python",
+        "summary": "How fast can the model make predictions? Measure inference time, per-sample latency, and throughput (samples/sec).",
+        "starter_code": "import time\nimport joblib\nimport numpy as np\nfrom sklearn.linear_model import LinearRegression\nfrom sklearn.ensemble import RandomForestRegressor\nfrom sklearn.datasets import make_regression\n\n# Generate test data\nX, _ = make_regression(n_samples=10000, n_features=10, noise=10, random_state=42)\nX_test = X[:1000]  # 1000 samples for inference benchmark\nprint(f'Test set: {X_test.shape[0]} samples, {X_test.shape[1]} features')\n\n# Train + save models\nmodels = {\n    'LinearRegression': LinearRegression().fit(X, X[:, 0]),  # dummy target\n    'RandomForest(50)': RandomForestRegressor(n_estimators=50, random_state=42).fit(X, X[:, 0]),\n}\n\n# ── Inference benchmark function ──\ndef benchmark_inference(model, X_test, name):\n    # Warm-up: first predict() call is slower (lazy init)\n    model.predict(X_test[:10])\n\n    # Time the prediction\n    start = time.perf_counter()\n    y_pred = model.predict(X_test)\n    end = time.perf_counter()\n\n    inference_time = end - start\n    n_samples = len(X_test)\n    latency_per_sample = inference_time / n_samples\n    throughput = n_samples / inference_time\n\n    print(f'  {name:25s}  '\n          f'total: {inference_time*1000:7.2f} ms  '\n          f'latency: {latency_per_sample*1e6:7.1f} us/sample  '\n          f'throughput: {throughput:8.0f} samples/sec')\n    return inference_time, throughput\n\nprint('\\nInference benchmark:')\nprint('-' * 80)\nfor name, model in models.items():\n    benchmark_inference(model, X_test, name)\n\n# ── Single-sample latency (what real-time APIs care about) ──\nprint('\\nSingle-sample latency (real-time API scenario):')\nfor name, model in models.items():\n    sample = X_test[:1]  # 1 sample, shape (1, 10)\n    # Average over 100 calls\n    start = time.perf_counter()\n    for _ in range(100):\n        model.predict(sample)\n    end = time.perf_counter()\n    avg_latency_us = (end - start) / 100 * 1e6\n    print(f'  {name:25s}  {avg_latency_us:7.1f} us per prediction')",
+        "html_template": "",
+        "explanation": (
+            "Three metrics matter for inference: "
+            "(1) TOTAL inference time — how long for the whole test set. "
+            "(2) PER-SAMPLE LATENCY — inference_time / n_samples. What users feel. "
+            "(3) THROUGHPUT — n_samples / inference_time. How many requests/sec the model can handle. "
+            "WARM-UP is critical: the first predict() call is slower (lazy initialization, JIT compilation). "
+            "Always warm up before timing, or your numbers will be skewed. "
+            "For real-time APIs, measure SINGLE-SAMPLE latency (predict 1 sample, average over 100 calls). "
+            "Batch prediction is always faster per-sample (amortized overhead)."
+        ),
+        "try_changes": [
+            ("Change X_test size from 1000 to 10000", "bigger batch → higher throughput"),
+            ("Change n_estimators from 50 to 200", "RandomForest takes longer per prediction"),
+            ("Remove the warm-up call", "first prediction will be slower, skewing the average"),
+            ("Change the single-sample loop from 100 to 1000 iterations", "more stable average"),
+        ],
+    },
+    {
+        "slug": "bench-regression-metrics",
+        "category": "Benchmark Engine",
+        "title": "Regression metrics — MAE, MSE, RMSE, R²",
+        "language": "python",
+        "summary": "Compute the 4 standard regression metrics. Each tells you something different about model quality.",
+        "starter_code": "import numpy as np\nfrom sklearn.linear_model import LinearRegression, RandomForestRegressor\nfrom sklearn.datasets import make_regression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score\n\n# Generate data + train 2 models\nX, y = make_regression(n_samples=500, n_features=5, noise=20, random_state=42)\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nlr = LinearRegression().fit(X_train, y_train)\nrf = RandomForestRegressor(n_estimators=50, random_state=42).fit(X_train, y_train)\n\n# ── Compute metrics for both models ──\ndef compute_metrics(model, X_test, y_test, name):\n    y_pred = model.predict(X_test)\n\n    mae = mean_absolute_error(y_test, y_pred)\n    mse = mean_squared_error(y_test, y_pred)\n    rmse = np.sqrt(mse)\n    r2 = r2_score(y_test, y_pred)\n\n    print(f'\\n{name}:')\n    print(f'  MAE  = {mae:8.2f}   (avg error — easy to interpret)')\n    print(f'  MSE  = {mse:8.2f}   (squared error — punishes big errors)')\n    print(f'  RMSE = {rmse:8.2f}   (sqrt of MSE — back in original units)')\n    print(f'  R²   = {r2:8.4f}   (0-1, how much better than guessing mean)')\n    return {'MAE': mae, 'MSE': mse, 'RMSE': rmse, 'R2': r2}\n\nlr_metrics = compute_metrics(lr, X_test, y_test, 'LinearRegression')\nrf_metrics = compute_metrics(rf, X_test, y_test, 'RandomForest')\n\n# ── Compare ──\nprint('\\n' + '=' * 50)\nprint('Comparison (lower is better for MAE/MSE/RMSE, higher for R²):')\nfor metric in ['MAE', 'MSE', 'RMSE', 'R2']:\n    lr_val = lr_metrics[metric]\n    rf_val = rf_metrics[metric]\n    if metric == 'R2':\n        winner = 'RF' if rf_val > lr_val else 'LR'\n    else:\n        winner = 'RF' if rf_val < lr_val else 'LR'\n    print(f'  {metric:5s}  LR={lr_val:8.2f}  RF={rf_val:8.2f}  winner: {winner}')",
+        "html_template": "",
+        "explanation": (
+            "4 metrics, 4 questions: "
+            "MAE (Mean Absolute Error) — 'on average, how far off?' Same units as target. Most interpretable. "
+            "MSE (Mean Squared Error) — squares errors, so big errors count more. Units are target² (hard to interpret). "
+            "RMSE (Root Mean Squared Error) — sqrt of MSE. Back in target units. Like MAE but punishes outliers. "
+            "R² (R-squared) — 0 to 1. How much better than just predicting the mean. 1=perfect, 0=mean, <0=worse than mean. "
+            "Rule of thumb: report MAE to non-technical people, R² in papers, RMSE when comparing models with outliers."
+        ),
+        "try_changes": [
+            ("Change noise from 20 to 50 in make_regression", "harder data → all metrics worse"),
+            ("Change n_estimators from 50 to 200", "RF might improve slightly"),
+            ("Add from sklearn.svm import SVR; compute SVR metrics", "compare 3 models"),
+            ("Change test_size from 0.2 to 0.4", "bigger test set → more stable metrics"),
+        ],
+    },
+    {
+        "slug": "bench-classification-metrics",
+        "category": "Benchmark Engine",
+        "title": "Classification metrics — accuracy, precision, recall, F1",
+        "language": "python",
+        "summary": "For classification models: accuracy, precision, recall, F1, confusion matrix. Each catches a different kind of failure.",
+        "starter_code": "import numpy as np\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.ensemble import RandomForestClassifier\nfrom sklearn.datasets import make_classification\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import (\n    accuracy_score, precision_score, recall_score, f1_score,\n    confusion_matrix, classification_report\n)\n\n# Generate IMBALANCED data (90% class 0, 10% class 1) — common in real life\nX, y = make_classification(\n    n_samples=1000, n_features=10, n_informative=5,\n    n_classes=2, weights=[0.9, 0.1],  # 90% / 10% split\n    random_state=42\n)\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\nlr = LogisticRegression().fit(X_train, y_train)\nrf = RandomForestClassifier(n_estimators=50, random_state=42).fit(X_train, y_train)\n\n# ── Compute classification metrics ──\ndef compute_cls_metrics(model, X_test, y_test, name):\n    y_pred = model.predict(X_test)\n\n    acc = accuracy_score(y_test, y_pred)\n    prec = precision_score(y_test, y_pred, zero_division=0)\n    rec = recall_score(y_test, y_pred, zero_division=0)\n    f1 = f1_score(y_test, y_pred, zero_division=0)\n    cm = confusion_matrix(y_test, y_pred)\n\n    print(f'\\n{name}:')\n    print(f'  Accuracy  = {acc:.4f}   (overall correctness)')\n    print(f'  Precision = {prec:.4f}   (of predicted positives, how many right?)')\n    print(f'  Recall    = {rec:.4f}   (of actual positives, how many caught?)')\n    print(f'  F1        = {f1:.4f}   (harmonic mean of P + R)')\n    print(f'  Confusion matrix:')\n    print(f'    TN={cm[0,0]:4d}  FP={cm[0,1]:4d}')\n    print(f'    FN={cm[1,0]:4d}  TP={cm[1,1]:4d}')\n\ncompute_cls_metrics(lr, X_test, y_test, 'LogisticRegression')\ncompute_cls_metrics(rf, X_test, y_test, 'RandomForest')\n\n# ── Why accuracy is misleading on imbalanced data ──\nprint('\\n' + '=' * 60)\nprint('Why accuracy is MISLEADING on imbalanced data:')\nprint(f'  Class distribution: {np.bincount(y_test)}')\nprint(f'  If we ALWAYS predict class 0, accuracy = {np.bincount(y_test)[0]/len(y_test):.4f}')\nprint(f'  But recall for class 1 = 0.0000 (we never catch positives!)')\nprint(f'  Use F1 or recall for imbalanced data, NOT accuracy.')",
+        "html_template": "",
+        "explanation": (
+            "4 metrics + 1 matrix: "
+            "Accuracy — overall correctness. MISLEADING on imbalanced data (90% class 0 → 90% accuracy by always predicting 0). "
+            "Precision — of all predicted positives, how many were actually positive? (spam filter: high precision = few false alarms) "
+            "Recall — of all actual positives, how many did we catch? (cancer screening: high recall = few missed cases) "
+            "F1 — harmonic mean of precision + recall. Use when you can't pick. "
+            "Confusion matrix — 2x2 grid of TN, FP, FN, TP. The ground truth behind all metrics. "
+            "ALWAYS look at the confusion matrix + class distribution before trusting accuracy."
+        ),
+        "try_changes": [
+            ("Change weights from [0.9, 0.1] to [0.5, 0.5]", "balanced data → accuracy becomes meaningful"),
+            ("Change n_estimators from 50 to 200", "RF might improve recall"),
+            ("Add print(classification_report(y_test, rf.predict(X_test)))", "per-class breakdown"),
+            ("Change the target to make_classification(n_classes=3, ...)", "multi-class — metrics computed per-class"),
+        ],
+    },
+    {
+        "slug": "bench-cross-validation",
+        "category": "Benchmark Engine",
+        "title": "Cross-validation — more honest than a single split",
+        "language": "python",
+        "summary": "Single train/test split = lucky or unlucky. 5-fold CV runs 5 different splits and averages — more honest.",
+        "starter_code": "import numpy as np\nfrom sklearn.linear_model import LinearRegression\nfrom sklearn.ensemble import RandomForestRegressor\nfrom sklearn.datasets import make_regression\nfrom sklearn.model_selection import cross_validate, KFold\n\nX, y = make_regression(n_samples=500, n_features=5, noise=20, random_state=42)\n\n# ── KFold: defines HOW to split ──\ncv = KFold(n_splits=5, shuffle=True, random_state=42)\nprint(f'5-fold CV: data split into 5 pieces, train on 4, test on 1, repeat 5x')\n\n# ── cross_validate: runs the CV + computes metrics ──\n# scoring uses sklearn's internal names. 'neg_' prefix because sklearn MAXIMIZES scores.\nscoring = {\n    'MAE': 'neg_mean_absolute_error',\n    'MSE': 'neg_mean_squared_error',\n    'R2': 'r2',\n}\n\ndef benchmark_cv(model, X, y, name):\n    results = cross_validate(model, X, y, cv=cv, scoring=scoring, return_train_score=False)\n\n    # results['test_MAE'] is an array of 5 values (one per fold)\n    # Negate because sklearn negated them (it maximizes)\n    mae_scores = -results['test_MAE']\n    mse_scores = -results['test_MSE']\n    r2_scores = results['test_R2']\n\n    print(f'\\n{name}:')\n    print(f'  MAE per fold:  {mae_scores.round(2)}')\n    print(f'  MAE mean ± std: {mae_scores.mean():.2f} ± {mae_scores.std():.2f}')\n    print(f'  MSE mean:       {mse_scores.mean():.2f}')\n    print(f'  RMSE mean:      {np.sqrt(mse_scores.mean()):.2f}')\n    print(f'  R² per fold:    {r2_scores.round(4)}')\n    print(f'  R² mean ± std:  {r2_scores.mean():.4f} ± {r2_scores.std():.4f}')\n    return r2_scores.mean()\n\nprint('Cross-validation benchmark:')\nprint('=' * 60)\nlr_r2 = benchmark_cv(LinearRegression(), X, y, 'LinearRegression')\nrf_r2 = benchmark_cv(RandomForestRegressor(n_estimators=50, random_state=42), X, y, 'RandomForest')\n\nprint(f'\\nWinner (higher R²): {\"RandomForest\" if rf_r2 > lr_r2 else \"LinearRegression\"}')",
+        "html_template": "",
+        "explanation": (
+            "Why CV? A single train/test split is one sample from many possible splits. "
+            "You might get lucky (easy test set) or unlucky (hard test set). "
+            "5-fold CV runs 5 different splits and averages — more honest estimate. "
+            "KFold(n_splits=5, shuffle=True) — split into 5 pieces, shuffle first. "
+            "cross_validate(model, X, y, cv=cv, scoring=...) — runs the CV, returns a dict of arrays. "
+            "Each metric is an array of 5 values (one per fold). Report MEAN ± STD. "
+            "Std tells you how stable the model is — high std = sensitive to the data split. "
+            "neg_ prefix: sklearn maximizes scores, so errors are negated (maximizing -MAE = minimizing MAE)."
+        ),
+        "try_changes": [
+            ("Change n_splits from 5 to 10", "10-fold CV — more folds, slower, slightly more accurate"),
+            ("Change shuffle from True to False", "no shuffling — if data is sorted, CV is biased"),
+            ("Change n_estimators from 50 to 200", "RF R² might improve"),
+            ("Add return_train_score=True and compare train vs test R²", "if train >> test, model is overfitting"),
+        ],
+    },
+    {
+        "slug": "bench-handle-any-model",
+        "category": "Benchmark Engine",
+        "title": "Handle ANY model type (sklearn, xgboost, custom)",
+        "language": "python",
+        "summary": "A benchmarking engine must work with ANY .pkl — not just LinearRegression. Use duck typing: check for .predict().",
+        "starter_code": "import joblib\nimport numpy as np\nfrom sklearn.linear_model import LinearRegression, LogisticRegression\nfrom sklearn.ensemble import RandomForestRegressor, RandomForestClassifier\nfrom sklearn.svm import SVR\nfrom sklearn.datasets import make_regression, make_classification\nfrom sklearn.model_selection import train_test_split\n\n# ── Train 4 different models + save them ──\n# Regression models\nXr, yr = make_regression(n_samples=200, n_features=5, noise=10, random_state=42)\njoblib.dump(LinearRegression().fit(Xr, yr), 'lr.pkl')\njoblib.dump(RandomForestRegressor(n_estimators=20, random_state=42).fit(Xr, yr), 'rf_reg.pkl')\njoblib.dump(SVR().fit(Xr, yr), 'svr.pkl')\n\n# Classification model\nXc, yc = make_classification(n_samples=200, n_features=5, n_informative=3, random_state=42)\njoblib.dump(LogisticRegression().fit(Xc, yc), 'logreg.pkl')\n\n# ── BENCHMARK ENGINE: load any .pkl + figure out what it is ──\ndef benchmark_any_model(pkl_path, X_test, y_test=None):\n    \"\"\"Load a .pkl model and benchmark it — works with ANY model type.\"\"\"\n    model = joblib.load(pkl_path)\n\n    # Duck typing: check what methods the model has\n    has_predict = hasattr(model, 'predict')\n    has_predict_proba = hasattr(model, 'predict_proba')\n    has_feature_importances = hasattr(model, 'feature_importances_')\n    has_coef = hasattr(model, 'coef_')\n\n    print(f'\\nLoaded {pkl_path}:')\n    print(f'  Type: {type(model).__name__}')\n    print(f'  Module: {type(model).__module__}')\n    print(f'  has predict:            {has_predict}')\n    print(f'  has predict_proba:      {has_predict_proba}')\n    print(f'  has feature_importances: {has_feature_importances}')\n    print(f'  has coef_:              {has_coef}')\n\n    if not has_predict:\n        print('  ERROR: model has no predict() method — not a valid ML model')\n        return None\n\n    # Run prediction\n    y_pred = model.predict(X_test)\n    print(f'  Prediction shape: {y_pred.shape}')\n    print(f'  Prediction dtype: {y_pred.dtype}')\n    print(f'  First 3 predictions: {y_pred[:3]}')\n\n    # Detect regression vs classification\n    # If predictions are floats → regression. If integers → classification.\n    is_regression = y_pred.dtype.kind == 'f'\n    print(f'  Task type: {\"REGRESSION\" if is_regression else \"CLASSIFICATION\"}')\n\n    return model\n\n# Test with all 4 models\nprint('Benchmarking 4 different model types:')\nprint('=' * 60)\nbenchmark_any_model('lr.pkl', Xr[:10])\nbenchmark_any_model('rf_reg.pkl', Xr[:10])\nbenchmark_any_model('svr.pkl', Xr[:10])\nbenchmark_any_model('logreg.pkl', Xc[:10])",
+        "html_template": "",
+        "explanation": (
+            "A benchmarking engine MUST work with any model — not just the ones you trained. "
+            "Use DUCK TYPING: check hasattr(model, 'predict') instead of isinstance(model, LinearRegression). "
+            "Why? Because xgboost.XGBRegressor, lightgbm.LGBMRegressor, custom classes — all have .predict(). "
+            "Don't care WHAT it is, care what it CAN DO. "
+            "Detect regression vs classification by checking y_pred.dtype: "
+            "  float → regression (predict returns continuous values). "
+            "  int → classification (predict returns class labels). "
+            "  Also check for predict_proba — only classifiers have it. "
+            "feature_importances_ → tree-based models (RF, XGBoost). "
+            "coef_ → linear models (LinearRegression, LogisticRegression, SVM). "
+            "This is how OpenBenchML handles ANY uploaded .pkl file."
+        ),
+        "try_changes": [
+            ("Add a dummy class with no predict() method and try to benchmark it", "shows the error handling"),
+            ("Change the regression detection to also check predict_proba", "classifiers have predict_proba, regressors don't"),
+            ("Add from sklearn.cluster import KMeans; joblib.dump(KMeans(n_clusters=3).fit(Xr), 'kmeans.pkl'); benchmark_any_model('kmeans.pkl', Xr[:10])", "KMeans has predict() but it's clustering, not classification"),
+            ("Print model.get_params() if the model has it", "shows hyperparameters"),
+        ],
+    },
+    {
+        "slug": "bench-fastapi-upload-endpoint",
+        "category": "Benchmark Engine",
+        "title": "FastAPI endpoint — accept .pkl file upload",
+        "language": "fastapi",
+        "summary": "The FastAPI route that receives the .pkl file + form fields. Uses UploadFile = File() + Form().",
+        "starter_code": "from fastapi import FastAPI, UploadFile, File, Form, HTTPException\nfrom fastapi.responses import JSONResponse\nimport pickle\nimport io\nimport time\nimport pandas as pd\nimport numpy as np\n\napp = FastAPI(title=\"Benchmark Engine\")\n\n@app.post(\"/benchmark\")\nasync def benchmark_model(\n    model_file: UploadFile = File(...),\n    dataset: str = Form(...),\n    framework: str = Form(default=\"sklearn\"),\n):\n    \"\"\"Receive a .pkl model + dataset name, run benchmark, return metrics.\"\"\"\n    # 1. Validate the file is a .pkl\n    if not model_file.filename.endswith(\".pkl\"):\n        raise HTTPException(400, \"File must be a .pkl file\")\n\n    # 2. Read the file bytes (async — streams the file)\n    file_bytes = await model_file.read()\n    print(f\"Received {model_file.filename}: {len(file_bytes)} bytes\")\n\n    # 3. Load the model from bytes (pickle.loads, not pickle.load)\n    try:\n        model = pickle.loads(file_bytes)\n    except Exception as e:\n        raise HTTPException(400, f\"Failed to load model: {e}\")\n\n    # 4. Check it's actually a model (duck typing)\n    if not hasattr(model, \"predict\"):\n        raise HTTPException(400, \"File is not a valid ML model (no predict() method)\")\n\n    # 5. Load the dataset (in real life, pick based on `dataset` param)\n    # For demo: generate fake data\n    from sklearn.datasets import make_regression\n    X, y = make_regression(n_samples=200, n_features=5, noise=10, random_state=42)\n\n    # 6. Run predictions + time it\n    start = time.perf_counter()\n    y_pred = model.predict(X)\n    inference_time = time.perf_counter() - start\n\n    # 7. Compute metrics\n    from sklearn.metrics import mean_absolute_error, r2_score\n    mae = float(mean_absolute_error(y, y_pred))\n    r2 = float(r2_score(y, y_pred))\n\n    # 8. Return benchmark result as JSON\n    return JSONResponse({\n        \"status\": \"success\",\n        \"model_type\": type(model).__name__,\n        \"dataset\": dataset,\n        \"framework\": framework,\n        \"n_samples\": len(X),\n        \"MAE\": mae,\n        \"R2\": r2,\n        \"inference_time_sec\": inference_time,\n        \"throughput_samples_per_sec\": len(X) / inference_time,\n    })\n\n# Test with curl:\n# curl -X POST http://localhost:8000/benchmark \\\n#   -F \"model_file=@model.pkl\" \\\n#   -F \"dataset=house\" \\\n#   -F \"framework=sklearn\"",
+        "html_template": "",
+        "explanation": (
+            "The 8 steps of a benchmark endpoint: "
+            "(1) Validate file extension — defend against non-.pkl uploads. "
+            "(2) await model_file.read() — streams the file as bytes. Async, doesn't load all at once. "
+            "(3) pickle.loads(bytes) — deserialize. NOTE: loads (from bytes), not load (from file). "
+            "(4) Duck-type check — hasattr(model, 'predict'). Rejects non-model files. "
+            "(5) Load dataset — could be from CSV, DB, or generated. Here we generate fake data. "
+            "(6) Time the prediction — perf_counter before/after. "
+            "(7) Compute metrics — MAE, R² (add more as needed). "
+            "(8) Return JSONResponse — the benchmark result. "
+            "Form(...) reads from form-encoded body. File(...) reads from multipart upload. "
+            "Both are required by the HTML form's enctype='multipart/form-data'."
+        ),
+        "try_changes": [
+            ("Change the validation to also accept .joblib files", "model_file.filename.endswith(('.pkl', '.joblib'))"),
+            ("Add a try/except around model.predict()", "catches models that crash on the dataset"),
+            ("Add cross-validation (5-fold) before returning", "more honest metrics"),
+            ("Change the response to include a 'model_size_bytes' field", "len(file_bytes)"),
+        ],
+    },
+    {
+        "slug": "bench-html-upload-form",
+        "category": "Benchmark Engine",
+        "title": "HTML form — upload .pkl + select dataset",
+        "language": "html",
+        "summary": "The form users see. File input + dataset dropdown + framework dropdown. enctype=multipart/form-data is CRITICAL.",
+        "starter_code": "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Benchmark Engine</title>\n  <style>\n    body { font-family: sans-serif; max-width: 500px; margin: 2rem auto; padding: 1rem; }\n    .form-group { margin-bottom: 1rem; }\n    label { display: block; font-weight: 600; margin-bottom: 0.3rem; }\n    select, input[type=\"file\"] { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; }\n    button { background: #a0c000; color: white; border: none; padding: 0.7rem 1.5rem; border-radius: 4px; cursor: pointer; font-size: 1rem; }\n    button:hover { background: #8aab00; }\n    .hint { font-size: 0.85rem; color: #666; margin-top: 0.3rem; }\n  </style>\n</head>\n<body>\n  <h1>Run Benchmark</h1>\n  <p>Upload a trained .pkl model and select a dataset to benchmark it.</p>\n\n  <!-- enctype is CRITICAL for file uploads! -->\n  <form method=\"post\" action=\"/benchmark\" enctype=\"multipart/form-data\">\n\n    <div class=\"form-group\">\n      <label for=\"model_file\">Upload Model (.pkl)</label>\n      <input type=\"file\" id=\"model_file\" name=\"model_file\" accept=\".pkl,.joblib\" required>\n      <div class=\"hint\">Must be a joblib.dump() or pickle.dump() file.</div>\n    </div>\n\n    <div class=\"form-group\">\n      <label for=\"dataset\">Select Dataset</label>\n      <select id=\"dataset\" name=\"dataset\" required>\n        <option value=\"\">-- Choose --</option>\n        <option value=\"house\">House Prices</option>\n        <option value=\"wine\">Wine Quality</option>\n        <option value=\"iris\">Iris</option>\n        <option value=\"titanic\">Titanic</option>\n      </select>\n    </div>\n\n    <div class=\"form-group\">\n      <label for=\"framework\">Framework</label>\n      <select id=\"framework\" name=\"framework\">\n        <option value=\"sklearn\">scikit-learn</option>\n        <option value=\"xgboost\">XGBoost</option>\n        <option value=\"lightgbm\">LightGBM</option>\n        <option value=\"tensorflow\">TensorFlow</option>\n      </select>\n    </div>\n\n    <button type=\"submit\">Run Benchmark</button>\n  </form>\n</body>\n</html>",
+        "html_template": "",
+        "explanation": (
+            "3 critical things for a file-upload form: "
+            "(1) enctype='multipart/form-data' — WITHOUT THIS, the file isn't sent! Default enctype (application/x-www-form-urlencoded) only sends text. "
+            "(2) <input type='file' name='model_file'> — the name MUST match the FastAPI parameter (model_file: UploadFile = File()). "
+            "(3) method='post' — files can't be sent via GET (URLs have length limits). "
+            "accept='.pkl,.joblib' — filters the file picker (cosmetic, doesn't validate server-side). "
+            "The FastAPI parameter names (model_file, dataset, framework) must EXACTLY match the HTML name attributes. "
+            "Mismatch = 422 Unprocessable Entity."
+        ),
+        "try_changes": [
+            ("Remove enctype=\"multipart/form-data\" from the <form>", "file upload silently fails — FastAPI returns 422"),
+            ("Change name=\"model_file\" to name=\"model\"", "FastAPI can't find the parameter — 422"),
+            ("Add <input type=\"checkbox\" name=\"cross_validate\" value=\"true\"> Run 5-fold CV", "adds an optional benchmark option"),
+            ("Add a progress bar <progress> element", "shows upload progress (needs JS)"),
+        ],
+    },
+    {
+        "slug": "bench-full-engine",
+        "category": "Benchmark Engine",
+        "title": "Full benchmark engine — putting it all together",
+        "language": "python",
+        "summary": "The complete benchmarking function: load .pkl → detect model type → load dataset → predict → time → metrics → return JSON. This is what OpenBenchML does.",
+        "starter_code": "import joblib\nimport pickle\nimport time\nimport numpy as np\nimport pandas as pd\nfrom sklearn.model_selection import train_test_split, cross_validate, KFold\nfrom sklearn.metrics import (\n    mean_absolute_error, mean_squared_error, r2_score,\n    accuracy_score, precision_score, recall_score, f1_score\n)\n\n# ════════════════════════════════════════════════════════════════════\n#  THE COMPLETE BENCHMARK ENGINE FUNCTION\n#  Works with ANY .pkl model — sklearn, xgboost, custom.\n# ════════════════════════════════════════════════════════════════════\n\ndef benchmark_model(model_bytes: bytes, X, y, run_cv: bool = True) -> dict:\n    \"\"\"Benchmark any uploaded .pkl model.\n\n    Args:\n        model_bytes: raw bytes from UploadFile.read()\n        X: features (numpy array or DataFrame)\n        y: target (numpy array or Series)\n        run_cv: whether to run 5-fold cross-validation\n\n    Returns:\n        dict with metrics, timing, model info\n    \"\"\"\n    result = {}\n\n    # ── 1. Load the model ──\n    try:\n        model = pickle.loads(model_bytes)\n    except Exception as e:\n        return {\"status\": \"error\", \"message\": f\"Failed to load model: {e}\"}\n\n    result[\"model_type\"] = type(model).__name__\n    result[\"model_module\"] = type(model).__module__\n\n    # ── 2. Duck-type check ──\n    if not hasattr(model, \"predict\"):\n        return {\"status\": \"error\", \"message\": \"Not a valid ML model (no predict method)\"}\n\n    # ── 3. Split data ──\n    X_train, X_test, y_train, y_test = train_test_split(\n        X, y, test_size=0.2, random_state=42\n    )\n    result[\"train_samples\"] = len(X_train)\n    result[\"test_samples\"] = len(X_test)\n\n    # ── 4. Time the prediction ──\n    start = time.perf_counter()\n    y_pred = model.predict(X_test)\n    inference_time = time.perf_counter() - start\n\n    result[\"inference_time_sec\"] = inference_time\n    result[\"latency_per_sample_sec\"] = inference_time / len(X_test)\n    result[\"throughput_samples_per_sec\"] = len(X_test) / inference_time\n\n    # ── 5. Detect task type (regression vs classification) ──\n    is_regression = y_pred.dtype.kind == \"f\"\n    result[\"task_type\"] = \"regression\" if is_regression else \"classification\"\n\n    # ── 6. Compute metrics ──\n    if is_regression:\n        result[\"MAE\"] = float(mean_absolute_error(y_test, y_pred))\n        result[\"MSE\"] = float(mean_squared_error(y_test, y_pred))\n        result[\"RMSE\"] = float(np.sqrt(result[\"MSE\"]))\n        result[\"R2\"] = float(r2_score(y_test, y_pred))\n    else:\n        result[\"accuracy\"] = float(accuracy_score(y_test, y_pred))\n        result[\"precision\"] = float(precision_score(y_test, y_pred, average=\"weighted\", zero_division=0))\n        result[\"recall\"] = float(recall_score(y_test, y_pred, average=\"weighted\", zero_division=0))\n        result[\"f1\"] = float(f1_score(y_test, y_pred, average=\"weighted\", zero_division=0))\n\n    # ── 7. Cross-validation (optional) ──\n    if run_cv:\n        cv = KFold(n_splits=5, shuffle=True, random_state=42)\n        if is_regression:\n            scoring = {\"MAE\": \"neg_mean_absolute_error\", \"R2\": \"r2\"}\n        else:\n            scoring = {\"accuracy\": \"accuracy\", \"f1\": \"f1_weighted\"}\n\n        try:\n            cv_results = cross_validate(model, X, y, cv=cv, scoring=scoring)\n            for metric in scoring:\n                key = f\"CV_{metric}\"\n                result[key] = float(cv_results[f\"test_{metric}\"].mean())\n        except Exception as e:\n            result[\"cv_error\"] = str(e)\n\n    # ── 8. Feature importances (if available) ──\n    if hasattr(model, \"feature_importances_\"):\n        result[\"feature_importances\"] = model.feature_importances_.tolist()\n    elif hasattr(model, \"coef_\"):\n        result[\"coefficients\"] = np.array(model.coef_).ravel().tolist()\n\n    result[\"status\"] = \"success\"\n    return result\n\n\n# ════════════════════════════════════════════════════════════════════\n#  TEST THE ENGINE WITH 2 DIFFERENT MODEL TYPES\n# ════════════════════════════════════════════════════════════════════\nfrom sklearn.linear_model import LinearRegression, LogisticRegression\nfrom sklearn.ensemble import RandomForestRegressor\nfrom sklearn.datasets import make_regression, make_classification\n\n# Test 1: Regression model\nprint('=' * 60)\nprint('TEST 1: Regression (LinearRegression)')\nprint('=' * 60)\nXr, yr = make_regression(n_samples=500, n_features=5, noise=15, random_state=42)\nlr = LinearRegression().fit(Xr, yr)\nmodel_bytes_r = pickle.dumps(lr)\nresult_r = benchmark_model(model_bytes_r, Xr, yr)\nfor k, v in result_r.items():\n    if isinstance(v, list):\n        print(f'  {k}: [{len(v)} values]')\n    else:\n        print(f'  {k}: {v}')\n\n# Test 2: Classification model\nprint('\\n' + '=' * 60)\nprint('TEST 2: Classification (LogisticRegression)')\nprint('=' * 60)\nXc, yc = make_classification(n_samples=500, n_features=5, n_informative=3, random_state=42)\nclf = LogisticRegression().fit(Xc, yc)\nmodel_bytes_c = pickle.dumps(clf)\nresult_c = benchmark_model(model_bytes_c, Xc, yc)\nfor k, v in result_c.items():\n    if isinstance(v, list):\n        print(f'  {k}: [{len(v)} values]')\n    else:\n        print(f'  {k}: {v}')",
+        "html_template": "",
+        "explanation": (
+            "This is the COMPLETE benchmark engine — exactly what OpenBenchML does. "
+            "8 steps: load → validate → split → time → detect type → metrics → CV → importances. "
+            "KEY INSIGHT: the function takes model BYTES (not a file path) — that's what you get from UploadFile.read(). "
+            "Duck typing throughout: hasattr(model, 'predict'), hasattr(model, 'feature_importances_'). "
+            "Works with LinearRegression, RandomForest, XGBoost, LightGBM, ANY model with .predict(). "
+            "Auto-detects regression vs classification by checking y_pred.dtype. "
+            "Returns a dict that FastAPI can serialize to JSON directly. "
+            "The 2 tests at the bottom prove it works with BOTH regression AND classification models — same function, no changes."
+        ),
+        "try_changes": [
+            ("Change CV folds from 5 to 10", "more folds, slower, slightly more accurate"),
+            ("Add a 'training_time' field by re-fitting the model + timing it", "measures how long training takes"),
+            ("Replace LogisticRegression with RandomForestClassifier", "same function works — that's the point"),
+            ("Add error handling for when X has wrong number of features", "model.predict crashes if features don't match"),
+        ],
+    },
+    {
+        "slug": "bench-save-and-compare",
+        "category": "Benchmark Engine",
+        "title": "Save benchmark results + compare models",
+        "language": "python",
+        "summary": "Run benchmarks on multiple models, save results to a DataFrame, compare side-by-side. This is how leaderboards work.",
+        "starter_code": "import pickle\nimport time\nimport numpy as np\nimport pandas as pd\nfrom sklearn.linear_model import LinearRegression, Ridge\nfrom sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor\nfrom sklearn.svm import SVR\nfrom sklearn.datasets import make_regression\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import mean_absolute_error, r2_score\n\n# Generate data\nX, y = make_regression(n_samples=1000, n_features=10, noise=20, random_state=42)\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\n\n# ── Define models to benchmark ──\nmodels = {\n    'LinearRegression': LinearRegression(),\n    'Ridge': Ridge(alpha=1.0),\n    'RandomForest': RandomForestRegressor(n_estimators=50, random_state=42),\n    'GradientBoosting': GradientBoostingRegressor(n_estimators=50, random_state=42),\n    'SVR': SVR(),\n}\n\n# ── Benchmark function (simplified) ──\ndef benchmark(model, X_train, y_train, X_test, y_test):\n    # Train\n    t0 = time.perf_counter()\n    model.fit(X_train, y_train)\n    train_time = time.perf_counter() - t0\n\n    # Predict\n    t0 = time.perf_counter()\n    y_pred = model.predict(X_test)\n    infer_time = time.perf_counter() - t0\n\n    # Metrics\n    mae = mean_absolute_error(y_test, y_pred)\n    r2 = r2_score(y_test, y_pred)\n\n    return {\n        'train_time_ms': train_time * 1000,\n        'infer_time_ms': infer_time * 1000,\n        'throughput_sps': len(X_test) / infer_time,\n        'MAE': mae,\n        'R2': r2,\n    }\n\n# ── Run benchmark on all models ──\nresults = []\nfor name, model in models.items():\n    print(f'Benchmarking {name}...')\n    metrics = benchmark(model, X_train, y_train, X_test, y_test)\n    metrics['model'] = name\n    results.append(metrics)\n\n# ── Save to DataFrame (this is how leaderboards work) ──\ndf = pd.DataFrame(results).set_index('model')\nprint('\\n' + '=' * 70)\nprint('BENCHMARK RESULTS')\nprint('=' * 70)\nprint(df.round(3).to_string())\n\n# ── Find the winner ──\nbest_r2 = df['R2'].idxmax()\nfastest = df['infer_time_ms'].idxmin()\nprint(f'\\nBest R²:  {best_r2} ({df.loc[best_r2, \"R2\"]:.4f})')\nprint(f'Fastest:  {fastest} ({df.loc[fastest, \"infer_time_ms\"]:.2f} ms)')\n\n# ── Save results to CSV (persist for leaderboard) ──\ndf.to_csv('benchmark_results.csv')\nprint('\\nSaved -> benchmark_results.csv')\n\n# ── Load + display later (simulating a leaderboard) ──\nprint('\\nLeaderboard (sorted by R²):')\nleaderboard = pd.read_csv('benchmark_results.csv').sort_values('R2', ascending=False)\nprint(leaderboard[['model', 'R2', 'MAE', 'infer_time_ms']].round(3).to_string(index=False))",
+        "html_template": "",
+        "explanation": (
+            "This is how a LEADERBOARD works: "
+            "(1) Define multiple models to compare. "
+            "(2) Benchmark each — train time, inference time, metrics. "
+            "(3) Store results in a pandas DataFrame. "
+            "(4) Save to CSV (or a database table). "
+            "(5) Load + sort by metric to show the leaderboard. "
+            "The benchmark function is the SAME for all models — that's the point. "
+            "You can add XGBoost, LightGBM, neural nets — same function, same DataFrame, same leaderboard. "
+            "In OpenBenchML, the DataFrame is stored in a database (LeaderboardEntry table) and "
+            "rendered as an HTML table on the /leaderboard page. WebSocket pushes update it live."
+        ),
+        "try_changes": [
+            ("Add from sklearn.neighbors import KNeighborsRegressor; models['KNN'] = KNeighborsRegressor(n_neighbors=5)", "another model in the comparison"),
+            ("Change the sort from R2 to MAE (ascending=True for errors)", "leaderboard sorted by lowest error"),
+            ("Add a 'memory_mb' column using psutil.Process().memory_info().rss", "tracks RAM usage per model"),
+            ("Wrap the benchmark loop in cross_validate for more honest results", "5-fold CV per model"),
+        ],
+    },
+    {
+        "slug": "bench-error-handling",
+        "category": "Benchmark Engine",
+        "title": "Error handling — when the .pkl is broken or wrong",
+        "language": "python",
+        "summary": "Real users upload broken files. Your benchmark engine must handle: corrupt .pkl, wrong model type, feature mismatch, predict() crashes.",
+        "starter_code": "import pickle\nimport numpy as np\nfrom sklearn.linear_model import LinearRegression\nfrom sklearn.datasets import make_regression\n\n# ── A robust benchmark function with full error handling ──\ndef safe_benchmark(model_bytes, X_test, y_test=None):\n    \"\"\"Benchmark a .pkl model with comprehensive error handling.\n\n    Returns dict with 'status' = 'success' or 'error'.\n    Never raises — always returns a dict (safe for FastAPI).\n    \"\"\"\n    result = {\"status\": \"error\"}\n\n    # ── 1. Empty file ──\n    if not model_bytes or len(model_bytes) == 0:\n        result[\"message\"] = \"Empty file — no model data received\"\n        return result\n\n    # ── 2. Too large (> 100 MB) ──\n    if len(model_bytes) > 100 * 1024 * 1024:\n        result[\"message\"] = f\"File too large: {len(model_bytes) / 1e6:.1f} MB (max 100 MB)\"\n        return result\n\n    # ── 3. Not a valid pickle file ──\n    try:\n        model = pickle.loads(model_bytes)\n    except pickle.UnpicklingError as e:\n        result[\"message\"] = f\"Not a valid .pkl file: {e}\"\n        return result\n    except Exception as e:\n        result[\"message\"] = f\"Failed to load model: {type(e).__name__}: {e}\"\n        return result\n\n    result[\"model_type\"] = type(model).__name__\n\n    # ── 4. Not an ML model (no predict method) ──\n    if not hasattr(model, \"predict\"):\n        result[\"message\"] = f\"Loaded object is {type(model).__name__}, not an ML model (no predict method)\"\n        return result\n\n    # ── 5. Feature mismatch (model expects different number of features) ──\n    try:\n        y_pred = model.predict(X_test)\n    except ValueError as e:\n        if \"feature\" in str(e).lower() or \"shape\" in str(e).lower():\n            n_expected = getattr(model, \"n_features_in_\", \"?\")\n            result[\"message\"] = (\n                f\"Feature mismatch: model expects {n_expected} features, \"\n                f\"got {X_test.shape[1]}. Retrain with the correct dataset.\"\n            )\n        else:\n            result[\"message\"] = f\"Prediction failed: {e}\"\n        return result\n    except Exception as e:\n        result[\"message\"] = f\"Prediction failed: {type(e).__name__}: {e}\"\n        return result\n\n    # ── 6. Success — compute metrics if y_test provided ──\n    result[\"status\"] = \"success\"\n    result[\"n_predictions\"] = len(y_pred)\n    result[\"predictions_sample\"] = y_pred[:5].tolist() if hasattr(y_pred, \"tolist\") else list(y_pred[:5])\n\n    if y_test is not None and len(y_test) == len(y_pred):\n        try:\n            from sklearn.metrics import mean_absolute_error, r2_score\n            result[\"MAE\"] = float(mean_absolute_error(y_test, y_pred))\n            result[\"R2\"] = float(r2_score(y_test, y_pred))\n        except Exception as e:\n            result[\"metrics_error\"] = str(e)\n\n    return result\n\n\n# ── TEST: try breaking it in 5 different ways ──\nX, y = make_regression(n_samples=100, n_features=5, noise=10, random_state=42)\ngood_model = LinearRegression().fit(X, y)\n\nprint('Test 1: Valid model')\nr = safe_benchmark(pickle.dumps(good_model), X[:10], y[:10])\nprint(f'  status={r[\"status\"]}, model={r.get(\"model_type\")}, MAE={r.get(\"MAE\")}')\n\nprint('\\nTest 2: Empty file')\nr = safe_benchmark(b\"\", X[:10])\nprint(f'  status={r[\"status\"]}, message={r[\"message\"]}')\n\nprint('\\nTest 3: Not a pickle (random bytes)')\nr = safe_benchmark(b\"this is not a pickle\", X[:10])\nprint(f'  status={r[\"status\"]}, message={r[\"message\"][:60]}...')\n\nprint('\\nTest 4: Valid pickle but not a model (a list)')\nr = safe_benchmark(pickle.dumps([1, 2, 3]), X[:10])\nprint(f'  status={r[\"status\"]}, message={r[\"message\"]}')\n\nprint('\\nTest 5: Feature mismatch (model trained on 5 features, test on 3)')\nwrong_X = X[:10, :3]  # only 3 features instead of 5\nr = safe_benchmark(pickle.dumps(good_model), wrong_X)\nprint(f'  status={r[\"status\"]}, message={r[\"message\"]}')\n\nprint('\\nAll tests passed — engine never crashed!')",
+        "html_template": "",
+        "explanation": (
+            "Production benchmark engines MUST handle broken inputs gracefully. "
+            "6 failure modes to handle: "
+            "(1) Empty file — user uploaded nothing. "
+            "(2) Too large — DoS protection. Cap at 100 MB. "
+            "(3) Not a pickle — random bytes, wrong format. "
+            "(4) Not a model — valid pickle but it's a list/dict/string, not an ML model. "
+            "(5) Feature mismatch — model trained on 5 features, test data has 3. predict() crashes. "
+            "(6) Prediction crash — model is broken, predict() raises. "
+            "KEY PRINCIPLE: never raise an exception. Always return a dict with status='error' + message. "
+            "FastAPI will serialize it to JSON — the user sees a clear error instead of a 500. "
+            "The 5 tests at the bottom prove every failure mode is handled."
+        ),
+        "try_changes": [
+            ("Change the size limit from 100 MB to 10 MB", "tighter limit — rejects large models"),
+            ("Add a check for pickle's security (only allow certain classes)", "prevents arbitrary code execution"),
+            ("Add a timeout: if predict() takes > 10 seconds, kill it", "prevents infinite loops"),
+            ("Test with a model that has predict_proba (classifier)", "the function handles it — it just calls predict()"),
+        ],
+    },
+]
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 #  All labs combined
 # ═══════════════════════════════════════════════════════════════════════════
 
-ALL_LABS = _CSS_LABS + _HTML_LABS + _PYTHON_LABS + _FASTAPI_LABS
+ALL_LABS = _CSS_LABS + _HTML_LABS + _PYTHON_LABS + _FASTAPI_LABS + _BENCH_LABS
 
 # Index by slug for O(1) lookup
 _LAB_BY_SLUG = {lab["slug"]: lab for lab in ALL_LABS}
 
 # Group by category for the overview page
 _LABS_BY_CATEGORY = {
-    "Python":  _PYTHON_LABS,
-    "HTML":    _HTML_LABS,
-    "CSS":     _CSS_LABS,
-    "FastAPI": _FASTAPI_LABS,
+    "Python":           _PYTHON_LABS,
+    "HTML":             _HTML_LABS,
+    "CSS":              _CSS_LABS,
+    "FastAPI":          _FASTAPI_LABS,
+    "Benchmark Engine": _BENCH_LABS,
 }
 
 # Display order for categories
-_CATEGORY_ORDER = ["Python", "HTML", "CSS", "FastAPI"]
+_CATEGORY_ORDER = ["Python", "HTML", "CSS", "FastAPI", "Benchmark Engine"]
 
 # Per-category metadata for the overview page
 _CATEGORY_META = {
-    "Python":  {"icon": "&#128013;", "color": "#3fb950", "blurb": "Variables, loops, functions, lists, dicts, classes — the language the whole backend is written in."},
-    "HTML":    {"icon": "&#127760;", "color": "#58a6ff", "blurb": "Tags, forms, semantic structure. The skeleton of every web page."},
-    "CSS":     {"icon": "&#127912;", "color": "#bc8cff", "blurb": "Classic CSS (no Tailwind, no framework). Colors, borders, box-shadow, flexbox, grid, transitions."},
-    "FastAPI": {"icon": "&#9889;",   "color": "#a0c000", "blurb": "Routes, params, Pydantic, templates, dependencies, websockets — the web framework."},
+    "Python":           {"icon": "&#128013;", "color": "#3fb950", "blurb": "Variables, loops, functions, lists, dicts, classes — the language the whole backend is written in."},
+    "HTML":             {"icon": "&#127760;", "color": "#58a6ff", "blurb": "Tags, forms, semantic structure. The skeleton of every web page."},
+    "CSS":              {"icon": "&#127912;", "color": "#bc8cff", "blurb": "Classic CSS (no Tailwind, no framework). Colors, borders, box-shadow, flexbox, grid, transitions."},
+    "FastAPI":          {"icon": "&#9889;",   "color": "#a0c000", "blurb": "Routes, params, Pydantic, templates, dependencies, websockets — the web framework."},
+    "Benchmark Engine": {"icon": "&#9889;",   "color": "#ffa657", "blurb": "Build a benchmarking engine for ANY .pkl model — load, predict, time, metrics, compare. Like OpenBenchML."},
 }
 
 

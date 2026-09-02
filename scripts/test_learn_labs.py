@@ -198,10 +198,10 @@ check(
     "/api/notebook/cell" in LL_HTML,
 )
 
-print("\n[7] templates/learn.html has the 4-way toggle")
+print("\n[7] templates/learn.html has the 3-way toggle")
 check(
-    "has Concepts / Project / Labs / Benchmark 4-way toggle",
-    all(x in LEARN_HTML for x in ['Concepts', 'Project', 'Labs', 'Benchmark']),
+    "has Concepts / Project / Labs 3-way toggle",
+    all(x in LEARN_HTML for x in ['Concepts', 'Project', 'Labs']),
 )
 check(
     "Labs teaser card links to /learn/labs",
