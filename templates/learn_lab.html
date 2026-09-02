@@ -708,15 +708,9 @@ async function _loadPyodideForLabs() {
   }
 
   _pyodideInstance = await loadPyodide();
-  // Load packages most ML labs need. scikit-learn is large (~15MB)
-  // but essential for the ML Advanced labs. Load lazily — only when needed.
+  // Load numpy + matplotlib (needed by most Python labs, ~6MB total)
   await _pyodideInstance.loadPackage(['numpy', 'matplotlib']);
-  // Try to load scikit-learn + scipy (some ML labs need them)
-  try {
-    await _pyodideInstance.loadPackage(['scikit-learn', 'scipy']);
-  } catch (e) {
-    console.warn('[pyodide] scikit-learn load failed (some ML labs may not work):', e.message);
-  }
+  // scikit-learn is loaded LAZILY (only when code imports sklearn) — see runPythonLab
   _pyodideReady = true;
   _pyodideLoading = false;
   return _pyodideInstance;
@@ -733,44 +727,55 @@ async function runPythonLab() {
 
   btn.disabled = true;
   btn.innerHTML = '&#8987; Loading Pyodide...';
-  consoleEl.innerHTML = '<span class="prompt">&gt;&gt;&gt;</span> <span class="stdout">Loading Pyodide (first run takes ~10s, then cached)...</span>';
+  consoleEl.innerHTML = '<span class="prompt">&gt;&gt;&gt;</span> <span class="stdout">Loading Pyodide (first run ~10s, then cached)...</span>';
 
   try {
     // Load Pyodide if not already loaded
     const pyodide = await _loadPyodideForLabs();
 
+    // Check if the code needs scikit-learn — if so, load it now (lazy)
+    const needsSklearn = /sklearn|scikit/.test(code);
+    if (needsSklearn) {
+      btn.innerHTML = '&#8987; Loading scikit-learn (~15MB, first time only)...';
+      consoleEl.innerHTML = '<span class="prompt">&gt;&gt;&gt;</span> <span class="stdout">Loading scikit-learn (~15MB, first time only ~30s)...</span>';
+      try {
+        await pyodide.loadPackage(['scikit-learn', 'scipy']);
+      } catch (e) {
+        console.warn('[pyodide] sklearn load failed:', e.message);
+      }
+    }
+
     btn.innerHTML = '&#8987; Running...';
     consoleEl.innerHTML = '<span class="prompt">&gt;&gt;&gt;</span> <span class="stdout">Running...</span>';
 
-    // Wrap the user code: capture stdout/stderr + matplotlib figures
-    // Pyodide runs synchronously — we redirect stdout to a StringIO
-    const wrappedCode = `
+    // SIMPLIFIED execution: use runPythonAsync + globals
+    // Set up stdout/stderr capture + matplotlib BEFORE running user code
+    await pyodide.runPythonAsync(`
 import sys, io, base64
 __obml_stdout__ = io.StringIO()
 __obml_stderr__ = io.StringIO()
-__obml_old_stdout__ = sys.stdout
-__obml_old_stderr__ = sys.stderr
 sys.stdout = __obml_stdout__
 sys.stderr = __obml_stderr__
 
-# Make matplotlib use AGG (non-interactive) + capture figures
 import matplotlib
 matplotlib.use('AGG')
 import matplotlib.pyplot as plt
-plt.close('all')  # clear any previous figures
+plt.close('all')
+`);
 
-__obml_error__ = None
-try:
-${code.split('\n').map(l => '    ' + l).join('\n')}
-except Exception as __e:
-    import traceback
-    __obml_error__ = traceback.format_exc()
+    // Run user code — errors are caught and shown
+    let errorMsg = null;
+    try {
+      await pyodide.runPythonAsync(code);
+    } catch (e) {
+      errorMsg = e.message || String(e);
+    }
 
-# Restore stdout
-sys.stdout = __obml_old_stdout__
-sys.stderr = __obml_old_stderr__
+    // Restore stdout + capture figures
+    const result = await pyodide.runPythonAsync(`
+sys.stdout = sys.__stdout__
+sys.stderr = sys.__stderr__
 
-# Capture figures as base64 PNG
 __obml_figures__ = []
 for __fig_num__ in plt.get_fignums():
     __fig__ = plt.figure(__fig_num__)
@@ -780,36 +785,38 @@ for __fig_num__ in plt.get_fignums():
     __obml_figures__.append(base64.b64encode(__buf__.read()).decode('ascii'))
     plt.close(__fig__)
 
-# Return result as a dict
 {
     'stdout': __obml_stdout__.getvalue(),
     'stderr': __obml_stderr__.getvalue(),
-    'error': __obml_error__,
     'figures': __obml_figures__,
 }
-`;
+`);
 
-    const result = pyodide.runPython(wrappedCode).toJs({ dict_converter: Object.fromEntries });
+    const stdoutVal = result.get('stdout') || '';
+    const stderrVal = result.get('stderr') || '';
+    const figuresVal = result.get('figures') || [];
+    // Convert figures from Pyodide list to JS array
+    const figures = figuresVal.toJs ? figuresVal.toJs() : Array.from(figuresVal);
 
     // Display results
     let html = '';
-    if (result.stdout) {
-      html += '<span class="stdout">' + escapeHtml(result.stdout) + '</span>';
+    if (stdoutVal) {
+      html += '<span class="stdout">' + escapeHtml(stdoutVal) + '</span>';
     }
-    if (result.stderr) {
-      html += (html ? '\n' : '') + '<span class="stderr">' + escapeHtml(result.stderr) + '</span>';
+    if (stderrVal) {
+      html += (html ? '\n' : '') + '<span class="stderr">' + escapeHtml(stderrVal) + '</span>';
     }
-    if (result.error) {
-      html += (html ? '\n' : '') + '<span class="stderr">' + escapeHtml(result.error) + '</span>';
+    if (errorMsg) {
+      html += (html ? '\n' : '') + '<span class="stderr">' + escapeHtml(errorMsg) + '</span>';
     }
     if (!html) {
       html = '<span class="empty">(code ran successfully but printed nothing)</span>\n' +
              '<span class="empty">Hint: use print(...) to see output.</span>';
     }
     // Show matplotlib figures
-    if (result.figures && result.figures.length > 0) {
+    if (figures && figures.length > 0) {
       html += '\n<span class="prompt">[figure]</span>\n';
-      for (const fig of result.figures) {
+      for (const fig of figures) {
         html += '<img src="data:image/png;base64,' + fig + '" style="max-width:100%;margin:4px 0;display:block;border-radius:4px;">';
       }
     }
@@ -818,10 +825,11 @@ for __fig_num__ in plt.get_fignums():
     consoleEl.innerHTML =
       '<span class="stderr">Pyodide error: ' + escapeHtml(e.message) + '</span>\n\n' +
       '<span class="empty">If Pyodide failed to load, check your internet connection.\n' +
-      'Pyodide is ~6MB — first load takes ~10 seconds, then it\'s cached.</span>';
+      'Pyodide is ~6MB — first load takes ~10 seconds, then it\'s cached.\n' +
+      'scikit-learn is an additional ~15MB — first ML lab takes ~30 seconds.</span>';
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '&#9654; Run';
+    btn.innerHTML = '&#9654; Run (Pyodide)';
   }
 }
 
