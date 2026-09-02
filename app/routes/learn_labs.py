@@ -2366,6 +2366,317 @@ _ML_ADVANCED_LABS = [
             ("Add Step 9b: hyperparameter tuning with GridSearchCV", "find the best n_estimators for RandomForest"),
         ],
     },
+
+    # ═══════════════ SECTION: VISUAL MATHS — see HOW each model works ═══════════════
+    # Each lab uses a REAL dataset (iris, wine, breast_cancer, digits)
+    # and generates matplotlib plots that visualize the maths.
+    # The Python lab Run button captures figures + displays them inline.
+
+    {
+        "slug": "ml-maths-logistic-regression-visual",
+        "category": "ML Advanced",
+        "title": "Logistic Regression visualized — sigmoid + decision boundary (iris)",
+        "language": "python",
+        "summary": "SEE the sigmoid curve, SEE the decision boundary move as you change C. Uses the iris dataset. The maths becomes obvious when you can visualize it.",
+        "starter_code": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.datasets import load_iris\nfrom sklearn.linear_model import LogisticRegression\nfrom sklearn.preprocessing import StandardScaler\n\n# ── Load iris (real dataset — 150 flowers, 4 features, 3 species) ──\niris = load_iris()\n# Use only 2 features for 2D visualization: petal length + petal width\nX = iris.data[:, [2, 3]]  # petal length, petal width\ny = iris.target  # 0=setosa, 1=versicolor, 2=virginica\nfeature_names = ['petal length (cm)', 'petal width (cm)']\n\nprint(f'Dataset: iris (150 samples, 3 species)')\nprint(f'Features used: {feature_names}')\nprint(f'Species: {list(iris.target_names)}')\n\n# ════════════════════════════════════════════════════════════════════\n#  PLOT 1: The SIGMOID function — the heart of logistic regression\n# ════════════════════════════════════════════════════════════════════\nfig, axes = plt.subplots(1, 2, figsize=(14, 5))\n\n# Sigmoid: σ(z) = 1 / (1 + e^(-z))\nz = np.linspace(-6, 6, 100)\nsigmoid = 1 / (1 + np.exp(-z))\naxes[0].plot(z, sigmoid, color='#a0c000', linewidth=3)\naxes[0].axhline(0.5, color='gray', linestyle='--', alpha=0.5)\naxes[0].axvline(0, color='gray', linestyle='--', alpha=0.5)\naxes[0].set_xlabel('z = β₀ + β₁x₁ + β₂x₂ (linear combination)')\naxes[0].set_ylabel('σ(z) = probability')\naxes[0].set_title('Sigmoid function: squashes any number to [0, 1]')\naxes[0].annotate('σ(0) = 0.5\\n(decision boundary)', xy=(0, 0.5), xytext=(2, 0.3),\n                fontsize=9, arrowprops=dict(arrowstyle='->', color='red'))\naxes[0].set_ylim(-0.1, 1.1)\n\n# PLOT 2: Decision boundary on iris data\n# Scale features first (logistic regression is sensitive to scale)\nX_scaled = StandardScaler().fit_transform(X)\nmodel = LogisticRegression(C=1.0, random_state=42)\nmodel.fit(X_scaled, y)\n\n# Create a mesh to plot the decision boundary\nx_min, x_max = X_scaled[:, 0].min() - 1, X_scaled[:, 0].max() + 1\ny_min, y_max = X_scaled[:, 1].min() - 1, X_scaled[:, 1].max() + 1\nxx, yy = np.meshgrid(np.linspace(x_min, x_max, 200), np.linspace(y_min, y_max, 200))\nZ = model.predict(np.c_[xx.ravel(), yy.ravel()])\nZ = Z.reshape(xx.shape)\n\n# Plot decision boundary (colored regions) + data points\naxes[1].contourf(xx, yy, Z, alpha=0.3, cmap=plt.cm.Set1)\naxes[1].contour(xx, yy, Z, colors='black', linewidths=0.5, alpha=0.5)\ncolors = ['#e74c3c', '#2ecc71', '#3498db']\nfor i, species in enumerate(iris.target_names):\n    mask = y == i\n    axes[1].scatter(X_scaled[mask, 0], X_scaled[mask, 1], c=colors[i],\n                   label=species, edgecolors='black', s=40)\naxes[1].set_xlabel(feature_names[0] + ' (scaled)')\naxes[1].set_ylabel(feature_names[1] + ' (scaled)')\naxes[1].set_title(f'Decision boundary (C=1.0)\\nAccuracy: {model.score(X_scaled, y):.3f}')\naxes[1].legend()\n\nplt.tight_layout()\n# Don't call plt.show() — the kernel captures the figure automatically\n\nprint(f'\\nModel: LogisticRegression(C=1.0)')\nprint(f'Coefficients shape: {model.coef_.shape} (3 classes × 2 features)')\nprint(f'Intercepts: {model.intercept_.round(3)}')\nprint(f'Accuracy: {model.score(X_scaled, y):.3f}')\nprint()\nprint('THE MATHS:')\nprint('  Linear regression: y = β₀ + β₁x (predicts a NUMBER)')\nprint('  Logistic regression: P(class=1) = σ(β₀ + β₁x) = 1/(1+e^(-z))')\nprint('  The sigmoid SQUASHES the linear output to [0, 1] = probability')\nprint('  Decision boundary: where σ(z) = 0.5, i.e., z = 0')\nprint('  The LINE in the plot is where β₀ + β₁x₁ + β₂x₂ = 0')\nprint()\nprint('C parameter (inverse regularization):')\nprint('  C=1.0 (default): balanced')\nprint('  C=0.01: strong regularization → simpler boundary (might underfit)')\nprint('  C=100: weak regularization → complex boundary (might overfit)')",
+        "html_template": "",
+        "explanation": (
+            "Logistic Regression maths — VISUALIZED: "
+            "SIGMOID: σ(z) = 1/(1+e^(-z)). Squashes any number to [0, 1] = probability. "
+            "  At z=0, σ=0.5 (the decision boundary). "
+            "  z > 0 → σ > 0.5 → predict class 1. z < 0 → σ < 0.5 → predict class 0. "
+            "DECISION BOUNDARY: the LINE where z = β₀ + β₁x₁ + β₂x₂ = 0. "
+            "  Everything on one side = class 0, other side = class 1. "
+            "  For 3 classes (iris): 3 binary classifiers (one-vs-rest), boundaries intersect. "
+            "C PARAMETER (inverse regularization): "
+            "  C=1.0 (default): balanced. "
+            "  C=0.01: strong regularization → simpler boundary → might underfit. "
+            "  C=100: weak regularization → complex boundary → might overfit. "
+            "KEY INSIGHT: logistic regression is LINEAR — the boundary is always a straight line "
+            "(or hyperplane). If classes aren't linearly separable, it fails. "
+            "That's why iris setosa (easily separable) gets 100% accuracy but versicolor/virginica overlap."
+        ),
+        "try_changes": [
+            ("Change C from 1.0 to 0.01", "strong regularization → simpler boundary, might misclassify more"),
+            ("Change C from 1.0 to 100", "weak regularization → boundary fits tighter, might overfit"),
+            ("Use sepal features instead: X = iris.data[:, [0, 1]]", "different feature pair — setosa still separable, but versicolor/virginica overlap more"),
+            ("Add max_iter=2000 to the model (some convergences need more iterations)", "fixes convergence warnings"),
+        ],
+    },
+    {
+        "slug": "ml-maths-pca-visual",
+        "category": "ML Advanced",
+        "title": "PCA visualized — variance + projection (iris + digits)",
+        "language": "python",
+        "summary": "SEE PCA reduce 4D iris to 2D. SEE the scree plot. SEE 64D digits collapse to 2D. The geometry of dimensionality reduction.",
+        "starter_code": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.datasets import load_iris, load_digits\nfrom sklearn.decomposition import PCA\nfrom sklearn.preprocessing import StandardScaler\n\n# ════════════════════════════════════════════════════════════════════\n#  PART 1: PCA on iris (4D → 2D) — SEE the projection\n# ════════════════════════════════════════════════════════════════════\niris = load_iris()\nX = iris.data  # 4 features: sepal length, sepal width, petal length, petal width\ny = iris.target\n\n# ALWAYS scale before PCA (PCA is sensitive to feature scale)\nX_scaled = StandardScaler().fit_transform(X)\n\n# Fit PCA — reduce 4D to 2D\npca = PCA(n_components=2)\nX_pca = pca.fit_transform(X_scaled)\n\nprint('PCA on iris (4D → 2D):')\nprint(f'  Original shape: {X_scaled.shape}')\nprint(f'  After PCA:      {X_pca.shape}')\nprint(f'  Variance explained: {pca.explained_variance_ratio_.round(3)}')\nprint(f'  Total variance captured: {pca.explained_variance_ratio_.sum():.1%}')\n\nfig, axes = plt.subplots(1, 3, figsize=(18, 5))\n\n# PLOT 1: Scree plot — how much variance each component captures\ncomponents = range(1, len(pca.explained_variance_ratio_) + 1)\naxes[0].bar(components, pca.explained_variance_ratio_, color='#a0c000', alpha=0.7)\naxes[0].set_xlabel('Principal Component')\naxes[0].set_ylabel('Variance Explained')\naxes[0].set_title('Scree Plot — which components matter?')\nfor i, v in enumerate(pca.explained_variance_ratio_):\n    axes[0].text(i + 1, v + 0.02, f'{v:.1%}', ha='center', fontsize=10)\n\n# PLOT 2: 2D projection — the whole point of PCA\ncolors = ['#e74c3c', '#2ecc71', '#3498db']\nfor i, species in enumerate(iris.target_names):\n    mask = y == i\n    axes[1].scatter(X_pca[mask, 0], X_pca[mask, 1], c=colors[i],\n                   label=species, edgecolors='black', s=40)\naxes[1].set_xlabel(f'PC1 ({pca.explained_variance_ratio_[0]:.1%} variance)')\naxes[1].set_ylabel(f'PC2 ({pca.explained_variance_ratio_[1]:.1%} variance)')\naxes[1].set_title('Iris projected to 2D (from 4D)')\naxes[1].legend()\n\n# PLOT 3: PCA on digits (64D → 2D) — the power of dimensionality reduction\ndigits = load_digits()\nX_digits = digits.data  # 64 features (8x8 pixel images)\ny_digits = digits.target\n\npca_digits = PCA(n_components=2)\nX_digits_pca = pca_digits.fit_transform(X_digits)\n\nscatter = axes[2].scatter(X_digits_pca[:, 0], X_digits_pca[:, 1],\n                          c=y_digits, cmap='tab10', s=10, alpha=0.6)\naxes[2].set_xlabel(f'PC1 ({pca_digits.explained_variance_ratio_[0]:.1%})')\naxes[2].set_ylabel(f'PC2 ({pca_digits.explained_variance_ratio_[1]:.1%})')\naxes[2].set_title(f'Digits 64D → 2D\\n({pca_digits.explained_variance_ratio_[:2].sum():.1%} variance captured)')\nplt.colorbar(scatter, ax=axes[2], label='Digit (0-9)')\n\nplt.tight_layout()\n\nprint(f'\\nPCA on digits (64D → 2D):')\nprint(f'  Original: 64 features (8×8 pixels)')\nprint(f'  After PCA: 2 features')\nprint(f'  Variance captured: {pca_digits.explained_variance_ratio_[:2].sum():.1%}')\nprint(f'  (Only ~28% of variance — but clusters are still visible!)')\nprint()\nprint('THE MATHS:')\nprint('  PCA finds the directions (principal components) of MAXIMUM variance.')\nprint('  Step 1: Center the data (subtract mean)')\nprint('  Step 2: Compute covariance matrix Σ = (1/n) * XᵀX')\nprint('  Step 3: Eigendecomposition: Σ = VΛVᵀ')\nprint('  Step 4: Top k eigenvectors = the k principal components')\nprint('  Step 5: Project: X_projected = X · V[:,:k]')\nprint()\nprint('  Eigenvectors = directions of maximum variance')\nprint('  Eigenvalues = how much variance each direction captures')\nprint('  Scree plot shows eigenvalues — pick k where the curve \"elbows\"')",
+        "html_template": "",
+        "explanation": (
+            "PCA (Principal Component Analysis) — VISUALIZED: "
+            "WHAT: reduces dimensions while keeping maximum variance. 4D → 2D for visualization. "
+            "MATHS: "
+            "  (1) Center data (subtract mean). "
+            "  (2) Covariance matrix Σ = (1/n) XᵀX — shows how features vary together. "
+            "  (3) Eigendecomposition: Σ = VΛVᵀ. V = eigenvectors (directions), Λ = eigenvalues (variance). "
+            "  (4) Top k eigenvectors = the k principal components (directions of max variance). "
+            "  (5) Project: X_proj = X · V[:,:k]. New features = linear combinations of old. "
+            "SCREE PLOT: bar chart of variance per component. Look for the 'elbow' — components after "
+            "the elbow add little value. "
+            "IRIS: 4D → 2D captures 95.8% of variance. Setosa is perfectly separated. "
+            "  Versicolor + virginica overlap slightly — they're genuinely similar. "
+            "DIGITS: 64D → 2D captures only 28% of variance, but digit clusters are STILL VISIBLE. "
+            "  This is the power of PCA — even with massive dimensionality reduction, structure survives. "
+            "ALWAYS scale before PCA! Without scaling, features with large values (like salary in thousands) "
+            "dominate the variance, and PCA just finds them."
+        ),
+        "try_changes": [
+            ("Change n_components from 2 to 3 for iris PCA", "captures more variance — try plotting in 3D with ax.scatter3D"),
+            ("Remove StandardScaler (use raw X instead of X_scaled)", "petal length (0-7cm) dominates — sepal width (2-4cm) is ignored"),
+            ("Add a 3rd subplot: PCA with 3 components on iris, colored by species", "3D scatter shows even better separation"),
+            ("Change load_digits to load_breast_cancer (30 features)", "30D → 2D — see how cancer/benign separate"),
+        ],
+    },
+    {
+        "slug": "ml-maths-svm-visual",
+        "category": "ML Advanced",
+        "title": "SVM visualized — hyperplane + margins + support vectors (iris)",
+        "language": "python",
+        "summary": "SEE the SVM hyperplane, the margin, and the support vectors. Compare linear vs RBF kernel. See how C controls the margin width.",
+        "starter_code": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.datasets import load_iris\nfrom sklearn.svm import SVC\nfrom sklearn.preprocessing import StandardScaler\n\n# ── Load iris, use 2 features for visualization ──\niris = load_iris()\nX = iris.data[:, [2, 3]]  # petal length, petal width\ny = iris.target\n# Use only 2 classes (versicolor vs virginica) for binary SVM visualization\nmask = y != 0  # remove setosa (too easy)\nX = X[mask]\ny = y[mask] - 1  # relabel to 0, 1\n\nX_scaled = StandardScaler().fit_transform(X)\n\nprint(f'Dataset: iris versicolor (0) vs virginica (1) — {len(y)} samples')\nprint(f'These two species OVERLAP — perfect for demonstrating SVM margins')\n\n# ════════════════════════════════════════════════════════════════════\n#  Compare 4 SVM configurations side by side\n# ════════════════════════════════════════════════════════════════════\nconfigs = [\n    ('Linear, C=1', SVC(kernel='linear', C=1.0, random_state=42)),\n    ('Linear, C=100', SVC(kernel='linear', C=100, random_state=42)),\n    ('RBF, C=1, γ=scale', SVC(kernel='rbf', C=1.0, gamma='scale', random_state=42)),\n    ('RBF, C=100, γ=scale', SVC(kernel='rbf', C=100, gamma='scale', random_state=42)),\n]\n\nfig, axes = plt.subplots(2, 2, figsize=(14, 12))\n\nfor ax, (title, model) in zip(axes.ravel(), configs):\n    model.fit(X_scaled, y)\n\n    # Create mesh for decision boundary\n    x_min, x_max = X_scaled[:, 0].min() - 1, X_scaled[:, 0].max() + 1\n    y_min, y_max = X_scaled[:, 1].min() - 1, X_scaled[:, 1].max() + 1\n    xx, yy = np.meshgrid(np.linspace(x_min, x_max, 200), np.linspace(y_min, y_max, 200))\n    Z = model.predict(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)\n\n    # Plot decision regions\n    ax.contourf(xx, yy, Z, alpha=0.2, cmap=plt.cm.RdBu)\n    ax.contour(xx, yy, Z, colors='black', linewidths=0.5, alpha=0.3)\n\n    # Plot decision boundary + margins (only for linear kernel)\n    if model.kernel == 'linear':\n        w = model.coef_[0]\n        b = model.intercept_[0]\n        # Decision boundary: w[0]*x + w[1]*y + b = 0 → y = -(w[0]*x + b) / w[1]\n        x_line = np.linspace(x_min, x_max, 100)\n        y_boundary = -(w[0] * x_line + b) / w[1]\n        y_margin_up = -(w[0] * x_line + b - 1) / w[1]\n        y_margin_down = -(w[0] * x_line + b + 1) / w[1]\n        ax.plot(x_line, y_boundary, 'k-', linewidth=2, label='decision boundary')\n        ax.plot(x_line, y_margin_up, 'k--', linewidth=1, alpha=0.5, label='margin')\n        ax.plot(x_line, y_margin_down, 'k--', linewidth=1, alpha=0.5)\n\n    # Plot data points — highlight support vectors\n    ax.scatter(X_scaled[y == 0, 0], X_scaled[y == 0, 1], c='#3498db',\n              label='versicolor', edgecolors='black', s=40, zorder=3)\n    ax.scatter(X_scaled[y == 1, 0], X_scaled[y == 1, 1], c='#e74c3c',\n              label='virginica', edgecolors='black', s=40, zorder=3)\n    # Support vectors (circled)\n    ax.scatter(model.support_vectors_[:, 0], model.support_vectors_[:, 1],\n              s=150, facecolors='none', edgecolors='lime', linewidths=2,\n              label=f'support vectors ({len(model.support_vectors_)})', zorder=4)\n\n    ax.set_title(f'{title}\\nAccuracy: {model.score(X_scaled, y):.3f}')\n    ax.legend(fontsize=8, loc='upper left')\n\nplt.suptitle('SVM: Hyperplane + Margins + Support Vectors', fontsize=14, y=1.01)\nplt.tight_layout()\n\nprint(f'\\nResults:')\nfor title, model in configs:\n    model.fit(X_scaled, y)\n    n_sv = len(model.support_vectors_)\n    print(f'  {title:25s}  accuracy={model.score(X_scaled, y):.3f}  support_vectors={n_sv}')\n\nprint(f'\\nTHE MATHS:')\nprint(f'  SVM finds the hyperplane that MAXIMIZES THE MARGIN between classes.')\nprint(f'  Decision boundary: w·x + b = 0')\nprint(f'  Margins: w·x + b = ±1')\nprint(f'  Support vectors = points ON the margin (circled in green).')\nprint(f'  These are the ONLY points that matter — moving other points doesn\\'t change the boundary.')\nprint(f'\\n  C parameter (trade-off: margin width vs classification errors):')\nprint(f'    C=1: wide margin, allows some misclassifications (soft margin)')\nprint(f'    C=100: narrow margin, tries to classify everything correctly (might overfit)')\nprint(f'\\n  Kernel trick (for non-linear data):')\nprint(f'    linear: straight line boundary')\nprint(f'    rbf (Gaussian): curved boundary — maps to infinite dimensions')\nprint(f'    poly: polynomial boundary')\nprint(f'  gamma: controls how far each training point influences the boundary')",
+        "html_template": "",
+        "explanation": (
+            "SVM (Support Vector Machine) — VISUALIZED: "
+            "GOAL: find the hyperplane that MAXIMIZES THE MARGIN between two classes. "
+            "  Not just any separating line — the one with the BIGGEST gap. "
+            "DECISION BOUNDARY: w·x + b = 0 (solid line). "
+            "MARGINS: w·x + b = ±1 (dashed lines). The gap between them = the margin. "
+            "SUPPORT VECTORS: the points ON the margin (circled in green). "
+            "  These are the ONLY points that determine the boundary. Move any other point → boundary stays. "
+            "  That's why SVM is memory-efficient — you only need to remember the support vectors. "
+            "C PARAMETER (regularization): "
+            "  C=1 (soft margin): wide margin, allows misclassifications. More robust to outliers. "
+            "  C=100 (hard margin): narrow margin, tries to classify everything. Might overfit. "
+            "KERNEL TRICK (for non-linear data): "
+            "  linear: straight line. Fast, interpretable. Use when data is linearly separable. "
+            "  rbf (Gaussian): curved boundary. Maps data to INFINITE dimensions. Most popular. "
+            "  poly: polynomial boundary. Good for specific cases. "
+            "GAMMA: controls how far each point's influence reaches. "
+            "  High gamma = each point only affects nearby region (can overfit). "
+            "  Low gamma = each point affects far away (smoother boundary). "
+            "VERSICOLOR vs VIRGINICA: these species overlap in petal dimensions. "
+            "  Linear SVM with C=1 accepts some errors (soft margin). "
+            "  RBF kernel curves around the overlap — higher accuracy but might overfit."
+        ),
+        "try_changes": [
+            ("Change kernel from 'linear' to 'poly' with degree=3", "polynomial boundary — curved like RBF but different shape"),
+            ("Change gamma from 'scale' to 10", "high gamma → each point has small influence → tighter, more complex boundary"),
+            ("Change gamma from 'scale' to 0.01", "low gamma → each point has large influence → smoother boundary"),
+            ("Use all 3 iris classes (remove the mask)", "SVM does multi-class via one-vs-one — 3 boundaries instead of 1"),
+        ],
+    },
+    {
+        "slug": "ml-maths-decision-tree-visual",
+        "category": "ML Advanced",
+        "title": "Decision Tree visualized — the splits + overfitting (iris)",
+        "language": "python",
+        "summary": "SEE the actual tree structure with its split rules. SEE how depth 3 vs depth 10 changes the decision regions. The most interpretable model.",
+        "starter_code": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.datasets import load_iris\nfrom sklearn.tree import DecisionTreeClassifier, plot_tree\nfrom sklearn.model_selection import train_test_split\n\n# ── Load iris ──\niris = load_iris()\nX = iris.data[:, [2, 3]]  # petal length, petal width\ny = iris.target\nfeature_names = ['petal length', 'petal width']\n\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)\n\nprint(f'Dataset: iris (train={len(X_train)}, test={len(X_test)})')\n\n# ════════════════════════════════════════════════════════════════════\n#  Compare 3 tree depths: underfit → good → overfit\n# ════════════════════════════════════════════════════════════════════\ndepths = [1, 3, 10]\nfig, axes = plt.subplots(2, 3, figsize=(18, 11))\n\nfor i, depth in enumerate(depths):\n    model = DecisionTreeClassifier(max_depth=depth, random_state=42)\n    model.fit(X_train, y_train)\n\n    train_acc = model.score(X_train, y_train)\n    test_acc = model.score(X_test, y_test)\n\n    # TOP ROW: decision regions\n    ax = axes[0, i]\n    x_min, x_max = X[:, 0].min() - 0.5, X[:, 0].max() + 0.5\n    y_min, y_max = X[:, 1].min() - 0.5, X[:, 1].max() + 0.5\n    xx, yy = np.meshgrid(np.linspace(x_min, x_max, 200), np.linspace(y_min, y_max, 200))\n    Z = model.predict(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)\n\n    ax.contourf(xx, yy, Z, alpha=0.2, cmap=plt.cm.Set1)\n    colors = ['#e74c3c', '#2ecc71', '#3498db']\n    for j, species in enumerate(iris.target_names):\n        mask = y == j\n        ax.scatter(X[mask, 0], X[mask, 1], c=colors[j], label=species, s=30, edgecolors='black')\n    ax.set_xlabel(feature_names[0])\n    ax.set_ylabel(feature_names[1])\n    fit_label = 'UNDERFIT' if depth == 1 else ('GOOD' if depth == 3 else 'OVERFIT')\n    ax.set_title(f'Depth {depth} ({fit_label})\\ntrain={train_acc:.3f}, test={test_acc:.3f}')\n    ax.legend(fontsize=8)\n\n    # BOTTOM ROW: the actual tree structure\n    ax2 = axes[1, i]\n    plot_tree(model, ax=ax2, feature_names=feature_names,\n             class_names=list(iris.target_names), filled=True, fontsize=7,\n             rounded=True, precision=2)\n    ax2.set_title(f'Tree structure (depth {depth})', fontsize=10)\n\nplt.suptitle('Decision Tree: depth controls overfitting', fontsize=14, y=1.01)\nplt.tight_layout()\n\nprint(f'\\nResults:')\nfor depth in depths:\n    model = DecisionTreeClassifier(max_depth=depth, random_state=42)\n    model.fit(X_train, y_train)\n    print(f'  Depth {depth:2d}: train={model.score(X_train, y_train):.3f}, test={model.score(X_test, y_test):.3f}, '\n          f'n_leaves={model.get_n_leaves()}')\n\nprint(f'\\nHOW TO READ THE TREE:')\nprint(f'  Each box is a NODE. Top box = root.')\nprint(f'  \"petal length <= 2.45\" = the SPLIT RULE')\nprint(f'  gini = impurity (0 = pure, 0.5 = mixed)')\nprint(f'  samples = how many rows reached this node')\nprint(f'  value = [n_class0, n_class1, n_class2]')\nprint(f'  class = the majority class (the prediction)')\nprint(f'\\n  LEFT = condition is TRUE. RIGHT = condition is FALSE.')\nprint(f'  Leaf nodes (no children) = final predictions.')\nprint(f'\\nTHE MATHS:')\nprint(f'  At each node, find the split that MINIMIZES GINI impurity:')\nprint(f'  Gini = 1 - Σ(p_i)²  where p_i = probability of class i')\nprint(f'  Pure node (one class): gini = 0')\nprint(f'  50/50 split: gini = 0.5')\nprint(f'  The tree GREEDILY picks the split that reduces gini the most.')\nprint(f'\\n  Depth 1 (UNDERFIT): single split — only separates setosa from rest')\nprint(f'  Depth 3 (GOOD): enough splits to capture the pattern')\nprint(f'  Depth 10 (OVERFIT): too many splits — memorizes training data')",
+        "html_template": "",
+        "explanation": (
+            "Decision Tree — VISUALIZED: "
+            "Each tree node asks a YES/NO question: 'petal length <= 2.45?' "
+            "LEFT = yes, RIGHT = no. Follow the path to a LEAF = your prediction. "
+            "GINI IMPURITY: measures how mixed the classes are at a node. "
+            "  Gini = 1 - Σ(p_i)². Pure node (one class) = 0. 50/50 = 0.5. "
+            "  The tree picks the split that reduces gini the MOST (greedy). "
+            "DEPTH = overfitting dial: "
+            "  Depth 1 (UNDERFIT): 1 split — only separates setosa. Train + test both low. "
+            "  Depth 3 (GOOD): 3-4 splits — captures the real pattern. Train ≈ test. "
+            "  Depth 10 (OVERFIT): 20+ splits — memorizes training. Train=1.0, test drops. "
+            "DECISION REGIONS: trees create RECTANGULAR regions (axis-aligned splits). "
+            "  This is why trees can't learn diagonal boundaries well — need many splits. "
+            "WHY TREES ARE GREAT: "
+            "  (1) Interpretable — you can EXPLAIN any prediction by following the path. "
+            "  (2) No scaling needed — splits are threshold-based. "
+            "  (3) Handles categorical + numerical naturally. "
+            "  (4) Feature importance is built-in (which features are used near the root?). "
+            "WHY TREES ARE BAD (alone): "
+            "  (1) High variance — small data change → totally different tree. "
+            "  (2) Overfit easily — no max_depth = memorizes everything. "
+            "  (3) Can't extrapolate — predictions bounded by training data range. "
+            "SOLUTION: RandomForest (many trees + voting) fixes the variance problem."
+        ),
+        "try_changes": [
+            ("Change max_depth to None (unlimited)", "tree grows until all leaves are pure — extreme overfitting"),
+            ("Change the split criterion from 'gini' to 'entropy'", "uses information gain instead of gini — usually similar results"),
+            ("Change min_samples_leaf from default (1) to 10", "each leaf must have ≥10 samples — prevents tiny overfit leaves"),
+            ("Use all 4 features: X = iris.data", "tree uses more features — deeper tree needed for same accuracy"),
+        ],
+    },
+    {
+        "slug": "ml-maths-random-forest-visual",
+        "category": "ML Advanced",
+        "title": "Random Forest visualized — many trees + feature importance (wine)",
+        "language": "python",
+        "summary": "SEE how 100 trees vote. SEE feature importance. SEE OOB error stabilize. The wine dataset (13 features, 3 classes).",
+        "starter_code": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.datasets import load_wine\nfrom sklearn.ensemble import RandomForestClassifier\nfrom sklearn.model_selection import train_test_split\n\n# ── Load wine dataset (13 chemical features, 3 wine cultivars) ──\nwine = load_wine()\nX = wine.data\ny = wine.target\nfeature_names = wine.feature_names\n\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)\n\nprint(f'Dataset: wine ({len(y)} samples, {X.shape[1]} features, 3 classes)')\nprint(f'Features: {feature_names}')\n\n# ════════════════════════════════════════════════════════════════════\n#  PLOT 1: Accuracy vs n_estimators — how many trees do you need?\n# ════════════════════════════════════════════════════════════════════\nn_trees_list = [1, 5, 10, 20, 50, 100, 200]\ntrain_scores = []\ntest_scores = []\noob_scores = []\n\nfor n in n_trees_list:\n    rf = RandomForestClassifier(n_estimators=n, oob_score=True, random_state=42)\n    rf.fit(X_train, y_train)\n    train_scores.append(rf.score(X_train, y_train))\n    test_scores.append(rf.score(X_test, y_test))\n    oob_scores.append(rf.oob_score_ if n > 1 else np.nan)\n\nfig, axes = plt.subplots(1, 3, figsize=(18, 5))\n\naxes[0].plot(n_trees_list, train_scores, 'o-', color='#a0c000', label='train')\naxes[0].plot(n_trees_list, test_scores, 's-', color='#58a6ff', label='test')\naxes[0].plot(n_trees_list, oob_scores, '^-', color='#f85149', label='OOB (out-of-bag)')\naxes[0].set_xlabel('Number of trees')\naxes[0].set_ylabel('Accuracy')\naxes[0].set_title('How many trees do you need?')\naxes[0].legend()\naxes[0].set_xscale('log')\naxes[0].axhline(1.0, color='gray', linestyle='--', alpha=0.3)\n\n# ════════════════════════════════════════════════════════════════════\n#  PLOT 2: Feature importance — which features matter most?\n# ════════════════════════════════════════════════════════════════════\nrf = RandomForestClassifier(n_estimators=100, random_state=42)\nrf.fit(X_train, y_train)\n\nimportances = rf.feature_importances_\nindices = np.argsort(importances)[::-1]  # sort descending\n\naxes[1].barh(range(len(importances)), importances[indices][::-1],\n            color='#bc8cff', edgecolor='black')\naxes[1].set_yticks(range(len(importances)))\naxes[1].set_yticklabels([feature_names[i] for i in indices][::-1], fontsize=8)\naxes[1].set_xlabel('Importance (0-1)')\naxes[1].set_title('Feature Importance\\n(which features matter most?)')\nfor i, v in enumerate(importances[indices][::-1]):\n    axes[1].text(v + 0.005, i, f'{v:.3f}', va='center', fontsize=7)\n\n# ════════════════════════════════════════════════════════════════════\n#  PLOT 3: Individual tree predictions vs forest vote (on 1 sample)\n# ════════════════════════════════════════════════════════════════════\n# Take a test sample and see how each tree votes\nsample_idx = 0\nsample = X_test[sample_idx:sample_idx+1]\ntrue_label = y_test[sample_idx]\n\ntree_votes = []\nfor tree in rf.estimators_:\n    tree_votes.append(tree.predict(sample)[0])\n\nclass_counts = [tree_votes.count(c) for c in range(3)]\ncolors = ['#e74c3c', '#2ecc71', '#3498db']\naxes[2].bar(['Class 0\\n(' + wine.target_names[0] + ')',\n             'Class 1\\n(' + wine.target_names[1] + ')',\n             'Class 2\\n(' + wine.target_names[2] + ')'],\n            class_counts, color=colors, edgecolor='black')\naxes[2].set_ylabel('Number of trees voting for this class')\naxes[2].set_title(f'Forest vote on 1 sample\\n(true: {wine.target_names[true_label]}, '\n                  f'predicted: {wine.target_names[rf.predict(sample)[0]]})')\nfor i, count in enumerate(class_counts):\n    axes[2].text(i, count + 0.5, str(count), ha='center', fontsize=12, fontweight='bold')\n\nplt.tight_layout()\n\nprint(f'\\nResults (100 trees):')\nprint(f'  Train accuracy: {rf.score(X_train, y_train):.3f}')\nprint(f'  Test accuracy:  {rf.score(X_test, y_test):.3f}')\nprint(f'  OOB score:      {rf.oob_score_:.3f}')\nprint(f'\\nTop 5 important features:')\nfor i in indices[:5]:\n    print(f'  {feature_names[i]:30s}  {importances[i]:.4f}')\nprint(f'\\nTHE MATHS:')\nprint(f'  Random Forest = ensemble of decision trees + voting.')\nprint(f'  Each tree sees a RANDOM SUBSET of rows (bootstrap = sample with replacement).')\nprint(f'  At each split, only a RANDOM SUBSET of features is considered.')\nprint(f'  Final prediction = MAJORITY VOTE (classification) or AVERAGE (regression).')\nprint(f'\\n  Why does this work?')\nprint(f'    Single tree: high variance (small data change → different tree)')\nprint(f'    Many trees:  variance averages out → low variance + low bias')\nprint(f'    This is BAGGING (Bootstrap Aggregating).')\nprint(f'\\n  OOB (Out-Of-Bag) score:')\nprint(f'    Each tree trains on ~63% of data (bootstrap). The other ~37% is \"out-of-bag\".')\nprint(f'    OOB score = accuracy on the OOB samples. FREE validation — no separate test set needed.')",
+        "html_template": "",
+        "explanation": (
+            "Random Forest — VISUALIZED: "
+            "WHAT: 100+ decision trees + majority vote. The wisdom of the crowd. "
+            "HOW IT WORKS: "
+            "  (1) BOOTSTRAP: each tree gets a random sample of rows (with replacement). ~63% unique rows per tree. "
+            "  (2) RANDOM FEATURES: at each split, only √n_features are considered. Prevents all trees from picking the same split. "
+            "  (3) VOTE: final prediction = majority vote (classification) or average (regression). "
+            "WHY IT WORKS (BAGGING): "
+            "  Single tree: high variance (change 1 row → different tree). "
+            "  Many trees: variance averages out. Same bias, lower variance. "
+            "  Mathematically: Var(average of n) = Var(single) / n. More trees = less variance. "
+            "OOB SCORE (free validation): "
+            "  Each tree trains on ~63% of data. The other ~37% (out-of-bag) is unseen. "
+            "  OOB score = accuracy on OOB samples. No need for a separate validation set. "
+            "FEATURE IMPORTANCE: "
+            "  Measured by how much each feature REDUCES gini impurity across ALL trees. "
+            "  Summed + averaged. Higher = more important. "
+            "  On wine: 'flavanoids' and 'color_intensity' are usually top — they're chemically meaningful. "
+            "HOW MANY TREES: "
+            "  1 tree = high variance. 10 trees = good. 100 = stable. 200+ = no improvement. "
+            "  The curve PLATEAUS — more trees don't help after ~100. Just wastes memory. "
+            "  NEVER increases overfitting (unlike max_depth). More trees = always better or same."
+        ),
+        "try_changes": [
+            ("Change n_estimators from 100 to 5", "fewer trees → higher variance → test accuracy drops slightly"),
+            ("Change max_features from default (sqrt) to 1.0 (all features)", "trees are more correlated → bagging helps less"),
+            ("Set oob_score=False", "can't track OOB — need a separate validation set"),
+            ("Use load_breast_cancer instead of load_wine", "30 features → different importance ranking"),
+        ],
+    },
+    {
+        "slug": "ml-maths-knn-visual",
+        "category": "ML Advanced",
+        "title": "KNN visualized — the K nearest neighbors + decision boundary (iris)",
+        "language": "python",
+        "summary": "SEE how K=1 creates jagged boundaries (overfit) and K=15 creates smooth boundaries (underfit). The simplest ML algorithm, visualized.",
+        "starter_code": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.datasets import load_iris\nfrom sklearn.neighbors import KNeighborsClassifier\nfrom sklearn.preprocessing import StandardScaler\n\n# ── Load iris, use 2 features ──\niris = load_iris()\nX = iris.data[:, [2, 3]]  # petal length, petal width\ny = iris.target\nX_scaled = StandardScaler().fit_transform(X)\n\nprint(f'Dataset: iris (150 samples, 3 species, 2 features for visualization)')\n\n# ════════════════════════════════════════════════════════════════════\n#  Compare K=1, K=5, K=15, K=50 — see how K controls smoothness\n# ════════════════════════════════════════════════════════════════════\nk_values = [1, 5, 15, 50]\nfig, axes = plt.subplots(1, 4, figsize=(24, 5))\n\nfor ax, k in zip(axes, k_values):\n    knn = KNeighborsClassifier(n_neighbors=k)\n    knn.fit(X_scaled, y)\n\n    # Decision boundary\n    x_min, x_max = X_scaled[:, 0].min() - 1, X_scaled[:, 0].max() + 1\n    y_min, y_max = X_scaled[:, 1].min() - 1, X_scaled[:, 1].max() + 1\n    xx, yy = np.meshgrid(np.linspace(x_min, x_max, 200), np.linspace(y_min, y_max, 200))\n    Z = knn.predict(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)\n\n    ax.contourf(xx, yy, Z, alpha=0.2, cmap=plt.cm.Set1)\n\n    colors = ['#e74c3c', '#2ecc71', '#3498db']\n    for i, species in enumerate(iris.target_names):\n        mask = y == i\n        ax.scatter(X_scaled[mask, 0], X_scaled[mask, 1], c=colors[i],\n                  label=species, s=30, edgecolors='black')\n\n    acc = knn.score(X_scaled, y)\n    label = 'OVERFIT (jagged)' if k == 1 else ('GOOD' if k == 5 else ('SMOOTH' if k == 15 else 'UNDERFIT'))\n    ax.set_title(f'K={k} ({label})\\naccuracy={acc:.3f}')\n    ax.legend(fontsize=7)\n    ax.set_xlabel('petal length (scaled)')\n    ax.set_ylabel('petal width (scaled)')\n\nplt.suptitle('KNN: K controls the smoothness of the boundary', fontsize=14, y=1.02)\nplt.tight_layout()\n\n# ════════════════════════════════════════════════════════════════════\n#  PLOT 2: Accuracy vs K — find the sweet spot\n# ════════════════════════════════════════════════════════════════════\nfig2, ax2 = plt.subplots(figsize=(10, 5))\nk_range = range(1, 51)\nscores = []\nfor k in k_range:\n    knn = KNeighborsClassifier(n_neighbors=k)\n    knn.fit(X_scaled, y)\n    scores.append(knn.score(X_scaled, y))\n\nax2.plot(k_range, scores, 'o-', color='#a0c000', markersize=4)\nax2.set_xlabel('K (number of neighbors)')\nax2.set_ylabel('Accuracy')\nax2.set_title('Accuracy vs K: find the sweet spot')\nax2.axvline(5, color='green', linestyle='--', alpha=0.5, label='K=5 (good)')\nax2.axvline(50, color='red', linestyle='--', alpha=0.5, label='K=50 (underfit)')\nax2.legend()\nax2.grid(True, alpha=0.3)\nplt.tight_layout()\n\nprint(f'\\nKNN accuracy for different K values:')\nfor k in k_values:\n    knn = KNeighborsClassifier(n_neighbors=k)\n    knn.fit(X_scaled, y)\n    print(f'  K={k:2d}: accuracy={knn.score(X_scaled, y):.3f}')\n\nprint(f'\\nTHE MATHS:')\nprint(f'  KNN has NO training phase. It just STORES the data.')\nprint(f'  At prediction time:')\nprint(f'    1. Compute distance from new point to ALL training points')\nprint(f'    2. Find the K NEAREST neighbors')\nprint(f'    3. Vote: majority class wins (classification) or average (regression)')\nprint(f'\\n  Distance metric: usually EUCLIDEAN')\nprint(f'    d(x, y) = √(Σ(xᵢ - yᵢ)²)')\nprint(f'    MUST scale features first — else large features dominate!')\nprint(f'\\n  K controls bias-variance tradeoff:')\nprint(f'    K=1: each point is its own nearest neighbor → 100% train accuracy')\nprint(f'          BOUNDARY IS JAGGED → overfits noise')\nprint(f'    K=5-15: smooth boundary → good balance')\nprint(f'    K=50: too smooth → underfits (ignores local patterns)')\nprint(f'\\n  Rule of thumb: K = √(n_samples). For 150 iris: K ≈ 12.')\nprint(f'  Always use ODD K (prevents tie votes in binary classification).')",
+        "html_template": "",
+        "explanation": (
+            "KNN (K-Nearest Neighbors) — VISUALIZED: "
+            "THE SIMPLEST ML ALGORITHM: no training. Just store the data. "
+            "PREDICTION: find the K nearest training points, vote. "
+            "DISTANCE: Euclidean d = √(Σ(xᵢ-yᵢ)²). MUST scale features first! "
+            "  Without scaling: a feature in thousands (salary) dominates a feature in single digits (age). "
+            "K CONTROLS SMOOTHNESS: "
+            "  K=1 (OVERFIT): each point is its own neighbor → 100% train accuracy. "
+            "    Boundary is JAGGED — every training point creates its own island. "
+            "    Captures NOISE as if it were signal. "
+            "  K=5 (GOOD): smooth boundary, captures the real pattern. "
+            "  K=15 (SMOOTH): very smooth, might miss fine details. "
+            "  K=50 (UNDERFIT): too smooth — predicts the majority class everywhere. "
+            "K vs BIAS-VARIANCE: "
+            "  Low K = low bias (flexible) + high variance (sensitive to noise). "
+            "  High K = high bias (inflexible) + low variance (stable). "
+            "RULE OF THUMB: K = √(n_samples). For 150 iris → K ≈ 12. "
+            "Always use ODD K (prevents tie votes in binary classification). "
+            "WHEN KNN IS GOOD: "
+            "  Small datasets, few features, non-linear boundaries. "
+            "WHEN KNN IS BAD: "
+            "  Large datasets (prediction is O(n) — slow). "
+            "  High dimensions (curse of dimensionality — all points are far apart). "
+            "  Need fast prediction (KNN stores ALL data, no compression)."
+        ),
+        "try_changes": [
+            ("Change the distance metric: KNeighborsClassifier(metric='manhattan')", "L1 distance — less sensitive to outliers"),
+            ("Use weights='distance' instead of 'uniform'", "closer neighbors have more vote weight — can help with uneven densities"),
+            ("Use sepal features: X = iris.data[:, [0, 1]]", "classes overlap more — KNN struggles"),
+            ("Change K to 150 (all samples)", "every prediction = majority class — extreme underfitting"),
+        ],
+    },
+    {
+        "slug": "ml-maths-kmeans-visual",
+        "category": "ML Advanced",
+        "title": "K-Means visualized — centroid movement + elbow plot (iris)",
+        "language": "python",
+        "summary": "SEE the centroids move iteration by iteration. SEE the elbow plot to pick K. Unsupervised learning made visual.",
+        "starter_code": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.datasets import load_iris\nfrom sklearn.cluster import KMeans\nfrom sklearn.preprocessing import StandardScaler\n\n# ── Load iris (but pretend we DON'T know the labels — unsupervised!) ──\niris = load_iris()\nX = iris.data[:, [2, 3]]  # petal length, petal width\n# NOTE: we DON'T use y (labels) — K-Means is UNSUPERVISED\nX_scaled = StandardScaler().fit_transform(X)\n\nprint(f'Dataset: iris (UNSUPERVISED — we pretend we don\\'t know the species)')\nprint(f'Features: petal length, petal width (scaled)')\nprint(f'True number of species: 3 (but K-Means doesn\\'t know this)')\n\n# ════════════════════════════════════════════════════════════════════\n#  PLOT 1: See centroids move over iterations (K=3)\n# ════════════════════════════════════════════════════════════════════\nfig, axes = plt.subplots(1, 4, figsize=(24, 5))\n\n# Run K-Means with max_iter=1 to capture each step\nkmeans_final = KMeans(n_clusters=3, random_state=42, n_init=10)\nkmeans_final.fit(X_scaled)\nfinal_centroids = kmeans_final.cluster_centers_\n\n# Simulate iterations by running with different max_iter\nfor ax, max_iter in zip(axes, [1, 2, 5, 10]):\n    km = KMeans(n_clusters=3, max_iter=max_iter, n_init=1, random_state=42, init='random')\n    km.fit(X_scaled)\n\n    # Plot data points colored by cluster assignment\n    labels = km.labels_\n    colors = ['#e74c3c', '#2ecc71', '#3498db']\n    for i in range(3):\n        mask = labels == i\n        ax.scatter(X_scaled[mask, 0], X_scaled[mask, 1], c=colors[i], s=25, alpha=0.6)\n\n    # Plot centroids (big X)\n    ax.scatter(km.cluster_centers_[:, 0], km.cluster_centers_[:, 1],\n              marker='X', s=200, c='black', edgecolors='yellow', linewidths=2,\n              zorder=5, label='centroids')\n\n    ax.set_title(f'Iteration {max_iter}\\ninertia={km.inertia_:.1f}')\n    ax.set_xlabel('petal length (scaled)')\n    ax.set_ylabel('petal width (scaled)')\n    ax.legend(fontsize=8)\n\nplt.suptitle('K-Means: centroids move to minimize inertia', fontsize=14, y=1.02)\nplt.tight_layout()\n\n# ════════════════════════════════════════════════════════════════════\n#  PLOT 2: Elbow plot — how to pick K\n# ════════════════════════════════════════════════════════════════════\nfig2, ax2 = plt.subplots(figsize=(10, 5))\nk_values = range(1, 11)\ninertias = []\nfor k in k_values:\n    km = KMeans(n_clusters=k, random_state=42, n_init=10)\n    km.fit(X_scaled)\n    inertias.append(km.inertia_)\n\nax2.plot(k_values, inertias, 'o-', color='#a0c000', markersize=8, linewidth=2)\nax2.axvline(3, color='red', linestyle='--', alpha=0.5, label='Elbow at K=3 (true number of species)')\nax2.set_xlabel('K (number of clusters)')\nax2.set_ylabel('Inertia (sum of squared distances to centroid)')\nax2.set_title('Elbow Plot: pick K where the curve bends')\nax2.legend()\nax2.grid(True, alpha=0.3)\nplt.tight_layout()\n\nprint(f'\\nElbow plot (inertia for each K):')\nfor k, inertia in zip(k_values, inertias):\n    marker = ' ← ELBOW (true K)' if k == 3 else ''\n    print(f'  K={k:2d}: inertia={inertia:8.1f}{marker}')\n\nprint(f'\\nTHE MATHS:')\nprint(f'  K-Means minimizes INERTIA (within-cluster sum of squares):')\nprint(f'  Inertia = Σ Σ ||x - centroid||²')\nprint(f'           (sum over all clusters, all points in each cluster)')\nprint(f'\\n  Algorithm (Lloyd\\'s algorithm):')\nprint(f'    1. Place K centroids randomly')\nprint(f'    2. ASSIGN: each point joins its nearest centroid')\nprint(f'    3. UPDATE: move each centroid to the MEAN of its points')\nprint(f'    4. Repeat 2-3 until centroids stop moving (convergence)')\nprint(f'\\n  Inertia ALWAYS decreases with more K (more clusters = smaller distances)')\nprint(f'  The ELBOW is where adding more K gives diminishing returns')\nprint(f'  Look for the \"bend\" in the curve — that\\'s the natural number of clusters')\nprint(f'\\n  WARNING: K-Means assumes:')\nprint(f'    1. Clusters are SPHERICAL (fails on elongated shapes)')\nprint(f'    2. Clusters are SIMILAR SIZE (fails on very uneven sizes)')\nprint(f'    3. K is known (use elbow plot or silhouette score to pick)')\nprint(f'    4. Scale matters (always scale features first!)')\n\n# Compare with true labels\nprint(f'\\nK-Means clusters vs true species (adjusted Rand index):')\nfrom sklearn.metrics import adjusted_rand_score\nari = adjusted_rand_score(iris.target, kmeans_final.labels_)\nprint(f'  ARI = {ari:.3f} (1=perfect, 0=random)')\nprint(f'  K-Means found the 3 species WITHOUT being told they exist!')",
+        "html_template": "",
+        "explanation": (
+            "K-Means Clustering — VISUALIZED: "
+            "UNSUPERVISED: no labels. The algorithm finds structure on its own. "
+            "ALGORITHM (Lloyd's): "
+            "  (1) Place K centroids randomly. "
+            "  (2) ASSIGN: each point joins its nearest centroid. "
+            "  (3) UPDATE: move each centroid to the MEAN of its points. "
+            "  (4) Repeat until centroids stop moving. "
+            "INERTIA (cost function): sum of squared distances from each point to its centroid. "
+            "  Inertia = Σ Σ ||x - centroid||². K-Means minimizes this. "
+            "ELBOW PLOT: inertia vs K. Always decreasing (more K = smaller distances). "
+            "  Look for the 'bend' — that's the natural number of clusters. "
+            "  On iris: elbow at K=3. K-Means finds the 3 species WITHOUT BEING TOLD! "
+            "CENTROID MOVEMENT: "
+            "  Iteration 1: random centroids → bad clustering. "
+            "  Iteration 2: centroids move to cluster means → better. "
+            "  Iteration 5+: centroids stabilize → convergence. "
+            "WARNINGS: "
+            "  (1) Clusters are SPHERICAL — fails on elongated/irregular shapes (use DBSCAN instead). "
+            "  (2) Clusters are SIMILAR SIZE — fails on very uneven sizes. "
+            "  (3) K must be chosen — elbow plot or silhouette score. "
+            "  (4) ALWAYS scale first — large features dominate distance. "
+            "  (5) Random initialization — run multiple times (n_init=10) and pick the best. "
+            "ADJUSTED RAND INDEX (ARI): compares K-Means clusters to true labels. "
+            "  1.0 = perfect match. 0.0 = random. On iris: ~0.7-0.9 — K-Means recovers the species!"
+        ),
+        "try_changes": [
+            ("Change n_clusters from 3 to 2", "merges 2 species into 1 cluster — look at the elbow plot to see why 3 is better"),
+            ("Change n_clusters from 3 to 5", "splits species into sub-clusters — overfitting the clustering"),
+            ("Change init from 'random' to 'k-means++'", "smarter initialization — converges faster, better results"),
+            ("Use sepal features: X = iris.data[:, [0, 1]]", "clusters are less clear — species overlap in sepal dimensions"),
+        ],
+    },
+    {
+        "slug": "ml-maths-gradient-boosting-visual",
+        "category": "ML Advanced",
+        "title": "Gradient Boosting visualized — sequential learning + residuals (breast cancer)",
+        "language": "python",
+        "summary": "SEE how each tree corrects the PREVIOUS tree's errors. SEE how learning rate + n_estimators interact. The competition-winning algorithm.",
+        "starter_code": "import numpy as np\nimport matplotlib.pyplot as plt\nfrom sklearn.datasets import load_breast_cancer\nfrom sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier\nfrom sklearn.model_selection import train_test_split\nfrom sklearn.metrics import accuracy_score\n\n# ── Load breast cancer (30 features, binary: malignant vs benign) ──\ncancer = load_breast_cancer()\nX = cancer.data\ny = cancer.target  # 0=malignant, 1=benign\n\nX_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)\n\nprint(f'Dataset: breast cancer ({len(y)} samples, {X.shape[1]} features)')\nprint(f'Classes: {cancer.target_names} (0=malignant, 1=benign)')\n\n# ════════════════════════════════════════════════════════════════════\n#  PLOT 1: Test accuracy vs n_estimators (gradient boosting vs random forest)\n# ════════════════════════════════════════════════════════════════════\nfig, axes = plt.subplots(1, 3, figsize=(18, 5))\n\nn_est_range = [1, 5, 10, 25, 50, 100, 200]\ngb_train = []\ngb_test = []\nrf_train = []\nrf_test = []\n\nfor n in n_est_range:\n    gb = GradientBoostingClassifier(n_estimators=n, learning_rate=0.1, random_state=42)\n    gb.fit(X_train, y_train)\n    gb_train.append(gb.score(X_train, y_train))\n    gb_test.append(gb.score(X_test, y_test))\n\n    rf = RandomForestClassifier(n_estimators=n, random_state=42)\n    rf.fit(X_train, y_train)\n    rf_train.append(rf.score(X_train, y_train))\n    rf_test.append(rf.score(X_test, y_test))\n\naxes[0].plot(n_est_range, gb_test, 'o-', color='#a0c000', label='GradientBoosting (test)')\naxes[0].plot(n_est_range, rf_test, 's-', color='#58a6ff', label='RandomForest (test)')\naxes[0].set_xlabel('n_estimators')\naxes[0].set_ylabel('Test Accuracy')\naxes[0].set_title('GradientBoosting vs RandomForest')\naxes[0].legend()\naxes[0].set_xscale('log')\naxes[0].grid(True, alpha=0.3)\n\n# ════════════════════════════════════════════════════════════════════\n#  PLOT 2: Effect of learning_rate (the most important parameter)\n# ════════════════════════════════════════════════════════════════════\nlr_values = [0.01, 0.05, 0.1, 0.3, 1.0]\nfor lr in lr_values:\n    gb = GradientBoostingClassifier(n_estimators=100, learning_rate=lr, random_state=42)\n    gb.fit(X_train, y_train)\n    train_scores = list(gb.staged_score(X_train, y_train))\n    test_scores = list(gb.staged_score(X_test, y_test))\n    axes[1].plot(range(1, 101), test_scores, label=f'lr={lr}')\n\naxes[1].set_xlabel('n_estimators (iterations)')\naxes[1].set_ylabel('Test Accuracy')\naxes[1].set_title('Learning rate effect\\n(low lr = slow but stable, high lr = fast but might overshoot)')\naxes[1].legend()\naxes[1].grid(True, alpha=0.3)\n\n# ════════════════════════════════════════════════════════════════════\n#  PLOT 3: Feature importance (which features drive the prediction?)\n# ════════════════════════════════════════════════════════════════════\ngb = GradientBoostingClassifier(n_estimators=100, learning_rate=0.1, random_state=42)\ngb.fit(X_train, y_train)\n\nimportances = gb.feature_importances_\nindices = np.argsort(importances)[-10:]  # top 10\naxes[2].barh(range(10), importances[indices], color='#bc8cff', edgecolor='black')\naxes[2].set_yticks(range(10))\naxes[2].set_yticklabels([cancer.feature_names[i] for i in indices], fontsize=8)\naxes[2].set_xlabel('Importance')\naxes[2].set_title('Top 10 features\\n(breast cancer)')\n\nplt.tight_layout()\n\nprint(f'\\nGradientBoosting (100 trees, lr=0.1):')\nprint(f'  Train accuracy: {gb.score(X_train, y_train):.4f}')\nprint(f'  Test accuracy:  {gb.score(X_test, y_test):.4f}')\nprint(f'\\nTop 5 important features:')\nfor i in np.argsort(importances)[-5:][::-1]:\n    print(f'  {cancer.feature_names[i]:30s}  {importances[i]:.4f}')\n\nprint(f'\\nTHE MATHS (Gradient Boosting):')\nprint(f'  Unlike RandomForest (trees built INDEPENDENTLY),')\nprint(f'  Gradient Boosting builds trees SEQUENTIALLY — each fixes the PREVIOUS tree\\'s errors.')\nprint(f'\\n  Algorithm:')\nprint(f'    1. Start with a simple prediction (the mean): F₀(x) = mean(y)')\nprint(f'    2. Compute RESIDUALS: rᵢ = yᵢ - F₀(xᵢ)')\nprint(f'    3. Train tree h₁ to predict the RESIDUALS (not y!)')\nprint(f'    4. Update: F₁(x) = F₀(x) + lr * h₁(x)')\nprint(f'    5. New residuals: rᵢ = yᵢ - F₁(xᵢ)')\nprint(f'    6. Train tree h₂ on new residuals. Repeat.')\nprint(f'\\n  Each tree learns from the MISTAKES of the ensemble so far.')\nprint(f'  The LEARNING RATE (lr) controls how much each tree contributes:')\nprint(f'    lr=0.01: slow learning, needs many trees, very stable')\nprint(f'    lr=0.1:  good default')\nprint(f'    lr=1.0:  fast but might overshoot (like GD with high lr)')\nprint(f'\\n  lr × n_estimators tradeoff:')\nprint(f'    Low lr + many trees = best accuracy (but slower training)')\nprint(f'    High lr + few trees = fast but lower accuracy')\nprint(f'    Rule: lr=0.1, n_estimators=100-1000 is a good starting point')\n\nprint(f'\\n  vs RandomForest:')\nprint(f'    RF: trees are INDEPENDENT (bagging). Reduces variance.')\nprint(f'    GB: trees are SEQUENTIAL (boosting). Reduces bias.')\nprint(f'    GB usually wins on tabular data (Kaggle competitions).')\nprint(f'    RF is simpler + faster (trees can train in parallel).')",
+        "html_template": "",
+        "explanation": (
+            "Gradient Boosting — VISUALIZED: "
+            "THE KEY DIFFERENCE from RandomForest: "
+            "  RF builds trees INDEPENDENTLY (bagging) → reduces VARIANCE. "
+            "  GB builds trees SEQUENTIALLY (boosting) → reduces BIAS. "
+            "ALGORITHM: "
+            "  (1) Start with mean prediction: F₀(x) = mean(y). "
+            "  (2) Compute RESIDUALS: r = y - F₀(x). (How wrong is the current model?) "
+            "  (3) Train a tree to predict the RESIDUALS (not y). "
+            "  (4) Update: F₁ = F₀ + lr × tree₁. (Add the correction.) "
+            "  (5) New residuals → train tree₂ → update → repeat. "
+            "EACH TREE FIXES THE PREVIOUS ERRORS: "
+            "  Tree 1 captures the main pattern. "
+            "  Tree 2 captures what tree 1 got wrong. "
+            "  Tree 3 captures what trees 1+2 got wrong. "
+            "  ... like a team of specialists, each fixing what the others miss. "
+            "LEARNING RATE (lr): how much each tree contributes. "
+            "  lr=0.01: slow learning. Needs many trees (500+). Very stable. "
+            "  lr=0.1: good default. 100 trees usually enough. "
+            "  lr=1.0: fast but might overshoot (like GD with high lr). "
+            "  RULE: lr × n_estimators should be roughly constant. "
+            "    lr=0.1, n=100 ≈ lr=0.01, n=1000 (same complexity, latter is slightly better). "
+            "WHY GB WINS KAGGLE: "
+            "  On tabular data, GB (XGBoost/LightGBM) beats deep learning ~80% of the time. "
+            "  Handles missing values, categorical features, non-linear interactions. "
+            "  The staged_score plot shows accuracy at each iteration — you can see "
+            "  exactly when adding more trees stops helping (early stopping). "
+            "BREAST CANCER: 'worst concave points' + 'worst area' are usually top features. "
+            "  These are medical measurements — GB finds the most predictive ones automatically."
+        ),
+        "try_changes": [
+            ("Change learning_rate from 0.1 to 0.01", "slower learning — needs more trees for same accuracy"),
+            ("Change learning_rate from 0.1 to 1.0", "fast but unstable — test accuracy might drop"),
+            ("Add max_depth=3 to the model", "deeper trees — more complex, might overfit"),
+            ("Add subsample=0.8", 'stochastic gradient boosting — each tree sees 80% of data, reduces overfitting'),
+        ],
+    },
 ]
 
 
