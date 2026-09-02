@@ -529,7 +529,12 @@
         {% elif lab.language == 'interactive' %}
           <div id="preview-interactive" class="preview-interactive">
             <div class="interactive-explanation" id="interactive-explanation"></div>
-            <div id="interactive-chart-container" style="width:100%;min-height:350px;"></div>
+            <div id="interactive-chart-container" style="width:100%;min-height:350px;">
+              <div id="interactive-fallback" style="padding:2rem;text-align:center;color:#999;font-size:0.9rem;">
+                If you see this, the interactive chart is loading...<br>
+                If it doesn't appear in 2 seconds, press <strong>Ctrl+Shift+R</strong> to hard refresh.
+              </div>
+            </div>
             <div class="interactive-metrics" id="interactive-metrics"></div>
           </div>
         {% endif %}
@@ -966,6 +971,26 @@ if (document.readyState === 'loading') {
   // DOM already loaded (script was loaded after DOMContentLoaded fired)
   _initLabs();
 }
+
+// FALLBACK: if interactive chart still shows the fallback message after 3s,
+// the JS init failed (likely service worker cache). Show hard refresh prompt.
+{% if view == "lab" and lab.language == "interactive" %}
+setTimeout(function() {
+  var fb = document.getElementById('interactive-fallback');
+  var container = document.getElementById('interactive-chart-container');
+  if (fb && container && container.innerHTML.indexOf('interactive-fallback') !== -1) {
+    // The fallback is still visible — init didn't run
+    fb.innerHTML = '<div style="padding:2rem;text-align:center;color:#f85149;">' +
+      '<strong>&#9888; Interactive chart failed to load.</strong><br><br>' +
+      'This is likely caused by browser caching.<br>' +
+      'Press <kbd style="background:#333;color:white;padding:2px 8px;border-radius:4px;">Ctrl+Shift+R</kbd> ' +
+      '(or <kbd style="background:#333;color:white;padding:2px 8px;border-radius:4px;">Cmd+Shift+R</kbd> on Mac) ' +
+      'to hard refresh and force the latest version to load.<br><br>' +
+      'If the problem persists, open DevTools (F12) &rarr; Application &rarr; Service Workers &rarr; "Unregister", then refresh.' +
+      '</div>';
+  }
+}, 3000);
+{% endif %}
 
 // ════════════════════════════════════════════════════════════════════════
 //  INTERACTIVE LAB ENGINE — sliders + live SVG charts
