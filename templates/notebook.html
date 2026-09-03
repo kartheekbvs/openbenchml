@@ -185,12 +185,14 @@
     color: #1a1a1a;
     border: none;
     border-radius: 0 0 8px 8px;
-    resize: vertical;
+    resize: none;  /* auto-resize handles this — disable manual resize */
+    overflow: hidden;  /* hide scrollbar — auto-resize prevents overflow */
     outline: none;
     tab-size: 4;
     -moz-tab-size: 4;
     display: block;
     caret-color: #1a1a1a;
+    transition: height 0.1s ease;
   }
   .cell-editor:focus {
     box-shadow: inset 0 0 0 2px rgba(160, 192, 0, 0.35);
@@ -1242,21 +1244,34 @@ function renderCell(cell) {
   if (cell.type === 'code') {
     const editor = wrap.querySelector('.cell-editor');
     editor.value = cell.source;
+    // ── Auto-resize: grow the textarea as the user types ──
+    function autoResize() {
+      editor.style.height = 'auto';
+      editor.style.height = Math.max(60, editor.scrollHeight) + 'px';
+    }
     editor.addEventListener('input', () => {
       cell.source = editor.value;
       _maybeTriggerAutocomplete(editor, cell);
+      autoResize();
     });
     editor.addEventListener('focus', () => selectCell(cell.id));
     editor.addEventListener('keydown', (e) => onEditorKeydown(e, cell));
     editor.addEventListener('blur', () => setTimeout(() => _hideAutocomplete(), 200));
+    // Initial auto-resize
+    setTimeout(autoResize, 50);
     // Render existing output if any
     if (cell.output) renderOutput(cell);
   } else if (cell.type === 'text') {
     const editor = wrap.querySelector('.cell-editor');
     if (editor) {
       editor.value = cell.source;
-      editor.addEventListener('input', () => { cell.source = editor.value; });
+      function autoResizeText() {
+        editor.style.height = 'auto';
+        editor.style.height = Math.max(40, editor.scrollHeight) + 'px';
+      }
+      editor.addEventListener('input', () => { cell.source = editor.value; autoResizeText(); });
       editor.addEventListener('focus', () => selectCell(cell.id));
+      setTimeout(autoResizeText, 50);
     }
   }
 }
@@ -1925,7 +1940,7 @@ async function runCellServer(cell) {
       cell_id: cell.id,
     }),
   }, 90000);
-  return {
+  const result = {
     ok: data.ok,
     stdout: data.stdout || '',
     stderr: data.stderr || '',
@@ -1940,6 +1955,12 @@ async function runCellServer(cell) {
   try { autosaveNotebook(); } catch (e) {}
   // Refresh server-side variable inspector
   try { refreshKernelInfo(); } catch (e) {}
+  // ── CRITICAL: refresh the file list so .pkl files appear ──
+  // When a user runs joblib.dump(model, 'model.pkl'), the file is saved
+  // to the server workspace but the file list doesn't update automatically.
+  // This refresh makes it appear immediately.
+  try { refreshFiles(); } catch (e) {}
+  return result;
 }
 
 async function runCellPyodide(cell) {
@@ -3778,6 +3799,9 @@ function insertFileHint(path, isDir) {
 (function() {
   // Wait for DOM ready
   document.addEventListener('DOMContentLoaded', () => {
+    // Initialize CodeMirror after the page loads + cells are rendered
+    setTimeout(_initCodeMirror, 200);
+
     const dz = document.getElementById('files-drop-zone');
     if (!dz) return;
     ['dragenter', 'dragover'].forEach(evt => {
