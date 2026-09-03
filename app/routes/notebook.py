@@ -735,6 +735,15 @@ async def notebook_cell_api(
     if user is None:
         raise HTTPException(status_code=401, detail="Authentication required")
 
+    # ── Circuit breaker: if cells are failing repeatedly, fast-fail ──
+    # This prevents cascading failures when the server is under memory pressure.
+    from app.reliability import get_circuit_breaker
+    cb = get_circuit_breaker("notebook_cell")
+    if cb:
+        allowed, reason = cb.can_execute()
+        if not allowed:
+            raise HTTPException(status_code=503, detail=reason)
+
     session = _get_or_create_session(user.id)
     user_file_dir = _get_user_file_dir(user.id)
     code = payload.code.strip()
@@ -857,6 +866,13 @@ async def notebook_cell_api(
         suggestions = []
         if not result["ok"] and "ModuleNotFoundError" in (result.get("error") or ""):
             suggestions = _suggest_packages(code)
+
+        # Record circuit breaker result
+        if cb:
+            if result["ok"]:
+                cb.record_success()
+            else:
+                cb.record_failure(result.get("error") or result.get("stderr") or "unknown")
 
         return {
             "ok": result["ok"],

@@ -243,6 +243,24 @@ async def request_middleware(request: Request, call_next):
 from app.middleware_cache import cache_middleware, register_keepalive_endpoints  # noqa: E402
 app.middleware("http")(cache_middleware)
 
+# 3c. Reliability middleware — rate limiting + structured error logging +
+# correlation IDs (ADDITIVE). Runs FIRST in the chain (last added).
+# Inspired by how OpenAI/Hugging Face harden their platforms.
+from app.reliability import (
+    reliability_middleware,
+    register_reliability_endpoints,
+    validate_production_config,
+)  # noqa: E402
+
+# Fail-fast on production misconfiguration
+try:
+    validate_production_config()
+except RuntimeError as e:
+    # Log the warning but DON'T crash — Render will still start
+    logger.warning("Config validation warning:\n%s", e)
+
+app.middleware("http")(reliability_middleware)
+
 
 # ─── Custom Exception Handlers ────────────────────────────────────────────────
 @app.exception_handler(404)
@@ -322,6 +340,11 @@ app.include_router(auth_bridge.router)
 # all routers) so they don't conflict with any /api/health/* route in a
 # router. These are intentionally minimal — <5ms response time.
 register_keepalive_endpoints(app)
+
+# ─── Reliability endpoints ──────────────────────────────────────────────────
+# /api/health/deep — checks DB, disk, memory, sessions, circuits
+# /api/health/circuits — circuit breaker status
+register_reliability_endpoints(app)
 
 
 # ─── Landing Page ────────────────────────────────────────────────────────────
