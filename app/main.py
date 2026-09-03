@@ -13,6 +13,7 @@ FastAPI application entry point with production-ready features:
 """
 
 import logging
+import os
 import time
 import traceback
 from contextlib import asynccontextmanager
@@ -39,19 +40,42 @@ logger = logging.getLogger(__name__)
 
 # ─── WebSocket Connection Manager ─────────────────────────────────────────────
 class ConnectionManager:
-    """Manages WebSocket connections for real-time benchmark updates."""
+    """Manages WebSocket connections for real-time benchmark updates.
 
-    def __init__(self):
+    Enforces a maximum connection cap (WS_MAX_CONNECTIONS from config).
+    When the cap is reached, new connections are refused with a 1008
+    (Policy Violation) close code + a friendly message.
+    """
+
+    def __init__(self, max_connections: int = 100):
         self.active_connections: dict[int, WebSocket] = {}
+        self._max = max_connections
+        self._next_id = 0
 
     async def connect(self, websocket: WebSocket, client_id: int):
+        # ── Enforce connection cap ──
+        if len(self.active_connections) >= self._max:
+            logger.warning(
+                "WebSocket connection refused — cap reached (%d/%d)",
+                len(self.active_connections), self._max,
+            )
+            await websocket.close(code=1008, reason="Too many connections. Try again later.")
+            return False
+
         await websocket.accept()
         self.active_connections[client_id] = websocket
-        logger.info("WebSocket client connected: %d", client_id)
+        logger.info(
+            "WebSocket client connected: %d (active: %d/%d)",
+            client_id, len(self.active_connections), self._max,
+        )
+        return True
 
     def disconnect(self, client_id: int):
         self.active_connections.pop(client_id, None)
-        logger.info("WebSocket client disconnected: %d", client_id)
+        logger.info(
+            "WebSocket client disconnected: %d (active: %d/%d)",
+            client_id, len(self.active_connections), self._max,
+        )
 
     async def send_json(self, client_id: int, data: dict):
         ws = self.active_connections.get(client_id)
@@ -75,8 +99,18 @@ class ConnectionManager:
     def connection_count(self) -> int:
         return len(self.active_connections)
 
+    @property
+    def is_full(self) -> bool:
+        return len(self.active_connections) >= self._max
 
-ws_manager = ConnectionManager()
+
+# Read the cap from config (defaults to 100)
+try:
+    _ws_max = int(os.getenv("WS_MAX_CONNECTIONS", "100"))
+except (ValueError, TypeError):
+    _ws_max = 100
+
+ws_manager = ConnectionManager(max_connections=_ws_max)
 
 
 # ─── Application Lifespan ─────────────────────────────────────────────────────

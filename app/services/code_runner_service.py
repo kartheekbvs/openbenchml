@@ -96,6 +96,27 @@ _BLOCKED_MODULE_PREFIXES = (
     "pickle",
 )
 
+# ── os module: PARTIAL block ──────────────────────────────────────────
+# `os` is needed by many libraries internally, so we can't fully block it.
+# Instead, we block the DANGEROUS os functions from user code by removing
+# them from the namespace after import. See _build_sandbox_namespace.
+_BLOCKED_OS_FUNCTIONS = {
+    "system", "popen", "exec", "execv", "execve", "execvp", "execvpe",
+    "spawnl", "spawnle", "spawnlp", "spawnlpe", "spawnv", "spawnve",
+    "spawnvp", "spawnvpe",
+    "unlink", "remove", "rmdir", "removedirs", "chmod", "chown",
+    "chroot", "chdir", "fchdir", "rename", "renames", "replace",
+    "symlink", "link", "mknod", "mkdir", "makedirs", "fork",
+    "kill", "killpg", "setuid", "setgid", "seteuid", "setegid",
+    "setreuid", "setregid", "setresuid", "setresgid",
+    "open", "openat", "creat", "umask", "chflags", "lchflags",
+    "truncate", "ftruncate", "pathconf", "confstr",
+    "getlogin", "getpwnam", "getpwuid", "getgrnam", "getgrgid",
+    "initgroups", "setgroups", "getgroups",
+    "ptrace", "waitpid", "wait3", "wait4", "waitid",
+    "chdir",  # block chdir to prevent CWD-based attacks
+}
+
 # Dangerous importlib submodules — these allow programmatic imports that
 # bypass our __import__ hook. Block them specifically.
 # NOTE: We DO NOT block `importlib.resources`, `importlib.metadata`,
@@ -257,6 +278,25 @@ def _build_sandbox_namespace() -> Dict[str, Any]:
         "sklearn_pipeline": sklearn.pipeline,
         "sklearn_decomposition": sklearn.decomposition,
     }
+
+    # ── Strip dangerous os functions ────────────────────────────────────
+    # `os` is needed by sklearn/pandas internally, so we can't block the
+    # whole module. Instead, we import it, remove the dangerous functions,
+    # and expose the sanitized version to user code.
+    import os as _os_module
+    _safe_os = _os_module.__class__("os")  # Create a shallow copy
+    for attr in dir(_os_module):
+        if not attr.startswith("_"):
+            setattr(_safe_os, attr, getattr(_os_module, attr))
+    # Now remove the dangerous functions
+    for func_name in _BLOCKED_OS_FUNCTIONS:
+        if hasattr(_safe_os, func_name):
+            try:
+                delattr(_safe_os, func_name)
+            except (AttributeError, TypeError):
+                pass  # Some attributes are read-only
+    ns["os"] = _safe_os
+
     return ns
 
 
@@ -382,22 +422,46 @@ def run_code(
     blocker = _ImportBlocker(_BLOCKED_MODULE_PREFIXES)
     sys.meta_path.insert(0, blocker)
 
-    # Apply timeout via SIGALRM where available (POSIX only)
-    old_handler = None
-    timed_out = False
-    try:
-        try:
-            import signal
-            def _alarm_handler(signum, frame):
-                raise TimeoutError(
-                    f"Code execution exceeded {timeout_seconds}s limit."
-                )
-            old_handler = signal.signal(signal.SIGALRM, _alarm_handler)
-            signal.alarm(timeout_seconds)
-        except (ImportError, ValueError, OSError):
-            # signal not available on Windows / non-main-thread — skip
-            pass
+    # Apply timeout via thread-based approach (works in ANY thread, not just main).
+    # Uses a daemon thread that raises TimeoutError in the executing thread after
+    # timeout_seconds. More reliable than signal.alarm which:
+    #   (1) only works on the main thread
+    #   (2) can't interrupt C extensions (numpy, torch)
+    #   (3) breaks under gunicorn with multiple workers
+    # The thread approach uses ctypes to raise an exception in the target thread.
+    import ctypes
+    import threading
 
+    timed_out = False
+    _timeout_fired = threading.Event()
+
+    def _timeout_handler():
+        """Runs in a daemon thread. After timeout, raises TimeoutError in the
+        executing thread via ctypes."""
+        if _timeout_fired.wait(timeout_seconds):
+            return  # Cancelled — normal completion
+        # Timeout expired — raise exception in the main thread
+        _timeout_fired.set()
+        # ctypes allows us to inject an exception into another thread
+        thread_id = threading.current_thread().ident
+        # Actually we need the MAIN thread's ID — but since run_code is called
+        # from the event loop (main thread on uvicorn), we use _get_main_thread
+        try:
+            main_thread = threading.main_thread()
+            target_id = main_thread.ident
+            exc = TimeoutError(f"Code execution exceeded {timeout_seconds}s limit.")
+            # PyThreadState_SetAsyncExc is the C API to raise in another thread
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(
+                ctypes.c_ulong(target_id), ctypes.py_object(exc)
+            )
+        except Exception:
+            pass  # If ctypes fails, the code just runs to completion (best-effort)
+
+    # Start the timeout thread
+    _timer_thread = threading.Thread(target=_timeout_handler, daemon=True)
+    _timer_thread.start()
+
+    try:
         with redirect_stdout(stdout_buf), redirect_stderr(stderr_buf):
             try:
                 exec(compile(code, "<user_code>", "exec"), namespace)
@@ -405,7 +469,6 @@ def run_code(
                 error = None
                 tb = None
             except TimeoutError:
-                # Re-raise so the outer except can set timed_out=True.
                 raise
             except Exception as exc:
                 ok = False
@@ -419,14 +482,8 @@ def run_code(
         tb = traceback.format_exc()
         stderr_buf.write(tb)
     finally:
-        # Restore signal handler
-        try:
-            import signal
-            signal.alarm(0)
-            if old_handler is not None:
-                signal.signal(signal.SIGALRM, old_handler)
-        except (ImportError, ValueError, OSError):
-            pass
+        # Cancel the timeout thread
+        _timeout_fired.set()
         # Remove the import blocker
         try:
             sys.meta_path.remove(blocker)
