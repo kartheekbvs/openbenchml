@@ -2,6 +2,41 @@
 
 {% block title %}Notebook — OpenBenchML{% endblock %}
 
+{% block extra_head %}
+<!-- CodeMirror for syntax highlighting (CDN, no npm needed) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
+<style>
+  /* CodeMirror overrides — Colab-style white background with syntax colors */
+  .CodeMirror {
+    height: auto;
+    min-height: 60px;
+    border: none;
+    border-radius: 0 0 8px 8px;
+    font-family: 'SF Mono', 'SFMono-Regular', Consolas, monospace !important;
+    font-size: 14px;
+    line-height: 1.6;
+    background: #ffffff !important;
+    color: #1a1a1a !important;
+  }
+  .CodeMirror-scroll { min-height: 60px; }
+  .cm-s-default .cm-keyword { color: #d73a49; font-weight: 600; }
+  .cm-s-default .cm-string { color: #032f62; }
+  .cm-s-default .cm-number { color: #005cc5; }
+  .cm-s-default .cm-comment { color: #6a737d; font-style: italic; }
+  .cm-s-default .cm-def { color: #6f42c1; }
+  .cm-s-default .cm-builtin { color: #005cc5; }
+  .cm-s-default .cm-variable { color: #1a1a1a; }
+  .cm-s-default .cm-variable-2 { color: #22863a; }
+  .cm-s-default .cm-operator { color: #d73a49; }
+  .cm-s-default .cm-property { color: #005cc5; }
+  .CodeMirror-cursor { border-left: 2px solid #1a1a1a !important; }
+  .CodeMirror-selected { background: rgba(160, 192, 0, 0.15) !important; }
+  .CodeMirror-focused .CodeMirror-selected { background: rgba(160, 192, 0, 0.2) !important; }
+</style>
+{% endblock %}
+
 {% block extra_css %}
 <style>
   /* ─── Colab-style notebook layout ─────────────────────────────── */
@@ -872,17 +907,22 @@ async function openNotebookOnHF() {
           <button class="files-actions-btn primary" style="flex: 1;" onclick="document.getElementById('file-input').click()">
             &#8679; Upload
           </button>
+          <button class="files-actions-btn" onclick="document.getElementById('ipynb-input').click()" title="Import .ipynb notebook">
+            &#128221; .ipynb
+          </button>
           <button class="files-actions-btn" onclick="refreshFiles()" title="Refresh">&#8635;</button>
           <button class="files-actions-btn danger" onclick="clearAllFiles()" title="Clear all">&#128465;</button>
         </div>
         <input type="file" id="file-input" style="display: none;" multiple
                onchange="uploadFiles(this.files)">
+        <input type="file" id="ipynb-input" style="display: none;" accept=".ipynb"
+               onchange="importIpynb(this.files)">
 
         <div class="files-drop-zone" id="files-drop-zone"
              onclick="document.getElementById('file-input').click()">
           <span class="drop-icon">&#128229;</span>
           <div><strong>Drop files</strong> or click</div>
-          <div class="drop-hint">Max 100 MB · CSV, JSON, parquet, py</div>
+          <div class="drop-hint">CSV, JSON, parquet, .py, .pkl · or import .ipynb</div>
         </div>
 
         <div class="files-list" id="files-list">
@@ -974,6 +1014,7 @@ async function openNotebookOnHF() {
         <div class="toolbar-divider"></div>
         <div class="toolbar-section">
           <button class="toolbar-btn" onclick="resetKernel()" title="Clear all variables">&#10227; Reset</button>
+          <button class="toolbar-btn" onclick="exportIpynb()" title="Export as .ipynb (Jupyter)">&#8681; .ipynb</button>
         </div>
         <div class="toolbar-divider"></div>
         <!-- Download dropdown -->
@@ -1053,6 +1094,15 @@ async function openNotebookOnHF() {
 {% endblock %}
 
 {% block extra_js %}
+<!-- CodeMirror for syntax highlighting -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/python-hint.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+
 <!-- xterm.js for the real terminal -->
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css">
 <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
@@ -1169,6 +1219,8 @@ function rerenderAll() {
   const canvas = document.getElementById('notebook-canvas');
   canvas.innerHTML = '';
   cells.forEach(c => renderCell(c));
+  // Initialize CodeMirror on all code editors after render
+  setTimeout(_initCodeMirror, 50);
 }
 
 // ─── Cell rendering ─────────────────────────────────────────────────────────
@@ -1186,7 +1238,7 @@ function renderCell(cell) {
   }
   canvas.appendChild(wrap);
 
-  // Wire up the editor
+  // Wire up the editor — use CodeMirror if available, fall back to textarea
   if (cell.type === 'code') {
     const editor = wrap.querySelector('.cell-editor');
     editor.value = cell.source;
@@ -1534,6 +1586,89 @@ function _hideAutocomplete() {
 function _maybeTriggerAutocomplete(ta, cell) {
   if (_acDebounceTimer) clearTimeout(_acDebounceTimer);
   _acDebounceTimer = setTimeout(() => _fetchCompletions(ta, cell), 180);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  CodeMirror — real syntax highlighting (Colab-style)
+// ═══════════════════════════════════════════════════════════════════════════
+const _cmEditors = {};  // Map: cellId → CodeMirror instance
+
+function _initCodeMirror() {
+  if (typeof CodeMirror === 'undefined') {
+    console.warn('[CodeMirror] not loaded — falling back to plain textarea');
+    return;
+  }
+
+  // Find all code cell textareas that haven't been converted yet
+  document.querySelectorAll('.cell-editor').forEach(ta => {
+    const wrap = ta.closest('.cell');
+    if (!wrap) return;
+    const cellId = wrap.id.replace('cell-wrap-', '');
+
+    // Skip if already initialized
+    if (_cmEditors[cellId]) return;
+
+    // Get the cell object
+    const cell = cells.find(c => c.id === cellId);
+    if (!cell || cell.type !== 'code') return;
+
+    // Replace the textarea with a CodeMirror instance
+    const cm = CodeMirror.fromTextArea(ta, {
+      mode: 'python',
+      theme: 'default',
+      lineNumbers: false,
+      lineWrapping: false,
+      indentUnit: 4,
+      tabSize: 4,
+      smartIndent: true,
+      autoCloseBrackets: true,
+      matchBrackets: true,
+      styleActiveLine: true,
+      extraKeys: {
+        'Tab': (cm) => {
+          // Insert 4 spaces instead of tab
+          cm.replaceSelection('    ', 'end');
+        },
+        'Shift-Enter': (cm) => {
+          // Run the cell
+          cell.source = cm.getValue();
+          runCell(cell.id);
+        },
+        'Ctrl-Space': 'autocomplete',
+      },
+    });
+
+    // Set the content
+    cm.setValue(cell.source || '');
+
+    // Sync changes back to the cell
+    cm.on('change', () => {
+      cell.source = cm.getValue();
+    });
+
+    // Focus → select cell
+    cm.on('focus', () => selectCell(cell.id));
+
+    // Store reference
+    _cmEditors[cellId] = cm;
+
+    // Auto-resize
+    cm.on('change', () => {
+      const lineCount = cm.lineCount();
+      cm.setSize(null, null);  // auto-resize
+    });
+
+    // Initial auto-resize
+    setTimeout(() => cm.refresh(), 100);
+  });
+}
+
+// Update CodeMirror content when cell source changes programmatically
+function _updateCodeMirror(cellId, source) {
+  const cm = _cmEditors[cellId];
+  if (cm && cm.getValue() !== source) {
+    cm.setValue(source || '');
+  }
 }
 
 async function _fetchCompletions(ta, cell) {
@@ -2064,6 +2199,33 @@ _out
       stdout += `Download link: /workspace/models/${data.filename}\n`;
       // Trigger a browser-side download of the just-saved model
       try { _downloadPyodideFile(`/workspace/models/${data.filename}`, data.filename); } catch (e) {}
+      // ── ALSO sync the .pkl to the SERVER file list ──
+      // Read the file bytes from Pyodide FS and upload to /api/notebook/files/upload
+      try {
+        const fileBytes = await pyodideInstance.runPythonAsync(`
+import base64 as _b64
+with open(${JSON.stringify(data.path)}, 'rb') as _f:
+    _b64.b64encode(_f.read()).decode('ascii')
+`);
+        const byteStr = atob(fileBytes);
+        const buf = new Uint8Array(byteStr.length);
+        for (let i = 0; i < byteStr.length; i++) buf[i] = byteStr.charCodeAt(i);
+        const blob = new Blob([buf], { type: 'application/octet-stream' });
+        const formData = new FormData();
+        formData.append('file', blob, data.filename);
+        const uploadResp = await fetch('/api/notebook/files/upload', {
+          method: 'POST',
+          body: formData,
+        });
+        if (uploadResp.ok) {
+          stdout += `✓ Also synced to server workspace (${(data.size / 1024).toFixed(1)} KB)\n`;
+          // Refresh the server file list so the .pkl appears
+          setTimeout(() => { refreshFiles(); }, 500);
+        }
+      } catch (syncErr) {
+        // Non-fatal — the file is still in Pyodide FS + downloaded
+        console.warn('[pyodide] pkl sync to server failed:', syncErr);
+      }
     } else if (data && data.ok) {
       stdout = `Loaded model into variable '${data.var}'\n`;
     } else if (Array.isArray(data)) {
@@ -3392,7 +3554,127 @@ async function uploadFiles(fileList) {
   document.getElementById('file-input').value = '';
 }
 
-// Mirror all server-side user files into /workspace/datasets/user/ in
+// ═══════════════════════════════════════════════════════════════════════════
+//  .ipynb Import — upload Jupyter notebooks → load into cells
+// ═══════════════════════════════════════════════════════════════════════════
+async function importIpynb(fileList) {
+  if (!fileList || !fileList.length) return;
+  const file = fileList[0];
+  if (!file.name.endsWith('.ipynb')) {
+    alert('Please select a .ipynb file (Jupyter notebook).');
+    return;
+  }
+
+  try {
+    const text = await file.text();
+    const nb = JSON.parse(text);
+
+    // Validate it's a Jupyter notebook
+    if (!nb.cells || !Array.isArray(nb.cells)) {
+      alert('Invalid .ipynb file: no cells array found.');
+      return;
+    }
+
+    // Clear existing cells
+    cells.length = 0;
+    selectedCellId = null;
+
+    // Convert each Jupyter cell to our format
+    for (const nbCell of nb.cells) {
+      const type = nbCell.cell_type === 'markdown' ? 'text' : 'code';
+      const source = Array.isArray(nbCell.source)
+        ? nbCell.source.join('')
+        : (nbCell.source || '');
+      const newCell = {
+        id: 'cell-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6),
+        type: type,
+        source: source,
+        output: null,
+      };
+      cells.push(newCell);
+    }
+
+    // If no cells were found, add a default code cell
+    if (cells.length === 0) {
+      cells.push({
+        id: 'cell-' + Date.now(),
+        type: 'code',
+        source: '# Imported from ' + file.name + '\nprint("Hello from imported notebook!")',
+        output: null,
+      });
+    }
+
+    // Re-render
+    selectedCellId = cells[0].id;
+    rerenderAll();
+    switchView('notebook');
+
+    // Also upload the .ipynb to the server workspace
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      await fetch('/api/notebook/files/upload', { method: 'POST', body: formData });
+      refreshFiles();
+    } catch (e) { /* non-fatal */ }
+
+    // Show a success message
+    const firstCell = cells[0];
+    if (firstCell) {
+      firstCell.output = {
+        ok: true,
+        stdout: `✓ Imported ${file.name} — ${nb.cells.length} cells loaded.\n`,
+        stderr: '',
+        figures: [],
+        elapsed_ms: 0,
+      };
+      renderOutput(firstCell);
+    }
+
+    // Save to IndexedDB
+    try { autosaveNotebook(); } catch (e) {}
+
+  } catch (e) {
+    alert('Failed to import .ipynb: ' + e.message);
+  }
+
+  // Reset input
+  document.getElementById('ipynb-input').value = '';
+}
+
+// Export current notebook as .ipynb
+function exportIpynb() {
+  const nb = {
+    nbformat: 4,
+    nbformat_minor: 5,
+    metadata: {
+      kernelspec: { display_name: 'OpenBenchML', language: 'python', name: 'python3' },
+      language_info: { name: 'python', version: '3.12' },
+    },
+    cells: cells.map(cell => ({
+      cell_type: cell.type === 'text' ? 'markdown' : 'code',
+      source: cell.source.split('\n').map((line, i, arr) =>
+        i < arr.length - 1 ? line + '\n' : line
+      ),
+      metadata: {},
+      outputs: cell.output && cell.type === 'code' ? [{
+        output_type: 'stream',
+        name: 'stdout',
+        text: (cell.output.stdout || '').split('\n').map((line, i, arr) =>
+          i < arr.length - 1 ? line + '\n' : line
+        ),
+      }] : [],
+      execution_count: null,
+    })),
+  };
+
+  const blob = new Blob([JSON.stringify(nb, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'notebook.ipynb';
+  a.click();
+  URL.revokeObjectURL(url);
+}
 // Pyodide FS. Called once at Pyodide boot (so users switching to the
 // Pyodide engine see their previously-uploaded files immediately).
 async function _syncServerFilesToPyodide() {
