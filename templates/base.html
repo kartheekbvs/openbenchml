@@ -32,23 +32,19 @@
         <div class="navbar-links">
             {% if user %}
                 <a href="/dashboard">Dashboard</a>
-                <a href="/my-models">My Models</a>
-                <a href="/convert" title="Paste Python code → auto-pickled model">Convert</a>
                 <a href="/notebook" title="In-browser Python playground">Notebook</a>
                 <a href="/datasets">Datasets</a>
                 <a href="/benchmark">Benchmark</a>
                 <a href="/leaderboard">Leaderboard</a>
                 <a href="/competitions">Competitions</a>
-                <a href="/realtime" title="Copy-paste real-time WebSocket snippets">Real-time</a>
-                <a href="/jobs">Jobs</a>
-                <a href="/learn" title="Learn every concept used to build this">Learn</a>
-                <a href="/about" title="How it works">About</a>
+                <a href="/convert" title="Paste Python code &rarr; auto-pickled model">Upload Model</a>
+                <a href="/my-models">My Models</a>
                 <a href="/logout" class="btn btn-secondary btn-sm">Logout</a>
             {% else %}
-                <a href="/learn" title="Learn every concept used to build this">Learn</a>
-                <a href="/about" title="How it works">About</a>
+                <a href="/datasets">Datasets</a>
+                <a href="/leaderboard">Leaderboard</a>
                 <a href="/login">Login</a>
-                <a href="/register">Register</a>
+                <a href="/register" class="btn btn-primary btn-sm">Get Started</a>
             {% endif %}
         </div>
     </nav>
@@ -75,12 +71,15 @@
 
     <footer class="footer">
         <div class="container">
-            <p>&copy; 2024-2026 OpenBenchML &mdash; Open Source ML Model Benchmarking Platform</p>
             <div class="footer-links">
+                <a href="/learn">Learn</a>
                 <a href="/about">About</a>
+                <a href="/realtime">Real-time</a>
+                <a href="/jobs">Jobs</a>
                 <a href="/docs">Documentation</a>
                 <a href="https://github.com/openbenchml" target="_blank" rel="noopener">GitHub</a>
             </div>
+            <p>&copy; 2024-2026 OpenBenchML &mdash; Open Source ML Model Benchmarking Platform</p>
         </div>
     </footer>
 
