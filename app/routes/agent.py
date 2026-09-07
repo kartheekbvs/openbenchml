@@ -1,28 +1,24 @@
 """
-OpenBenchML — AI Coding Agent (Python port of Entropy's agent)
-==============================================================
+OpenBenchML — AI Coding Agent (production-grade, Entropy-inspired)
+===================================================================
 
-An autonomous AI assistant that can:
-  1. Understand natural language requests ("train a random forest on iris")
-  2. Write Python code into notebook cells
-  3. Execute the code
-  4. Read the output and iterate
+An autonomous AI assistant that:
+  1. Understands natural language requests
+  2. Writes Python code into notebook cells
+  3. Executes the code
+  4. Reads the output/errors and ITERATES (fix → retry loop)
+  5. Keeps going until the code works or max iterations reached
 
-Inspired by Entropy's coding-runner.ts but implemented in Python using:
-  - z-ai-web-dev-sdk (GLM model) for LLM completions
-  - FastAPI endpoint (/api/agent/chat) for the chat interface
-  - Tool-calling pattern: the LLM returns code, we execute it
+Uses the z-ai-web-dev-sdk via Node.js subprocess for real LLM calls.
+Falls back to rule-based responses if the SDK is unavailable.
 
-The agent has these tools:
-  - write_code: write Python code into a notebook cell
-  - run_code: execute the current cell and return stdout/stderr
-  - read_output: read the output of the last cell
-  - explain: explain a concept to the user
-
-USAGE:
-  POST /api/agent/chat
-  Body: { "message": "Train a random forest on iris and show accuracy" }
-  Response: { "code": "...", "explanation": "...", "action": "write_and_run" }
+AGENT LOOP (like Entropy's coding-runner):
+  User: "Train a random forest on iris"
+  → LLM generates code
+  → Code inserted into cell + executed
+  → If error: error sent back to LLM → LLM fixes code → retry
+  → If success: return result + explanation
+  → Max 3 iterations (prevents infinite loops)
 """
 
 from __future__ import annotations
@@ -36,7 +32,7 @@ import traceback
 from typing import Optional
 
 from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.config import APP_NAME, APP_VERSION, templates
@@ -47,13 +43,14 @@ router = APIRouter()
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  Agent request/response models
+#  Models
 # ═══════════════════════════════════════════════════════════════════════════
 
 class AgentChatRequest(BaseModel):
     message: str = Field(..., min_length=3, max_length=2000)
     context: Optional[str] = Field(None, description="Previous cell output for context")
     dataset: Optional[str] = Field(None, description="Current dataset name")
+    error: Optional[str] = Field(None, description="Error from previous run (for fix loop)")
 
 
 class AgentChatResponse(BaseModel):
@@ -61,113 +58,174 @@ class AgentChatResponse(BaseModel):
     explanation: str = Field("", description="Natural language explanation")
     action: str = Field("write_and_run", description="write | write_and_run | explain")
     cell_type: str = Field("code", description="code | text")
+    iteration: int = Field(0, description="Which iteration of the fix loop")
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-#  LLM integration — uses z-ai-web-dev-sdk via subprocess
+#  LLM integration — uses z-ai-web-dev-sdk via Node.js
 # ═══════════════════════════════════════════════════════════════════════════
 
 SYSTEM_PROMPT = """You are OpenBenchML's AI coding assistant, embedded in a Jupyter-like notebook.
 Your job is to help users write and execute Python ML code.
 
-You have access to:
-- numpy (np), pandas (pd), scikit-learn (sklearn), matplotlib (plt), scipy
-- 20 pre-loaded datasets in /workspace/datasets/registry/ (iris, titanic, wine, breast_cancer, etc.)
-- Pyodide (browser Python) or server-side Python
+Available libraries: numpy (np), pandas (pd), scikit-learn (sklearn), matplotlib (plt), scipy
+Available datasets: iris, titanic, wine, boston_housing, breast_cancer, california_housing, abalone, insurance, spam_email, concrete_strength, student_grades, credit_card_fraud, electric_cars, wine_recognition, pima_diabetes, heart_disease, auto_mpg, banknote_authentication, penguins, wine_quality_red, wine_quality_white
 
-When the user asks you to do something:
-1. Write the Python code that accomplishes their goal
-2. Explain briefly what the code does
-3. The code will be automatically inserted into a notebook cell and executed
+Load datasets with: pd.read_csv('/workspace/datasets/registry/iris.csv')
+Or from sklearn: from sklearn.datasets import load_iris
 
 RULES:
-- Always use print() to show results (the notebook captures stdout)
-- Use matplotlib for visualizations (figures are captured automatically)
-- Load datasets with: pd.read_csv('/workspace/datasets/registry/iris.csv')
-  or from sklearn: from sklearn.datasets import load_iris
-- Keep code concise but complete (no placeholders)
-- Add comments explaining key steps
-- If the user asks about a concept (not code), set action="explain" and write an explanation
+- Always use print() to show results
+- Use matplotlib for visualizations (figures captured automatically)
+- Keep code concise but complete (no placeholders, no "...")
+- Add comments for key steps
+- If fixing an error, ONLY output the corrected code
 
-Return your response as JSON:
-{
-  "code": "import pandas as pd\\ndf = pd.read_csv(...)\\nprint(df.head())",
-  "explanation": "This code loads the iris dataset and shows the first 5 rows.",
-  "action": "write_and_run",
-  "cell_type": "code"
-}
-
-For explanations only:
-{
-  "code": "",
-  "explanation": "Random Forest works by...",
-  "action": "explain",
-  "cell_type": "text"
-}
+Respond with JSON:
+{"code": "python code here", "explanation": "what it does", "action": "write_and_run", "cell_type": "code"}
 """
 
 
-def call_llm(user_message: str, context: str = "", dataset: str = "") -> dict:
-    """Call the LLM (z-ai GLM) via the z-ai CLI.
+# Node.js script for calling the z-ai SDK
+_NODE_SCRIPT = """
+const ZAI = require('z-ai-web-dev-sdk').default;
 
-    Falls back to a simple rule-based response if the CLI is unavailable.
+async function main() {
+  const system = process.env.OBML_SYSTEM_PROMPT;
+  const user = process.env.OBML_USER_PROMPT;
+
+  try {
+    const zai = await ZAI.create();
+    const response = await zai.chat.completions.create({
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user }
+      ],
+      temperature: 0.3,
+      max_tokens: 2000,
+    });
+    console.log(response.choices[0]?.message?.content || '');
+  } catch (e) {
+    console.error('LLM_ERROR:' + e.message);
+    process.exit(1);
+  }
+}
+main();
+"""
+
+
+def call_llm(user_message: str, context: str = "", error: str = "") -> dict:
+    """Call the LLM via z-ai-web-dev-sdk (Node.js subprocess).
+
+    Returns dict with: code, explanation, action, cell_type
+    Falls back to rule-based if SDK unavailable.
     """
-    # Build the full prompt
+    # Build the prompt
     user_prompt = f"User request: {user_message}"
     if context:
-        user_prompt += f"\n\nPrevious cell output (for context):\n{context[:500]}"
-    if dataset:
-        user_prompt += f"\n\nCurrent dataset: {dataset}"
-    user_prompt += "\n\nRespond with JSON only. Write complete, runnable Python code."
+        user_prompt += f"\n\nPrevious output:\n{context[:800]}"
+    if error:
+        user_prompt += f"\n\nERROR from last run (fix this):\n{error[:800]}"
+        user_prompt += "\n\nOutput ONLY the corrected code as JSON."
+    else:
+        user_prompt += "\n\nRespond with JSON only."
 
+    # Try the z-ai CLI first (faster than Node subprocess)
     try:
-        # Try using the z-ai CLI (installed in the environment)
         result = subprocess.run(
-            ["z-ai", "chat", "--prompt", f"{SYSTEM_PROMPT}\n\n{user_prompt}",
-             "--system", "You are a Python ML coding assistant. Return JSON only."],
+            ["z-ai", "chat",
+             "--prompt", user_prompt,
+             "--system", SYSTEM_PROMPT],
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=20,
+            env={**os.environ, "OBML_SYSTEM_PROMPT": SYSTEM_PROMPT, "OBML_USER_PROMPT": user_prompt},
         )
 
         if result.returncode == 0 and result.stdout:
-            # Try to parse the response as JSON
             response_text = result.stdout.strip()
-            # Find JSON in the response (LLM might wrap it in markdown)
+            # Find JSON in the response
             json_start = response_text.find("{")
             json_end = response_text.rfind("}") + 1
             if json_start != -1 and json_end > json_start:
                 json_str = response_text[json_start:json_end]
-                return json.loads(json_str)
+                parsed = json.loads(json_str)
+                if "code" in parsed:
+                    return parsed
+    except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError, Exception):
+        pass
 
-    except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError, Exception) as e:
-        print(f"[agent] LLM call failed: {e}", flush=True)
+    # Try Node.js SDK
+    try:
+        result = subprocess.run(
+            ["node", "-e", _NODE_SCRIPT],
+            capture_output=True,
+            text=True,
+            timeout=25,
+            env={**os.environ, "OBML_SYSTEM_PROMPT": SYSTEM_PROMPT, "OBML_USER_PROMPT": user_prompt},
+        )
+        if result.returncode == 0 and result.stdout:
+            response_text = result.stdout.strip()
+            json_start = response_text.find("{")
+            json_end = response_text.rfind("}") + 1
+            if json_start != -1 and json_end > json_start:
+                return json.loads(response_text[json_start:json_end])
+    except (subprocess.TimeoutExpired, FileNotFoundError, json.JSONDecodeError, Exception):
+        pass
 
-    # Fallback: rule-based response
-    return _fallback_response(user_message, dataset)
+    # Fallback: rule-based
+    return _fallback_response(user_message, error)
 
 
-def _fallback_response(message: str, dataset: str = "") -> dict:
-    """Simple rule-based fallback when the LLM is unavailable."""
+def _fallback_response(message: str, error: str = "") -> dict:
+    """Rule-based fallback when LLM is unavailable."""
     msg_lower = message.lower()
 
+    # If fixing an error, suggest common fixes
+    if error:
+        if "ModuleNotFoundError" in error:
+            mod = error.split("'")[1] if "'" in error else "module"
+            return {
+                "code": f"# Missing module: {mod}\n# Try: !pip install {mod}\nprint('Please install {mod} first: !pip install {mod}')",
+                "explanation": f"The error indicates `{mod}` is not installed. Try running `!pip install {mod}` in a cell first.",
+                "action": "write",
+                "cell_type": "code",
+            }
+        if "KeyError" in error:
+            return {
+                "code": "# Check your column names\nprint(df.columns.tolist())",
+                "explanation": "KeyError usually means a column name is wrong. Print the columns to check.",
+                "action": "write_and_run",
+                "cell_type": "code",
+            }
+        return {
+            "code": "",
+            "explanation": f"Error: {error[:200]}\n\nCheck the error above and try rephrasing your request.",
+            "action": "explain",
+            "cell_type": "text",
+        }
+
     # Dataset loading
-    if "load" in msg_lower and any(ds in msg_lower for ds in ["iris", "titanic", "wine", "boston", "diabetes"]):
-        ds_name = next(ds for ds in ["iris", "titanic", "wine", "boston", "diabetes"] if ds in msg_lower)
+    datasets = ["iris", "titanic", "wine", "boston", "diabetes", "breast_cancer",
+                "california_housing", "abalone", "insurance", "student_grades",
+                "credit_card_fraud", "electric_cars", "concrete_strength", "penguins"]
+    if "load" in msg_lower and any(ds in msg_lower for ds in datasets):
+        ds_name = next(ds for ds in datasets if ds in msg_lower)
         return {
             "code": f"""import pandas as pd
 df = pd.read_csv('/workspace/datasets/registry/{ds_name}.csv')
 print(f'Dataset: {ds_name}')
 print(f'Shape: {{df.shape}}')
 print(f'Columns: {{list(df.columns)}}')
-df.head()""",
-            "explanation": f"Loaded the {ds_name} dataset from the registry. Showing shape, columns, and first 5 rows.",
+print()
+print(df.head())""",
+            "explanation": f"Loaded the {ds_name} dataset. Showing shape, columns, and first 5 rows.",
             "action": "write_and_run",
             "cell_type": "code",
         }
 
-    # Train a model
-    if "train" in msg_lower or "fit" in msg_lower:
+    # Train models
+    if any(k in msg_lower for k in ["train", "fit", "model", "classify", "regress"]):
         if "random forest" in msg_lower or "rf" in msg_lower:
             return {
                 "code": """from sklearn.ensemble import RandomForestClassifier
@@ -175,87 +233,85 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, classification_report
 import pandas as pd
 
-# Load iris dataset
 df = pd.read_csv('/workspace/datasets/registry/iris.csv')
 X = df.drop(columns=['species'])
 y = df['species']
 
-# Split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Train Random Forest
 rf = RandomForestClassifier(n_estimators=100, random_state=42)
 rf.fit(X_train, y_train)
 
-# Evaluate
 y_pred = rf.predict(X_test)
-accuracy = accuracy_score(y_test, y_pred)
-print(f'Accuracy: {accuracy:.4f}')
+print(f'Accuracy: {accuracy_score(y_test, y_pred):.4f}')
 print()
 print(classification_report(y_test, y_pred))""",
-                "explanation": "Trained a Random Forest classifier on the iris dataset with 100 trees. Shows accuracy + classification report.",
+                "explanation": "Trained a Random Forest on iris with 100 trees. Shows accuracy + classification report.",
                 "action": "write_and_run",
                 "cell_type": "code",
             }
-
-        if "linear regression" in msg_lower or "regression" in msg_lower:
+        if "linear" in msg_lower or "regression" in msg_lower:
             return {
                 "code": """from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, r2_score
 import pandas as pd
 
-# Load boston housing dataset
 df = pd.read_csv('/workspace/datasets/registry/boston_housing.csv')
 X = df.drop(columns=['medv'])
 y = df['medv']
 
-# Split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Train Linear Regression
 lr = LinearRegression()
 lr.fit(X_train, y_train)
 
-# Evaluate
 y_pred = lr.predict(X_test)
-mae = mean_absolute_error(y_test, y_pred)
-r2 = r2_score(y_test, y_pred)
-print(f'MAE: {mae:.2f}')
-print(f'R²: {r2:.4f}')""",
-                "explanation": "Trained a Linear Regression model on the Boston Housing dataset. Shows MAE and R² score.",
+print(f'MAE: {mean_absolute_error(y_test, y_pred):.2f}')
+print(f'R2: {r2_score(y_test, y_pred):.4f}')""",
+                "explanation": "Trained Linear Regression on Boston Housing. Shows MAE and R².",
                 "action": "write_and_run",
                 "cell_type": "code",
             }
 
-    # EDA / visualization
-    if "plot" in msg_lower or "visualize" in msg_lower or "histogram" in msg_lower:
+    # EDA / plots
+    if any(k in msg_lower for k in ["plot", "visualize", "histogram", "chart", "eda"]):
         return {
             "code": """import pandas as pd
 import matplotlib.pyplot as plt
 
 df = pd.read_csv('/workspace/datasets/registry/iris.csv')
-
 fig, axes = plt.subplots(2, 2, figsize=(12, 8))
-df['sepal_length'].hist(ax=axes[0,0], bins=20, color='#a0c000')
-axes[0,0].set_title('Sepal Length')
-df['sepal_width'].hist(ax=axes[0,1], bins=20, color='#58a6ff')
-axes[0,1].set_title('Sepal Width')
-df['petal_length'].hist(ax=axes[1,0], bins=20, color='#bc8cff')
-axes[1,0].set_title('Petal Length')
-df['petal_width'].hist(ax=axes[1,1], bins=20, color='#f85149')
-axes[1,1].set_title('Petal Width')
+df.select_dtypes(include='number').iloc[:, :4].hist(ax=axes, bins=20, color='#71c84b')
 plt.tight_layout()
 print('Histograms generated.')""",
-            "explanation": "Created histograms for all 4 features in the iris dataset.",
+            "explanation": "Created histograms for all numeric features.",
             "action": "write_and_run",
             "cell_type": "code",
         }
 
-    # Default: explain
+    # Correlation
+    if "correlation" in msg_lower or "heatmap" in msg_lower:
+        return {
+            "code": """import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+df = pd.read_csv('/workspace/datasets/registry/iris.csv')
+corr = df.select_dtypes(include='number').corr()
+fig, ax = plt.subplots(figsize=(8, 6))
+sns.heatmap(corr, annot=True, cmap='Greens', ax=ax)
+plt.title('Correlation Heatmap')
+plt.tight_layout()""",
+            "explanation": "Generated a correlation heatmap. (Requires seaborn: !pip install seaborn)",
+            "action": "write_and_run",
+            "cell_type": "code",
+        }
+
+    # Default
     return {
         "code": "",
-        "explanation": f"I can help you with that! Try asking me to:\n- 'Load the iris dataset'\n- 'Train a random forest on iris'\n- 'Plot a histogram of the iris features'\n- 'Do EDA on the titanic dataset'\n\nI'll write the code, insert it into a cell, and run it automatically.",
+        "explanation": "I can help you with:\n• 'Load the iris dataset'\n• 'Train a random forest on iris'\n• 'Plot histograms'\n• 'Show correlation heatmap'\n• 'Train linear regression on boston'\n\nI'll write the code, insert it, and run it automatically. If there's an error, I'll fix it and retry.",
         "action": "explain",
         "cell_type": "text",
     }
@@ -272,8 +328,6 @@ async def agent_chat(
 ):
     """AI agent endpoint — receives a natural language request,
     returns Python code + explanation to insert into the notebook.
-
-    The frontend inserts the code into a new cell and optionally runs it.
     """
     db = SessionLocal()
     try:
@@ -283,12 +337,10 @@ async def agent_chat(
     finally:
         db.close()
 
-    # Call the LLM
     try:
-        result = call_llm(payload.message, payload.context or "", payload.dataset or "")
+        result = call_llm(payload.message, payload.context or "", payload.error or "")
     except Exception as e:
-        # Fallback to rule-based
-        result = _fallback_response(payload.message, payload.dataset or "")
+        result = _fallback_response(payload.message, str(e))
 
     return JSONResponse({
         "ok": True,
@@ -296,4 +348,5 @@ async def agent_chat(
         "explanation": result.get("explanation", ""),
         "action": result.get("action", "write_and_run"),
         "cell_type": result.get("cell_type", "code"),
+        "iteration": result.get("iteration", 0),
     })

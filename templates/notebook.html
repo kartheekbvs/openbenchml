@@ -1701,8 +1701,10 @@ function _maybeTriggerAutocomplete(ta, cell) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  AI ASSISTANT — write code via natural language (Entropy-inspired)
+//  AI ASSISTANT — write code + auto-execute + fix loop (Entropy-inspired)
 // ═══════════════════════════════════════════════════════════════════════════
+
+const MAX_AGENT_ITERATIONS = 3;  // Max fix-retry loops
 
 function toggleAiAssistant() {
   const panel = document.getElementById('ai-assistant-panel');
@@ -1727,36 +1729,43 @@ async function sendAiMessage() {
   input.value = '';
   log.scrollTop = log.scrollHeight;
 
-  // Show loading
-  const loadingId = 'ai-loading-' + Date.now();
-  log.innerHTML += '<div class="ai-message ai-bot ai-loading" id="' + loadingId + '">&#8987; Thinking...</div>';
-  log.scrollTop = log.scrollHeight;
+  if (sendBtn) { sendBtn.disabled = true; sendBtn.innerHTML = '&#8987;'; }
 
-  if (sendBtn) { sendBtn.disabled = true; }
+  // Agent loop: write → run → fix → retry (up to MAX_AGENT_ITERATIONS)
+  let currentMessage = message;
+  let lastError = '';
+  let context = '';
 
-  try {
-    // Get context from the last cell's output
-    let context = '';
-    if (cells.length > 0) {
-      const lastCell = cells[cells.length - 1];
-      if (lastCell.output && lastCell.output.stdout) {
-        context = lastCell.output.stdout.substring(0, 500);
+  for (let iteration = 0; iteration < MAX_AGENT_ITERATIONS; iteration++) {
+    // Show loading
+    const loadingId = 'ai-loading-' + Date.now() + '-' + iteration;
+    const loadingMsg = iteration === 0 ? 'Thinking...' : 'Fixing error (attempt ' + iteration + ')...';
+    log.innerHTML += '<div class="ai-message ai-bot ai-loading" id="' + loadingId + '">&#8987; ' + loadingMsg + '</div>';
+    log.scrollTop = log.scrollHeight;
+
+    try {
+      // Call the agent API
+      const resp = await fetch('/api/agent/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: currentMessage,
+          context: context,
+          error: lastError,
+        }),
+      });
+
+      const data = await resp.json();
+
+      // Remove loading
+      const loadingEl = document.getElementById(loadingId);
+      if (loadingEl) loadingEl.remove();
+
+      if (!data.ok) {
+        log.innerHTML += '<div class="ai-message ai-bot">Error: ' + escapeHtml(data.detail || 'Unknown') + '</div>';
+        break;
       }
-    }
 
-    const resp = await fetch('/api/agent/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: message, context: context }),
-    });
-
-    const data = await resp.json();
-
-    // Remove loading
-    const loadingEl = document.getElementById(loadingId);
-    if (loadingEl) loadingEl.remove();
-
-    if (data.ok) {
       // Show explanation
       if (data.explanation) {
         log.innerHTML += '<div class="ai-message ai-bot">' + escapeHtml(data.explanation) + '</div>';
@@ -1764,39 +1773,79 @@ async function sendAiMessage() {
 
       // Show code preview
       if (data.code) {
-        log.innerHTML += '<div class="ai-message ai-code">' + escapeHtml(data.code) + '</div>';
+        log.innerHTML += '<div class="ai-message ai-code">' + escapeHtml(data.code.substring(0, 500)) + (data.code.length > 500 ? '\n...' : '') + '</div>';
+      }
+
+      // If just explaining (no code), we're done
+      if (data.action === 'explain' || !data.code) {
+        break;
       }
 
       // Insert code into a new cell + run it
-      if (data.code && data.action === 'write_and_run') {
+      if (data.action === 'write_and_run' || data.action === 'write') {
+        // Create a new cell with the code
         const newCell = addCodeCell('', selectedCellId);
         newCell.source = data.code;
         rerenderAll();
         selectCell(newCell.id);
-        // Auto-run after a short delay (let CodeMirror initialize)
-        setTimeout(() => {
-          runCell(newCell.id);
-        }, 300);
-        log.innerHTML += '<div class="ai-message ai-bot">✓ Code inserted and running...</div>';
-      } else if (data.code && data.action === 'write') {
-        const newCell = addCodeCell('', selectedCellId);
-        newCell.source = data.code;
-        rerenderAll();
-        selectCell(newCell.id);
-        log.innerHTML += '<div class="ai-message ai-bot">✓ Code inserted. Click Run to execute.</div>';
+
+        // Update CodeMirror if loaded
+        setTimeout(() => _updateCodeMirror(newCell.id, data.code), 100);
+
+        if (data.action === 'write_and_run') {
+          log.innerHTML += '<div class="ai-message ai-bot">Running code...</div>';
+          log.scrollTop = log.scrollHeight;
+
+          // Wait a bit for CodeMirror to init, then run
+          await new Promise(r => setTimeout(r, 300));
+
+          // Run the cell
+          const result = await runCell(newCell.id);
+
+          // Check the result
+          if (result && result.ok) {
+            // Success!
+            log.innerHTML += '<div class="ai-message ai-bot">✓ Code executed successfully!</div>';
+
+            // Update context for potential next iteration
+            if (result.stdout) {
+              context = result.stdout.substring(0, 500);
+            }
+            lastError = '';
+            break;  // Done — code worked
+          } else {
+            // Error — feed it back to the agent
+            lastError = result?.stderr || result?.error || 'Unknown error';
+            context = '';
+
+            if (iteration < MAX_AGENT_ITERATIONS - 1) {
+              log.innerHTML += '<div class="ai-message ai-bot">⚠ Error detected. Auto-fixing...</div>';
+              log.scrollTop = log.scrollHeight;
+              // Continue to next iteration — the loop will call the API with the error
+              currentMessage = 'Fix this error: ' + lastError.substring(0, 300);
+            } else {
+              log.innerHTML += '<div class="ai-message ai-bot">⚠ Could not fix after ' + MAX_AGENT_ITERATIONS + ' attempts. Error: ' + escapeHtml(lastError.substring(0, 200)) + '</div>';
+            }
+          }
+        } else {
+          // Just write, don't run
+          log.innerHTML += '<div class="ai-message ai-bot">✓ Code inserted. Click Run to execute.</div>';
+          break;
+        }
       }
-    } else {
-      log.innerHTML += '<div class="ai-message ai-bot">⚠ ' + escapeHtml(data.detail || 'Error') + '</div>';
+    } catch (e) {
+      // Remove loading
+      const loadingEl = document.getElementById(loadingId);
+      if (loadingEl) loadingEl.remove();
+      log.innerHTML += '<div class="ai-message ai-bot">⚠ Network error: ' + escapeHtml(e.message) + '</div>';
+      break;
     }
-  } catch (e) {
-    // Remove loading
-    const loadingEl = document.getElementById(loadingId);
-    if (loadingEl) loadingEl.remove();
-    log.innerHTML += '<div class="ai-message ai-bot">⚠ Network error: ' + escapeHtml(e.message) + '</div>';
-  } finally {
-    if (sendBtn) { sendBtn.disabled = false; }
+
     log.scrollTop = log.scrollHeight;
   }
+
+  if (sendBtn) { sendBtn.disabled = false; sendBtn.innerHTML = '&#9654;'; }
+  log.scrollTop = log.scrollHeight;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
