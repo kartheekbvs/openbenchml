@@ -344,6 +344,7 @@ from app.routes import auth, dashboard, models, datasets, benchmark, leaderboard
 from app.routes import competitions, comments  # noqa: E402
 from app.routes import convert  # noqa: E402
 from app.routes import notebook as notebook_route  # noqa: E402
+from app.routes import agent as agent_route  # noqa: E402
 # IMPORTANT: learn_project + learn_labs are included BEFORE learn so their
 # more specific paths (/learn/project, /learn/labs) are matched before
 # /learn/{slug} (which would otherwise catch "project" / "labs" as a slug
@@ -363,6 +364,7 @@ app.include_router(competitions.router)
 app.include_router(comments.router)
 app.include_router(convert.router)
 app.include_router(notebook_route.router)
+app.include_router(agent_route.router)
 app.include_router(learn_project_route.router)   # /learn/project — registered first
 app.include_router(learn_labs_route.router)       # /learn/labs    — registered second
 app.include_router(learn_route.router)            # /learn/{slug}  — registered last (catch-all)

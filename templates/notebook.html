@@ -115,6 +115,76 @@
     min-height: 60vh;
   }
 
+  /* ─── AI Assistant Panel ──────────────────────────────────── */
+  .ai-assistant-panel {
+    position: fixed; right: 0; top: 0; bottom: 0;
+    width: 380px; max-width: 90vw;
+    background: var(--bg-primary);
+    border-left: 1px solid var(--border);
+    z-index: 500;
+    display: flex; flex-direction: column;
+    box-shadow: -4px 0 20px rgba(0,0,0,0.15);
+  }
+  .ai-panel-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.8rem 1rem;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.95rem;
+  }
+  .ai-close-btn {
+    background: none; border: none; font-size: 1.2rem;
+    cursor: pointer; color: var(--text-secondary);
+  }
+  .ai-chat-log {
+    flex: 1; overflow-y: auto; padding: 1rem;
+    display: flex; flex-direction: column; gap: 0.6rem;
+  }
+  .ai-message {
+    padding: 0.6rem 0.8rem; border-radius: 8px;
+    font-size: 0.88rem; line-height: 1.5;
+    max-width: 90%;
+  }
+  .ai-message.ai-user {
+    background: var(--accent); color: white;
+    align-self: flex-end;
+  }
+  .ai-message.ai-bot {
+    background: var(--bg-elevated); color: var(--text-primary);
+    align-self: flex-start;
+  }
+  .ai-message.ai-code {
+    background: #0d1117; color: #e6edf3;
+    font-family: 'SF Mono', monospace; font-size: 0.82rem;
+    white-space: pre-wrap; word-break: break-word;
+    border: 1px solid var(--border);
+  }
+  .ai-message.ai-loading {
+    color: var(--text-secondary); font-style: italic;
+  }
+  .ai-input-row {
+    display: flex; gap: 0.5rem; padding: 0.8rem;
+    border-top: 1px solid var(--border);
+  }
+  .ai-input-row input {
+    flex: 1; padding: 0.5rem 0.8rem;
+    border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg-primary); color: var(--text-primary);
+    font-size: 0.88rem;
+  }
+  .ai-input-row input:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(160,192,0,0.15);
+  }
+  .ai-send-btn {
+    background: var(--accent); color: white;
+    border: none; border-radius: 6px;
+    padding: 0.5rem 1rem; cursor: pointer;
+    font-size: 0.88rem; font-weight: 600;
+  }
+  .ai-send-btn:hover { background: var(--accent-bright, #8aab00); }
+  .ai-send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
   /* ─── Cell — Colab-inspired ─────────────────────────────────── */
   .cell {
     margin: 0.5rem 0;
@@ -1019,6 +1089,12 @@ async function openNotebookOnHF() {
           <button class="toolbar-btn" onclick="exportIpynb()" title="Export as .ipynb (Jupyter)">&#8681; .ipynb</button>
         </div>
         <div class="toolbar-divider"></div>
+        <div class="toolbar-section">
+          <button class="toolbar-btn primary" id="ai-toggle-btn" onclick="toggleAiAssistant()" title="Ask AI to write code">
+            &#129504; Ask AI
+          </button>
+        </div>
+        <div class="toolbar-divider"></div>
         <!-- Download dropdown -->
         <div class="download-dropdown" id="download-dropdown">
           <button class="toolbar-btn" onclick="toggleDownloadMenu()" title="Download notebook">
@@ -1066,6 +1142,27 @@ async function openNotebookOnHF() {
         <button class="add-cell-btn" onclick="addTextCell()">+ Text</button>
       </div>
     </div><!-- /panel-notebook -->
+
+    <!-- ═══════════════ AI ASSISTANT PANEL ═══════════════ -->
+    <div id="ai-assistant-panel" class="ai-assistant-panel" style="display:none;">
+      <div class="ai-panel-header">
+        <span style="font-weight:600;">&#129504; AI Assistant</span>
+        <button class="ai-close-btn" onclick="toggleAiAssistant()">&#10005;</button>
+      </div>
+      <div class="ai-chat-log" id="ai-chat-log">
+        <div class="ai-message ai-bot">
+          Hi! I can write ML code for you. Try:<br>
+          <em>"Train a random forest on iris"</em><br>
+          <em>"Load the titanic dataset and do EDA"</em><br>
+          <em>"Plot a confusion matrix"</em>
+        </div>
+      </div>
+      <div class="ai-input-row">
+        <input type="text" id="ai-input" placeholder="Ask me to write code..."
+               onkeydown="if(event.key==='Enter') sendAiMessage()" />
+        <button class="ai-send-btn" onclick="sendAiMessage()">&#9654;</button>
+      </div>
+    </div>
 
     <!-- ─── Terminal view (xterm.js + WebSocket) ────────────────── -->
     <div class="view-panel" id="panel-terminal">
@@ -1601,6 +1698,105 @@ function _hideAutocomplete() {
 function _maybeTriggerAutocomplete(ta, cell) {
   if (_acDebounceTimer) clearTimeout(_acDebounceTimer);
   _acDebounceTimer = setTimeout(() => _fetchCompletions(ta, cell), 180);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  AI ASSISTANT — write code via natural language (Entropy-inspired)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function toggleAiAssistant() {
+  const panel = document.getElementById('ai-assistant-panel');
+  if (!panel) return;
+  panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+  if (panel.style.display === 'flex') {
+    setTimeout(() => document.getElementById('ai-input')?.focus(), 100);
+  }
+}
+
+async function sendAiMessage() {
+  const input = document.getElementById('ai-input');
+  const log = document.getElementById('ai-chat-log');
+  const sendBtn = document.querySelector('.ai-send-btn');
+  if (!input || !log) return;
+
+  const message = input.value.trim();
+  if (!message) return;
+
+  // Show user message
+  log.innerHTML += '<div class="ai-message ai-user">' + escapeHtml(message) + '</div>';
+  input.value = '';
+  log.scrollTop = log.scrollHeight;
+
+  // Show loading
+  const loadingId = 'ai-loading-' + Date.now();
+  log.innerHTML += '<div class="ai-message ai-bot ai-loading" id="' + loadingId + '">&#8987; Thinking...</div>';
+  log.scrollTop = log.scrollHeight;
+
+  if (sendBtn) { sendBtn.disabled = true; }
+
+  try {
+    // Get context from the last cell's output
+    let context = '';
+    if (cells.length > 0) {
+      const lastCell = cells[cells.length - 1];
+      if (lastCell.output && lastCell.output.stdout) {
+        context = lastCell.output.stdout.substring(0, 500);
+      }
+    }
+
+    const resp = await fetch('/api/agent/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: message, context: context }),
+    });
+
+    const data = await resp.json();
+
+    // Remove loading
+    const loadingEl = document.getElementById(loadingId);
+    if (loadingEl) loadingEl.remove();
+
+    if (data.ok) {
+      // Show explanation
+      if (data.explanation) {
+        log.innerHTML += '<div class="ai-message ai-bot">' + escapeHtml(data.explanation) + '</div>';
+      }
+
+      // Show code preview
+      if (data.code) {
+        log.innerHTML += '<div class="ai-message ai-code">' + escapeHtml(data.code) + '</div>';
+      }
+
+      // Insert code into a new cell + run it
+      if (data.code && data.action === 'write_and_run') {
+        const newCell = addCodeCell('', selectedCellId);
+        newCell.source = data.code;
+        rerenderAll();
+        selectCell(newCell.id);
+        // Auto-run after a short delay (let CodeMirror initialize)
+        setTimeout(() => {
+          runCell(newCell.id);
+        }, 300);
+        log.innerHTML += '<div class="ai-message ai-bot">✓ Code inserted and running...</div>';
+      } else if (data.code && data.action === 'write') {
+        const newCell = addCodeCell('', selectedCellId);
+        newCell.source = data.code;
+        rerenderAll();
+        selectCell(newCell.id);
+        log.innerHTML += '<div class="ai-message ai-bot">✓ Code inserted. Click Run to execute.</div>';
+      }
+    } else {
+      log.innerHTML += '<div class="ai-message ai-bot">⚠ ' + escapeHtml(data.detail || 'Error') + '</div>';
+    }
+  } catch (e) {
+    // Remove loading
+    const loadingEl = document.getElementById(loadingId);
+    if (loadingEl) loadingEl.remove();
+    log.innerHTML += '<div class="ai-message ai-bot">⚠ Network error: ' + escapeHtml(e.message) + '</div>';
+  } finally {
+    if (sendBtn) { sendBtn.disabled = false; }
+    log.scrollTop = log.scrollHeight;
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
