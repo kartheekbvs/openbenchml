@@ -118,26 +118,28 @@
   /* ─── AI Assistant Panel ──────────────────────────────────── */
   .ai-assistant-panel {
     position: fixed; right: 0; top: 0; bottom: 0;
-    width: 380px; max-width: 90vw;
+    width: 340px; max-width: 90vw;
     background: var(--bg-primary);
-    border-left: 1px solid var(--border);
+    border-left: 2px solid var(--accent);
     z-index: 500;
     display: flex; flex-direction: column;
-    box-shadow: -4px 0 20px rgba(0,0,0,0.15);
+    box-shadow: -4px 0 20px rgba(0,0,0,0.25);
   }
   .ai-panel-header {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 0.8rem 1rem;
+    padding: 0.6rem 0.8rem;
     background: var(--bg-elevated);
     border-bottom: 1px solid var(--border);
-    font-size: 0.95rem;
+    font-size: 0.9rem;
+    min-height: 44px;
   }
+  .ai-panel-header span { padding-right: 0.5rem; }
   .ai-close-btn {
     background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3);
     font-size: 1rem; cursor: pointer;
-    color: #f85149; width: 32px; height: 32px;
+    color: #f85149; width: 28px; height: 28px;
     border-radius: 6px; display: flex; align-items: center; justify-content: center;
-    transition: all 0.15s;
+    transition: all 0.15s; flex-shrink: 0;
   }
   .ai-close-btn:hover {
     background: rgba(239, 68, 68, 0.3); color: #fff;
@@ -695,6 +697,14 @@
     grid-template-columns: 280px 1fr;
     gap: 1rem;
     align-items: start;
+    transition: margin-right 0.2s ease;
+  }
+  /* When AI panel is open, push the whole app left so nothing overlaps */
+  .nb-app.ai-open {
+    margin-right: 340px;
+  }
+  @media (max-width: 768px) {
+    .nb-app.ai-open { margin-right: 0; }
   }
   /* Collapsed state: narrow rail with a single folder button */
   .nb-app.sidebar-collapsed { grid-template-columns: 44px 1fr; }
@@ -1715,9 +1725,19 @@ const MAX_AGENT_ITERATIONS = 3;  // Max fix-retry loops
 function toggleAiAssistant() {
   const panel = document.getElementById('ai-assistant-panel');
   const btn = document.getElementById('ai-toggle-btn');
+  const app = document.getElementById('nb-app');
   if (!panel) return;
   const isOpen = panel.style.display === 'flex';
   panel.style.display = isOpen ? 'none' : 'flex';
+
+  // Push the notebook content left when AI panel is open (prevents overlap)
+  if (app) {
+    if (isOpen) {
+      app.classList.remove('ai-open');
+    } else {
+      app.classList.add('ai-open');
+    }
+  }
 
   // Update the toolbar button to show open/close state
   if (btn) {
