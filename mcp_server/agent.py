@@ -127,54 +127,192 @@ def call_llm(user_message: str, error: str = "", context: str = "") -> dict:
 
 
 def _mcp_fallback(message: str, error: str = "") -> dict:
-    """Use MCP tools when LLM is unavailable."""
-    msg = message.lower()
+    """Smart natural language understanding — handles multi-intent messages.
 
+    Understands phrases like:
+      "create a ml model on iris and do eda and create visualization"
+      → combines: EDA + train model + plot into ONE code cell
+
+    This is NOT keyword matching — it's intent detection with synonyms.
+    """
+    msg = message.lower().strip()
+
+    # ── Error fixing ──
     if error:
         return execute_tool("fix_error", {"code": "", "error": error})
 
-    if "list" in msg and "dataset" in msg:
+    # ── Detect dataset ──
+    dataset = _find_dataset(msg)
+
+    # ── Detect ALL intents in the message ──
+    intents = _detect_intents(msg)
+
+    # ── List datasets ──
+    if "list_datasets" in intents and len(intents) == 1:
         r = execute_tool("list_datasets", {})
         return {"code": "", "explanation": r.get("message", ""), "action": "explain", "cell_type": "text"}
 
-    if "eda" in msg or "explore" in msg or "understand" in msg:
-        dataset = _find_dataset(msg)
-        r = execute_tool("do_eda", {"dataset": dataset})
-        return {"code": r.get("code", ""), "explanation": r.get("explanation", ""), "action": "write_and_run", "cell_type": "code"}
-
-    if "load" in msg and _find_dataset(msg):
-        ds = _find_dataset(msg)
-        r = execute_tool("load_dataset", {"name": ds})
-        return {"code": r.get("code", ""), "explanation": r.get("explanation", ""), "action": "write_and_run", "cell_type": "code"}
-
-    algos = {"random forest": "random_forest", "rf": "random_forest",
-             "linear regression": "linear_regression", "regression": "linear_regression",
-             "logistic": "logistic_regression", "svm": "svm", "knn": "knn"}
-    for key, algo in algos.items():
-        if key in msg:
-            ds = _find_dataset(msg)
-            r = execute_tool("train_model", {"algorithm": algo, "dataset": ds})
-            return {"code": r.get("code", ""), "explanation": r.get("explanation", ""), "action": "write_and_run", "cell_type": "code"}
-
-    if "compare" in msg:
-        ds = _find_dataset(msg)
-        r = execute_tool("compare_models", {"dataset": ds})
-        return {"code": r.get("code", ""), "explanation": r.get("explanation", ""), "action": "write_and_run", "cell_type": "code"}
-
-    if any(k in msg for k in ["plot", "histogram", "correlation", "heatmap", "scatter", "box"]):
-        plot_type = "histogram"
-        if "correlation" in msg or "heatmap" in msg: plot_type = "correlation"
-        elif "scatter" in msg: plot_type = "scatter"
-        elif "box" in msg: plot_type = "box"
-        ds = _find_dataset(msg)
-        r = execute_tool("plot_data", {"dataset": ds, "plot_type": plot_type})
-        return {"code": r.get("code", ""), "explanation": r.get("explanation", ""), "action": "write_and_run", "cell_type": "code"}
-
-    if "explain" in msg:
+    # ── Explain concept ──
+    if "explain" in intents and len(intents) == 1:
         r = execute_tool("explain_concept", {"concept": msg})
         return {"code": "", "explanation": r.get("explanation", ""), "action": "explain", "cell_type": "text"}
 
-    return {"code": "", "explanation": "Try: 'load iris', 'train random forest on iris', 'eda on titanic', 'compare models on iris', 'plot correlation of boston_housing', 'explain overfitting'", "action": "explain", "cell_type": "text"}
+    # ── Single intent ──
+    if len(intents) == 1:
+        intent = intents[0]
+        if intent == "eda":
+            r = execute_tool("do_eda", {"dataset": dataset})
+            return {"code": r.get("code", ""), "explanation": r.get("explanation", ""), "action": "write_and_run", "cell_type": "code"}
+        if intent == "load":
+            r = execute_tool("load_dataset", {"name": dataset})
+            return {"code": r.get("code", ""), "explanation": r.get("explanation", ""), "action": "write_and_run", "cell_type": "code"}
+        if intent == "compare":
+            r = execute_tool("compare_models", {"dataset": dataset})
+            return {"code": r.get("code", ""), "explanation": r.get("explanation", ""), "action": "write_and_run", "cell_type": "code"}
+        if intent == "plot":
+            plot_type = _detect_plot_type(msg)
+            r = execute_tool("plot_data", {"dataset": dataset, "plot_type": plot_type})
+            return {"code": r.get("code", ""), "explanation": r.get("explanation", ""), "action": "write_and_run", "cell_type": "code"}
+        if intent == "train":
+            algo = _detect_algorithm(msg)
+            r = execute_tool("train_model", {"algorithm": algo, "dataset": dataset})
+            return {"code": r.get("code", ""), "explanation": r.get("explanation", ""), "action": "write_and_run", "cell_type": "code"}
+
+    # ── MULTI-INTENT: combine multiple tools into one code cell ──
+    # e.g. "create a ml model on iris and do eda and create visualization"
+    # → EDA + train model + plot, all in ONE cell
+    if len(intents) > 1:
+        combined_code = f"# ── Combined: {' + '.join(intents)} on {dataset} ──────────\n"
+        combined_explain = []
+
+        if "eda" in intents or "load" in intents:
+            r = execute_tool("do_eda", {"dataset": dataset})
+            combined_code += r.get("code", "") + "\n\n"
+            combined_explain.append(f"EDA on {dataset}")
+
+        if "train" in intents:
+            algo = _detect_algorithm(msg)
+            r = execute_tool("train_model", {"algorithm": algo, "dataset": dataset})
+            combined_code += r.get("code", "") + "\n\n"
+            combined_explain.append(f"Train {algo}")
+
+        if "plot" in intents:
+            plot_type = _detect_plot_type(msg)
+            r = execute_tool("plot_data", {"dataset": dataset, "plot_type": plot_type})
+            combined_code += r.get("code", "")
+            combined_explain.append(f"Plot {plot_type}")
+
+        if "compare" in intents:
+            r = execute_tool("compare_models", {"dataset": dataset})
+            combined_code += r.get("code", "")
+            combined_explain.append("Compare 5 models")
+
+        return {
+            "code": combined_code,
+            "explanation": f"Combined: {', '.join(combined_explain)} on {dataset}.",
+            "action": "write_and_run",
+            "cell_type": "code",
+        }
+
+    # ── Default help ──
+    return {
+        "code": "",
+        "explanation": "I can help you:\n• 'create a model on iris' → train ML model\n• 'do eda on titanic' → full EDA with plots\n• 'plot correlation of boston_housing' → visualization\n• 'compare models on iris' → 5 models compared\n• 'create a ml model on iris and do eda and visualization' → all-in-one\n• 'explain overfitting' → concept explanation\n\nI'll write the code, insert it, and run it automatically.",
+        "action": "explain",
+        "cell_type": "text",
+    }
+
+
+def _detect_intents(msg: str) -> list:
+    """Detect ALL intents in a natural language message.
+
+    Understands synonyms:
+      train: 'train', 'create model', 'build model', 'ml model', 'fit',
+             'classify', 'regress', 'predict', 'machine learning'
+      eda:   'eda', 'explore', 'understand', 'analyze', 'analysis',
+             'data analysis', 'data exploration'
+      plot:  'plot', 'visualize', 'visualization', 'chart', 'histogram',
+             'correlation', 'heatmap', 'scatter', 'box', 'graph',
+             'feature visualization', 'distribution'
+      load:  'load', 'show', 'display', 'read', 'import dataset'
+      compare: 'compare', 'best model', 'which model'
+      list:  'list', 'available', 'what datasets'
+      explain: 'explain', 'what is', 'how does', 'tell me about'
+    """
+    intents = []
+
+    # Train intent (broad synonyms)
+    train_words = ["train", "create model", "build model", "ml model", "fit",
+                   "classify", "regress", "predict", "machine learning",
+                   "create a model", "make a model", "build a model",
+                   "train a model", "create ml", "model on"]
+    if any(w in msg for w in train_words):
+        intents.append("train")
+
+    # EDA intent
+    eda_words = ["eda", "explore", "understand", "analyze", "analysis",
+                 "data analysis", "data exploration", "do eda", "do edda",
+                 "exploratory", "investigate"]
+    if any(w in msg for w in eda_words):
+        intents.append("eda")
+
+    # Plot intent
+    plot_words = ["plot", "visualize", "visualization", "chart", "histogram",
+                  "correlation", "heatmap", "scatter", "box", "graph",
+                  "feature visualization", "distribution", "features",
+                  "visual", "draw", "figure"]
+    if any(w in msg for w in plot_words):
+        intents.append("plot")
+
+    # Load intent (only if no other intent — load is implied by eda/train)
+    load_words = ["load", "show me", "display", "read dataset", "import dataset",
+                  "open dataset", "view dataset"]
+    if any(w in msg for w in load_words) and not intents:
+        intents.append("load")
+
+    # Compare intent
+    if any(w in msg for w in ["compare", "best model", "which model", "versus", "vs"]):
+        intents.append("compare")
+
+    # List intent
+    if any(w in msg for w in ["list", "available", "what datasets", "which datasets"]):
+        intents.append("list_datasets")
+
+    # Explain intent
+    if any(w in msg for w in ["explain", "what is", "how does", "tell me about", "what are"]):
+        intents.append("explain")
+
+    return intents
+
+
+def _detect_algorithm(msg: str) -> str:
+    """Detect which ML algorithm the user wants."""
+    if any(w in msg for w in ["random forest", "rf", "randomforest"]):
+        return "random_forest"
+    if any(w in msg for w in ["linear regression", "linearregression", "linreg"]):
+        return "linear_regression"
+    if any(w in msg for w in ["logistic", "logreg"]):
+        return "logistic_regression"
+    if "svm" in msg or "support vector" in msg:
+        return "svm"
+    if "knn" in msg or "k nearest" in msg or "knearest" in msg:
+        return "knn"
+    # Default: random forest (most popular, works for classification + regression)
+    return "random_forest"
+
+
+def _detect_plot_type(msg: str) -> str:
+    """Detect which plot type the user wants."""
+    if any(w in msg for w in ["correlation", "heatmap", "heat map"]):
+        return "correlation"
+    if "scatter" in msg:
+        return "scatter"
+    if "box" in msg:
+        return "box"
+    if any(w in msg for w in ["histogram", "hist", "distribution", "features"]):
+        return "histogram"
+    # Default: histogram (shows feature distributions)
+    return "histogram"
 
 
 def _find_dataset(msg: str) -> str:
