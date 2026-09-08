@@ -1794,6 +1794,24 @@ async function sendAiMessage() {
         }),
       });
 
+      // Handle non-JSON responses (401 redirect, 500 HTML error page)
+      if (!resp.ok) {
+        const loadingEl = document.getElementById(loadingId);
+        if (loadingEl) loadingEl.remove();
+        let errMsg = 'Error ' + resp.status;
+        try {
+          const errorData = await resp.json();
+          errMsg = errorData.error || errorData.detail || errMsg;
+        } catch (e) {
+          // Response is HTML (not JSON) — probably 401 redirect
+          errMsg = resp.status === 401
+            ? 'Please log in to use the AI assistant.'
+            : 'Server error (' + resp.status + '). Try again.';
+        }
+        log.innerHTML += '<div class="ai-message ai-bot">⚠ ' + escapeHtml(errMsg) + '</div>';
+        break;
+      }
+
       const data = await resp.json();
 
       // Remove loading
@@ -1801,7 +1819,7 @@ async function sendAiMessage() {
       if (loadingEl) loadingEl.remove();
 
       if (!data.ok) {
-        log.innerHTML += '<div class="ai-message ai-bot">Error: ' + escapeHtml(data.detail || 'Unknown') + '</div>';
+        log.innerHTML += '<div class="ai-message ai-bot">⚠ ' + escapeHtml(data.error || data.detail || 'Unknown error') + '</div>';
         break;
       }
 
