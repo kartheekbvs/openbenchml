@@ -179,9 +179,7 @@ def _mcp_fallback(message: str, error: str = "") -> dict:
             return {"code": r.get("code", ""), "explanation": r.get("explanation", ""), "action": "write_and_run", "cell_type": "code"}
 
     # ── MULTI-INTENT: combine multiple tools into one code cell ──
-    # e.g. "create a ml model on iris and do eda and create visualization"
-    # → EDA + train model + plot, all in ONE cell
-    if len(intents) > 1:
+    if len(intents) > 1 or "preprocess" in intents:
         combined_code = f"# ── Combined: {' + '.join(intents)} on {dataset} ──────────\n"
         combined_explain = []
 
@@ -189,6 +187,11 @@ def _mcp_fallback(message: str, error: str = "") -> dict:
             r = execute_tool("do_eda", {"dataset": dataset})
             combined_code += r.get("code", "") + "\n\n"
             combined_explain.append(f"EDA on {dataset}")
+
+        if "preprocess" in intents:
+            pre_code = _code_preprocessing(dataset)
+            combined_code += pre_code + "\n\n"
+            combined_explain.append("Preprocessing (outliers + scaling + encoding)")
 
         if "train" in intents:
             algo = _detect_algorithm(msg)
@@ -245,22 +248,37 @@ def _detect_intents(msg: str) -> list:
     train_words = ["train", "create model", "build model", "ml model", "fit",
                    "classify", "regress", "predict", "machine learning",
                    "create a model", "make a model", "build a model",
-                   "train a model", "create ml", "model on"]
+                   "train a model", "create ml", "model on",
+                   "multiple linear", "multiple regression", "multivariate",
+                   "linear regression", "logistic", "random forest",
+                   "svm", "knn", "decision tree", "gradient boost",
+                   "train a", "build a ml", "create a ml"]
     if any(w in msg for w in train_words):
         intents.append("train")
 
     # EDA intent
     eda_words = ["eda", "explore", "understand", "analyze", "analysis",
                  "data analysis", "data exploration", "do eda", "do edda",
-                 "exploratory", "investigate"]
+                 "exploratory", "investigate", "high level"]
     if any(w in msg for w in eda_words):
         intents.append("eda")
+
+    # Preprocessing intent (NEW)
+    preprocess_words = ["preprocess", "preprocessing", "clean", "cleaning",
+                        "outlier", "outliers", "missing value", "null",
+                        "impute", "imputation", "encode", "encoding",
+                        "scale", "scaling", "normalize", "standardize",
+                        "feature selection", "select feature", "select k",
+                        "transform", "pipeline"]
+    if any(w in msg for w in preprocess_words):
+        intents.append("preprocess")
 
     # Plot intent
     plot_words = ["plot", "visualize", "visualization", "chart", "histogram",
                   "correlation", "heatmap", "scatter", "box", "graph",
                   "feature visualization", "distribution", "features",
-                  "visual", "draw", "figure"]
+                  "visual", "draw", "figure", "box plot", "relation",
+                  "relationship", "loss", "losses", "residual"]
     if any(w in msg for w in plot_words):
         intents.append("plot")
 
@@ -289,7 +307,10 @@ def _detect_algorithm(msg: str) -> str:
     """Detect which ML algorithm the user wants."""
     if any(w in msg for w in ["random forest", "rf", "randomforest"]):
         return "random_forest"
-    if any(w in msg for w in ["linear regression", "linearregression", "linreg"]):
+    if any(w in msg for w in ["multiple linear", "multiple regression",
+                              "multivariate linear", "linear regression",
+                              "linearregression", "linreg", "multiple leniar",
+                              "mutiple leniar", "mutliple"]):
         return "linear_regression"
     if any(w in msg for w in ["logistic", "logreg"]):
         return "logistic_regression"
@@ -307,7 +328,7 @@ def _detect_plot_type(msg: str) -> str:
         return "correlation"
     if "scatter" in msg:
         return "scatter"
-    if "box" in msg:
+    if any(w in msg for w in ["box", "outlier"]):
         return "box"
     if any(w in msg for w in ["histogram", "hist", "distribution", "features"]):
         return "histogram"
@@ -315,11 +336,145 @@ def _detect_plot_type(msg: str) -> str:
     return "histogram"
 
 
+def _code_preprocessing(dataset: str) -> str:
+    """Generate preprocessing code: outliers, encoding, scaling, feature selection."""
+    target = _detect_target_from_dataset(dataset)
+    return f"""# ── Preprocessing on {dataset} ──────────────────────────
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.feature_selection import SelectKBest, f_regression, f_classif
+
+df = pd.read_csv('/workspace/datasets/registry/{dataset}.csv')
+print(f'Before preprocessing: {{df.shape}}')
+
+# 1. Handle missing values
+print(f'\\nMissing values: {{df.isnull().sum().sum()}}')
+if df.isnull().sum().sum() > 0:
+    for col in df.columns:
+        if df[col].dtype == 'object':
+            df[col].fillna(df[col].mode()[0], inplace=True)
+        else:
+            df[col].fillna(df[col].median(), inplace=True)
+    print('✓ Filled missing values')
+
+# 2. Encode categorical columns
+cat_cols = df.select_dtypes(include=['object']).columns
+for col in cat_cols:
+    df[col] = LabelEncoder().fit_transform(df[col].astype(str))
+    print(f'✓ Encoded: {{col}}')
+
+# 3. Outlier detection + removal (IQR method)
+numeric_cols = df.select_dtypes(include=[np.number]).columns
+outlier_count = 0
+for col in numeric_cols:
+    Q1, Q3 = df[col].quantile([0.25, 0.75])
+    IQR = Q3 - Q1
+    lower, upper = Q1 - 1.5 * IQR, Q3 + 1.5 * IQR
+    outliers = ((df[col] < lower) | (df[col] > upper)).sum()
+    if outliers > 0:
+        print(f'  {{col}}: {{outliers}} outliers detected')
+        outlier_count += outliers
+
+# Box plot BEFORE outlier removal
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+df[numeric_cols].plot.box(ax=axes[0], rot=45)
+axes[0].set_title('Before Outlier Removal')
+
+# Remove outliers
+for col in numeric_cols:
+    Q1, Q3 = df[col].quantile([0.25, 0.75])
+    IQR = Q3 - Q1
+    lower, upper = Q1 - 1.5 * IQR, Q3 + 1.5 * IQR
+    df = df[(df[col] >= lower) & (df[col] <= upper)]
+
+print(f'\\nAfter outlier removal: {{df.shape}} (removed {{outlier_count}} outliers)')
+
+# Box plot AFTER
+df[numeric_cols].plot.box(ax=axes[1], rot=45)
+axes[1].set_title('After Outlier Removal')
+plt.tight_layout()
+
+# 4. Feature scaling
+X = df.drop(columns=['{target}'])
+y = df['{target}']
+scaler = StandardScaler()
+X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=X.columns)
+print(f'\\n✓ Scaled features (StandardScaler)')
+
+# 5. Feature selection
+is_cls = y.nunique() <= 20
+selector = SelectKBest(f_classif if is_cls else f_regression, k=min(5, len(X.columns)))
+selector.fit(X_scaled, y)
+scores = pd.DataFrame({{
+    'feature': X.columns,
+    'score': selector.scores_
+}}).sort_values('score', ascending=False)
+print(f'\\nFeature Selection (top 5):')
+print(scores.head().to_string(index=False))
+
+# Plot feature scores
+fig, ax = plt.subplots(figsize=(8, 4))
+scores.head(10).plot.bar(x='feature', y='score', ax=ax, color='#71c84b')
+ax.set_title('Feature Importance (SelectKBest)')
+plt.tight_layout()
+print(f'\\n✓ Preprocessing complete.')"""
+
+
+def _detect_target_from_dataset(dataset: str) -> str:
+    """Detect the target column for a dataset."""
+    from mcp_server.tools import _detect_target
+    return _detect_target(dataset)
+
+
 def _find_dataset(msg: str) -> str:
+    """Find a dataset name in the message — handles spaces and underscores.
+
+    'boston housing' → 'boston_housing'
+    'boston_housing' → 'boston_housing'
+    'wine quality red' → 'wine_quality_red'
+    """
     from mcp_server.tools import _list_datasets
-    for ds in _list_datasets():
-        if ds in msg:
+    datasets = _list_datasets()
+    msg_lower = msg.lower()
+
+    # Direct match (underscore version)
+    for ds in datasets:
+        if ds in msg_lower:
             return ds
+
+    # Try with spaces → underscores: "boston housing" → "boston_housing"
+    for ds in datasets:
+        spaced = ds.replace("_", " ")
+        if spaced in msg_lower:
+            return ds
+
+    # Try partial matches: "boston" → "boston_housing", "wine" → "wine_recognition"
+    partial_map = {
+        "boston": "boston_housing",
+        "california": "california_housing",
+        "breast": "breast_cancer",
+        "credit": "credit_card_fraud",
+        "electric": "electric_cars",
+        "concrete": "concrete_strength",
+        "student": "student_grades",
+        "spam": "spam_email",
+        "titanic": "titanic",
+        "iris": "iris",
+        "penguin": "penguins",
+        "diabetes": "pima_diabetes",
+        "heart": "heart_disease",
+        "wine": "wine_recognition",
+        "abalone": "abalone",
+        "insurance": "insurance",
+        "mpg": "auto_mpg",
+        "banknote": "banknote_authentication",
+    }
+    for key, ds in partial_map.items():
+        if key in msg_lower and ds in datasets:
+            return ds
+
     return "iris"
 
 
