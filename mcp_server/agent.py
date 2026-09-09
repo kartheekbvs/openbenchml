@@ -89,15 +89,37 @@ main();
 
 
 def call_llm(user_message: str, error: str = "", context: str = "") -> dict:
-    """Call the LLM via z-ai SDK. Falls back to MCP tools."""
+    """Call the LLM via the persistent Node.js bridge.
 
-    prompt = f"User: {user_message}"
+    This is the REAL LLM call — not templates. The LLM generates code
+    dynamically based on the user's request + context + errors.
+
+    Falls back to MCP tools ONLY if the LLM is completely unavailable.
+    """
+    prompt = f"User request: {user_message}"
     if context:
-        prompt += f"\n\nPrevious output:\n{context[:600]}"
+        prompt += f"\n\nPrevious cell output:\n{context[:800]}"
     if error:
-        prompt += f"\n\nERROR to fix:\n{error[:600]}\n\nOutput ONLY corrected code as JSON."
+        prompt += f"\n\nERROR from last code execution:\n{error[:800]}"
+        prompt += "\n\nAnalyze the error and output ONLY the corrected code as JSON."
 
-    # Layer 1: z-ai CLI
+    # Layer 1: Persistent Node.js bridge (RELIABLE — stays alive between requests)
+    try:
+        from mcp_server.llm_client import call_llm_via_bridge
+        text = call_llm_via_bridge(_SYSTEM_PROMPT, prompt, timeout=25)
+        if text:
+            # Extract JSON from the LLM response
+            s, e = text.find("{"), text.rfind("}") + 1
+            if s != -1 and e > s:
+                result = json.loads(text[s:e])
+                if "code" in result:
+                    return result
+            # LLM responded but no JSON — wrap it
+            return {"code": "", "explanation": text[:1000], "action": "explain", "cell_type": "text"}
+    except Exception as e:
+        print(f"[agent] Bridge call failed: {e}", file=sys.stderr)
+
+    # Layer 2: z-ai CLI (fallback if bridge is down)
     try:
         r = subprocess.run(["z-ai", "chat", "--prompt", prompt, "--system", _SYSTEM_PROMPT],
                            capture_output=True, text=True, timeout=25)
@@ -109,20 +131,7 @@ def call_llm(user_message: str, error: str = "", context: str = "") -> dict:
     except Exception:
         pass
 
-    # Layer 2: Node.js SDK
-    try:
-        r = subprocess.run(["node", "-e", _NODE_SCRIPT],
-                           capture_output=True, text=True, timeout=30,
-                           env={**os.environ, "OBML_SYS": _SYSTEM_PROMPT, "OBML_USR": prompt})
-        if r.returncode == 0 and r.stdout:
-            text = r.stdout.strip()
-            s, e = text.find("{"), text.rfind("}") + 1
-            if s != -1 and e > s:
-                return json.loads(text[s:e])
-    except Exception:
-        pass
-
-    # Layer 3: MCP tool fallback (always works)
+    # Layer 3: MCP tool fallback (templates — only if ALL LLM calls fail)
     return _mcp_fallback(user_message, error)
 
 

@@ -1775,6 +1775,17 @@ async function sendAiMessage() {
   let lastError = '';
   let context = '';
 
+  // Get the CURRENT cell's code + output for context (like Colab's explain error)
+  function getCurrentCellContext() {
+    if (!selectedCellId) return { code: '', output: '' };
+    const cell = cells.find(c => c.id === selectedCellId);
+    if (!cell) return { code: '', output: '' };
+    return {
+      code: cell.source || '',
+      output: cell.output ? (cell.output.stdout || '') + (cell.output.stderr || '') : '',
+    };
+  }
+
   for (let iteration = 0; iteration < MAX_AGENT_ITERATIONS; iteration++) {
     // Show loading
     const loadingId = 'ai-loading-' + Date.now() + '-' + iteration;
@@ -1783,13 +1794,16 @@ async function sendAiMessage() {
     log.scrollTop = log.scrollHeight;
 
     try {
-      // Call the agent API
+      // Call the agent API — send cell code + output as context (like Colab)
+      const cellCtx = getCurrentCellContext();
+      const fullContext = cellCtx.code ? 'Current cell code:\n' + cellCtx.code.substring(0, 500) + (cellCtx.output ? '\n\nOutput:\n' + cellCtx.output.substring(0, 300) : '') : context;
+
       const resp = await fetch('/api/agent/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: currentMessage,
-          context: context,
+          context: fullContext,
           error: lastError,
         }),
       });
