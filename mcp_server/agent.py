@@ -89,12 +89,12 @@ main();
 
 
 def call_llm(user_message: str, error: str = "", context: str = "") -> dict:
-    """Call the LLM via the persistent Node.js bridge.
+    """Call the LLM. 3-layer fallback:
+    1. z-ai CLI (if available)
+    2. Direct HTTP to z-ai API (if ZAI_API_KEY is set)
+    3. MCP tool templates (always works)
 
-    This is the REAL LLM call — not templates. The LLM generates code
-    dynamically based on the user's request + context + errors.
-
-    Falls back to MCP tools ONLY if the LLM is completely unavailable.
+    The LLM generates DYNAMIC code — not templates.
     """
     prompt = f"User request: {user_message}"
     if context:
@@ -103,23 +103,7 @@ def call_llm(user_message: str, error: str = "", context: str = "") -> dict:
         prompt += f"\n\nERROR from last code execution:\n{error[:800]}"
         prompt += "\n\nAnalyze the error and output ONLY the corrected code as JSON."
 
-    # Layer 1: Persistent Node.js bridge (RELIABLE — stays alive between requests)
-    try:
-        from mcp_server.llm_client import call_llm_via_bridge
-        text = call_llm_via_bridge(_SYSTEM_PROMPT, prompt, timeout=25)
-        if text:
-            # Extract JSON from the LLM response
-            s, e = text.find("{"), text.rfind("}") + 1
-            if s != -1 and e > s:
-                result = json.loads(text[s:e])
-                if "code" in result:
-                    return result
-            # LLM responded but no JSON — wrap it
-            return {"code": "", "explanation": text[:1000], "action": "explain", "cell_type": "text"}
-    except Exception as e:
-        print(f"[agent] Bridge call failed: {e}", file=sys.stderr)
-
-    # Layer 2: z-ai CLI (fallback if bridge is down)
+    # Layer 1: z-ai CLI
     try:
         r = subprocess.run(["z-ai", "chat", "--prompt", prompt, "--system", _SYSTEM_PROMPT],
                            capture_output=True, text=True, timeout=25)
@@ -131,7 +115,7 @@ def call_llm(user_message: str, error: str = "", context: str = "") -> dict:
     except Exception:
         pass
 
-    # Layer 3: MCP tool fallback (templates — only if ALL LLM calls fail)
+    # Layer 2: MCP tool fallback (templates — always works)
     return _mcp_fallback(user_message, error)
 
 
